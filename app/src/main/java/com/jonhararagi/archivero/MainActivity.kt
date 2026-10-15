@@ -358,7 +358,7 @@ fun ArchiveroApp() {
                 key(playerUri.toString()) {
                     val exo = remember(playerUri) { ExoPlayer.Builder(context).build().apply { setMediaItem(MediaItem.fromUri(playerUri!!)); prepare(); playWhenReady = true } }
                     DisposableEffect(exo) { onDispose { exo.release() } }
-                    AndroidView(Modifier.fillMaxWidth().weight(1f), factory = { PlayerView(it).apply { player = exo; useController = true } }, update = { it.player = exo })
+                    AndroidView(factory = { ctx -> PlayerView(ctx).apply { player = exo; useController = true } }, modifier = Modifier.fillMaxWidth().weight(1f), update = { view -> view.player = exo })
                 }
             }
         }
