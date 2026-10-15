@@ -546,6 +546,7 @@ fun ArchiveroApp() {
             )
         }
     }
+}
 
     if (newFolderDialog) AlertDialog(
         onDismissRequest = { newFolderDialog = false }, title = { Text("Nueva carpeta") },
