@@ -51,6 +51,7 @@ fun ArchiveroApp() {
     var playerUri by remember { mutableStateOf<Uri?>(null) }
     var playerTitle by remember { mutableStateOf("Reproductor") }
     var playerIsVideo by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
     val chooseMedia = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             try { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: SecurityException) { }
@@ -84,6 +85,10 @@ fun ArchiveroApp() {
     val current = currentFolder
     val entries = remember(current, refresh) {
         current?.listFiles()?.sortedWith(compareBy<DocumentFile> { !it.isDirectory }.thenBy { it.name?.lowercase() ?: "" })?.toList().orEmpty()
+    }
+    val visibleEntries = remember(entries, searchQuery) {
+        val query = searchQuery.trim()
+        if (query.isEmpty()) entries else entries.filter { it.name.orEmpty().contains(query, ignoreCase = true) }
     }
 
     MaterialTheme(colorScheme = lightColorScheme(primary = androidx.compose.ui.graphics.Color(0xFF315DA8), secondary = androidx.compose.ui.graphics.Color(0xFF5479B8))) {
@@ -140,19 +145,30 @@ fun ArchiveroApp() {
                     }
                 } else {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Text("${entries.size} elementos", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                        Text("${visibleEntries.size} elementos", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
                         TextButton(onClick = { showNewFolder = true }) { Icon(Icons.Default.CreateNewFolder, null); Spacer(Modifier.width(4.dp)); Text("Nueva carpeta") }
                     }
-                    if (entries.isEmpty()) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Buscar en esta carpeta") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        trailingIcon = { if (searchQuery.isNotEmpty()) IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Default.Close, contentDescription = "Borrar búsqueda") } }
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    if (visibleEntries.isEmpty()) {
                         Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(Icons.Default.Inventory2, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.secondary)
-                                Text("Esta carpeta está vacía")
+                                Icon(Icons.Default.SearchOff, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.secondary)
+                                Text(if (entries.isEmpty()) "Esta carpeta está vacía" else "No se encontraron archivos")
+                                if (searchQuery.isNotEmpty()) TextButton(onClick = { searchQuery = "" }) { Text("Limpiar búsqueda") }
                             }
                         }
                     } else {
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            items(entries, key = { it.uri.toString() }) { file ->
+                            items(visibleEntries, key = { it.uri.toString() }) { file ->
                                 Card(Modifier.fillMaxWidth()) {
                                     Row(Modifier.fillMaxWidth().clickable {
                                         if (file.isDirectory) { currentFolder = file; currentUri = file.uri; refresh++ }
