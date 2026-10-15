@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.provider.OpenableColumns
 import android.os.StatFs
 import android.webkit.MimeTypeMap
 import androidx.activity.ComponentActivity
@@ -139,8 +140,15 @@ fun ArchiveroApp() {
     var playbackUri by remember { mutableStateOf<Uri?>(null) }
     var playerTitle by remember { mutableStateOf("") }
     var playerVideo by remember { mutableStateOf(false) }
-    var playerQueueFiles by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
+    var playerQueueItems by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
     var playbackRequestId by remember { mutableIntStateOf(0) }
+    var showQueue by remember { mutableStateOf(false) }
+    var sleepTimerMinutes by rememberSaveable { mutableIntStateOf(0) }
+    var playbackError by remember { mutableStateOf<String?>(null) }
+    var favoriteUris by remember {
+        mutableStateOf(context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
+            .getStringSet("favorites", emptySet())?.toSet().orEmpty())
+    }
     var playbackIsPlaying by remember { mutableStateOf(false) }
     var shuffleEnabled by remember { mutableStateOf(false) }
     var repeatMode by remember { mutableIntStateOf(Player.REPEAT_MODE_OFF) }
@@ -161,6 +169,10 @@ fun ArchiveroApp() {
             override fun onIsPlayingChanged(isPlaying: Boolean) { playbackIsPlaying = isPlaying }
             override fun onShuffleModeEnabledChanged(shuffleModeEnabledValue: Boolean) { shuffleEnabled = shuffleModeEnabledValue }
             override fun onRepeatModeChanged(repeatModeValue: Int) { repeatMode = repeatModeValue }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                playbackError = error.message ?: "Android no pudo decodificar esta pista. Prueba otra copia o formato."
+                playbackIsPlaying = false
+            }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 val title = mediaItem?.mediaMetadata?.title?.toString()
                 if (!title.isNullOrBlank()) playerTitle = title
@@ -185,17 +197,12 @@ fun ArchiveroApp() {
         val controller = mediaController ?: return@LaunchedEffect
         val requested = playbackUri ?: return@LaunchedEffect
         if (playbackRequestId == 0) return@LaunchedEffect
-        val audioFiles = playerQueueFiles.filter { file ->
-            !file.isDirectory && file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) in Kind.MUSIC.extensions
-        }.distinctBy { it.uri.toString() }
-        val items = audioFiles.map { file ->
-            MediaItem.Builder().setUri(file.uri)
-                .setMediaMetadata(MediaMetadata.Builder().setTitle(file.name ?: "Pista").build()).build()
-        }
+        playbackError = null
+        val items = playerQueueItems.distinctBy { it.localConfiguration?.uri.toString() }
         val selectedIndex = items.indexOfFirst { it.localConfiguration?.uri == requested }
         if (!playerVideo && selectedIndex >= 0) controller.setMediaItems(items, selectedIndex, 0L)
         else controller.setMediaItem(MediaItem.Builder().setUri(requested)
-            .setMediaMetadata(MediaMetadata.Builder().setTitle(playerTitle).build()).build())
+            .setMediaMetadata(MediaMetadata.Builder().setTitle(playerTitle).setArtist("Archivero").build()).build())
         controller.prepare()
         controller.play()
     }
@@ -204,8 +211,30 @@ fun ArchiveroApp() {
         playbackUri = uri
         playerTitle = title
         playerVideo = video
-        playerQueueFiles = if (video) emptyList() else queue
+        playerQueueItems = if (video) emptyList() else queue
+            .filter { file -> !file.isDirectory && file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) in Kind.MUSIC.extensions }
+            .distinctBy { it.uri.toString() }
+            .map { file ->
+                MediaItem.Builder().setUri(file.uri)
+                    .setMediaMetadata(MediaMetadata.Builder().setTitle(file.name ?: "Pista").setArtist("Archivero").build()).build()
+            }
+        playbackError = null
         playbackRequestId++
+    }
+    fun toggleFavorite(uri: Uri) {
+        val next = favoriteUris.toMutableSet()
+        if (!next.add(uri.toString())) next.remove(uri.toString())
+        favoriteUris = next.toSet()
+        context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).edit().putStringSet("favorites", next).apply()
+    }
+    LaunchedEffect(sleepTimerMinutes, mediaController) {
+        val minutes = sleepTimerMinutes
+        val controller = mediaController
+        if (minutes > 0 && controller != null) {
+            delay(minutes * 60_000L)
+            controller.pause()
+            sleepTimerMinutes = 0
+        }
     }
     LaunchedEffect(selectedPaletteName) {
         context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).edit().putString("palette", selectedPaletteName).apply()
@@ -245,6 +274,25 @@ fun ArchiveroApp() {
             try { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: SecurityException) { }
             wallpaperUri = uri.toString()
             showAppearance = false
+        }
+    }
+    val pickMusic = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) {
+            uris.forEach { uri ->
+                try { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: SecurityException) { }
+            }
+            val queue = uris.distinct().map { uri ->
+                MediaItem.Builder().setUri(uri)
+                    .setMediaMetadata(MediaMetadata.Builder().setTitle(displayName(context, uri)).setArtist("Archivero").build()).build()
+            }
+            playerQueueItems = queue
+            playbackUri = queue.first().localConfiguration?.uri
+            playerUri = playbackUri
+            playerTitle = queue.first().mediaMetadata.title?.toString() ?: "Pista"
+            playerVideo = false
+            playbackError = null
+            showQueue = false
+            playbackRequestId++
         }
     }
 
@@ -766,9 +814,60 @@ fun ArchiveroApp() {
                     }
                     Spacer(Modifier.height(22.dp))
                     Text(playerTitle.ifBlank { "Elige una canción" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, maxLines = 2)
-                    Text(if (playerQueueFiles.isEmpty()) "Reproducción de una pista" else "Lista de reproducción · ${playerQueueFiles.size} canciones",
-                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(15.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { playbackUri?.let { toggleFavorite(it) } }, enabled = playbackUri != null) {
+                            Icon(
+                                if (playbackUri?.toString() in favoriteUris) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                "Añadir o quitar de favoritos",
+                                tint = if (playbackUri?.toString() in favoriteUris) Color(0xFFD64D68) else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        OutlinedButton(onClick = { pickMusic.launch(arrayOf("audio/*")) }) {
+                            Icon(Icons.Default.QueueMusic, null); Spacer(Modifier.width(6.dp)); Text("Añadir temas")
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        IconButton(onClick = { showQueue = !showQueue }, enabled = playerQueueItems.isNotEmpty()) {
+                            Icon(Icons.Default.PlaylistPlay, "Mostrar lista de reproducción")
+                        }
+                    }
+                    Text(
+                        if (playerQueueItems.isEmpty()) "Elige canciones del teléfono" else "Lista de reproducción · ${playerQueueItems.size} canciones",
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (playbackError != null) {
+                        Text("No se pudo reproducir: $playbackError", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = { pickMusic.launch(arrayOf("audio/*")) }) { Text("Elegir otra canción") }
+                    }
+                    if (showQueue && playerQueueItems.isNotEmpty()) {
+                        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 136.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            items(playerQueueItems, key = { it.localConfiguration?.uri.toString() }) { item ->
+                                TextButton(
+                                    onClick = {
+                                        val uri = item.localConfiguration?.uri ?: return@TextButton
+                                        playbackUri = uri
+                                        playerUri = uri
+                                        playerTitle = item.mediaMetadata.title?.toString() ?: "Pista"
+                                        playbackRequestId++
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.MusicNote, null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(item.mediaMetadata.title?.toString() ?: "Pista", maxLines = 1, modifier = Modifier.weight(1f))
+                                    if (item.localConfiguration?.uri == playbackUri) Icon(Icons.Default.Equalizer, null)
+                                }
+                            }
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                        TextButton(onClick = {
+                            sleepTimerMinutes = when (sleepTimerMinutes) { 0 -> 15; 15 -> 30; 30 -> 60; else -> 0 }
+                        }) {
+                            Icon(Icons.Default.Bedtime, null); Spacer(Modifier.width(6.dp))
+                            Text(if (sleepTimerMinutes == 0) "Temporizador apagado" else "Pausa en $sleepTimerMinutes min")
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
                     val fraction = if (playbackDuration > 0L) (playbackPosition.toFloat() / playbackDuration).coerceIn(0f, 1f) else 0f
                     Slider(value = fraction,
                         onValueChange = { v -> if (playbackDuration > 0L) playbackPosition = (playbackDuration * v).toLong() },
@@ -893,15 +992,46 @@ private fun DiskCard(disk: Disk?, location: String, accent: Color = Color(0xFF28
     }
 }
 private fun openDocument(file: DocumentFile, context: Context, onMedia: (Uri, String, Boolean) -> Unit, onError: (String) -> Unit) {
-    try {
-        val extension = file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT)
-        val mime = context.contentResolver.getType(file.uri) ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: ""
-        val isAudio = mime.startsWith("audio/") || extension in Kind.MUSIC.extensions
-        val isVideo = mime.startsWith("video/") || extension in Kind.VIDEOS.extensions
-        if (isAudio || isVideo) onMedia(file.uri, file.name ?: "Multimedia", isVideo)
-        else context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(file.uri, mime.ifBlank { "*/*" }).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
-    } catch (_: Exception) { onError("No se pudo abrir el archivo. Puede faltar una aplicación compatible o el permiso de acceso.") }
+    val name = file.name ?: "archivo sin nombre"
+    val extension = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
+    // Some document providers throw from getType() even though the file is readable.
+    // Extension-based recognition must happen first so local audio never falls through
+    // to an unrelated ACTION_VIEW handler.
+    val extensionMime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension).orEmpty()
+    val isAudioByExtension = extension in Kind.MUSIC.extensions
+    val isVideoByExtension = extension in Kind.VIDEOS.extensions
+    val mime = runCatching { context.contentResolver.getType(file.uri) }.getOrNull()
+        ?: extensionMime
+    val isAudio = isAudioByExtension || mime.startsWith("audio/")
+    val isVideo = isVideoByExtension || mime.startsWith("video/")
+    if (isAudio || isVideo) {
+        onMedia(file.uri, name, isVideo)
+        return
+    }
+    if (mime.isBlank()) {
+        onError("No reconozco el formato de «$name». Si es música, usa «Añadir temas» dentro del reproductor para abrirla directamente desde Android.")
+        return
+    }
+    runCatching {
+        context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(file.uri, mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+    }.onFailure { error ->
+        onError(when (error) {
+            is SecurityException -> "Android negó el permiso para abrir «$name». Vuelve a elegir su carpeta o selecciónalo desde «Añadir temas»."
+            else -> "No se pudo abrir «$name» como $mime. Prueba seleccionarlo desde «Añadir temas» si es una pista de audio."
+        })
+    }
 }
+private fun displayName(context: Context, uri: Uri): String {
+    val fromProvider = runCatching {
+        context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        }
+    }.getOrNull()
+    return fromProvider?.takeIf { it.isNotBlank() }
+        ?: uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':')?.takeIf { it.isNotBlank() }
+        ?: "Pista"
+}
+
 private fun fileIcon(file: DocumentFile): ImageVector {
     val ext = file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT)
     return when {
