@@ -39,6 +39,9 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import java.util.Locale
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 
 private enum class Screen { HOME, TYPES, FOLDERS, CLEAN }
 private enum class Kind(val title: String, val icon: ImageVector, val tint: Color, val extensions: Set<String>) {
@@ -88,6 +91,9 @@ fun ArchiveroApp() {
     var folderName by remember { mutableStateOf("") }
     var actionFile by remember { mutableStateOf<DocumentFile?>(null) }
     var deleteDialog by remember { mutableStateOf(false) }
+    var actionMenu by remember { mutableStateOf(false) }
+    var renameDialog by remember { mutableStateOf(false) }
+    var renameValue by remember { mutableStateOf("") }
     var playerUri by remember { mutableStateOf<Uri?>(null) }
     var playerTitle by remember { mutableStateOf("") }
     var playerVideo by remember { mutableStateOf(false) }
@@ -273,7 +279,7 @@ fun ArchiveroApp() {
                         }
                         SearchBox(query) { query = it }
                         Text(matchingFiles.size.toString() + " archivos encontrados", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(vertical = 6.dp))
-                        FileList(matchingFiles, { openDocument(it, context, { u,t,v -> playerUri=u; playerTitle=t; playerVideo=v }, { message=it }) }, { actionFile=it; deleteDialog=true }, Modifier.weight(1f))
+                        FileList(matchingFiles, { openDocument(it, context, { u,t,v -> playerUri=u; playerTitle=t; playerVideo=v }, { message=it }) }, { actionFile=it; actionMenu=true }, Modifier.weight(1f))
                         if (!hasScanned) TextButton(onClick = { scan() }, enabled = !scanning) { Text(if (scanning) "Analizando..." else "Analizar ubicación") }
                     }
                     Screen.FOLDERS -> {
@@ -334,6 +340,104 @@ fun ArchiveroApp() {
             newFolderDialog = false
         }) { Text("Crear") } },
         dismissButton = { TextButton(onClick = { newFolderDialog = false }) { Text("Cancelar") } }
+    )
+
+    if (actionMenu && actionFile != null) AlertDialog(
+        onDismissRequest = { actionMenu = false },
+        title = { Text(actionFile?.name ?: "Acciones del archivo") },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            TextButton(onClick = { renameValue = actionFile?.name.orEmpty(); renameDialog = true; actionMenu = false }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.DriveFileRenameOutline, null); Spacer(Modifier.width(8.dp)); Text("Renombrar") }
+            TextButton(onClick = {
+                val file = actionFile
+                val parent = current
+                val result = runCatching {
+                    require(file != null && !file.isDirectory) { "Selecciona un archivo." }
+                    require(parent != null && parent.canWrite()) { "Elige una carpeta de destino con permiso de escritura." }
+                    val original = file.name ?: "archivo"
+                    val base = original.substringBeforeLast('.', original)
+                    val ext = original.substringAfterLast('.', "")
+                    var candidate = "$base (copia)" + if (ext.isNotBlank()) ".$ext" else ""
+                    var n = 2
+                    while (parent.findFile(candidate) != null) { candidate = "$base (copia $n)" + if (ext.isNotBlank()) ".$ext" else ""; n++ }
+                    val dest = parent.createFile(context.contentResolver.getType(file.uri) ?: "application/octet-stream", candidate) ?: error("Android no permitió crear la copia.")
+                    context.contentResolver.openInputStream(file.uri).use { input ->
+                        requireNotNull(input) { "No se pudo leer el archivo original." }
+                        context.contentResolver.openOutputStream(dest.uri, "w").use { output ->
+                            requireNotNull(output) { "No se pudo escribir la copia." }
+                            input.copyTo(output)
+                        }
+                    }
+                    dest.name ?: candidate
+                }
+                message = result.fold({ refresh++; "Copia creada: $it" }, { it.message ?: "No se pudo copiar el archivo." })
+                actionMenu = false
+            }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.ContentCopy, null); Spacer(Modifier.width(8.dp)); Text("Copiar a carpeta abierta") }
+            TextButton(onClick = {
+                val file = actionFile
+                val result = runCatching {
+                    require(file != null && !file.isDirectory) { "Selecciona un archivo ZIP." }
+                    require(file.name.orEmpty().endsWith(".zip", true)) { "La extracción está disponible para archivos ZIP." }
+                    val parent = current ?: error("No hay carpeta de destino.")
+                    require(parent.canWrite()) { "No hay permiso de escritura en la carpeta abierta." }
+                    var count = 0
+                    context.contentResolver.openInputStream(file.uri).use { raw ->
+                        requireNotNull(raw) { "No se pudo leer el ZIP." }
+                        ZipInputStream(raw).use { zip ->
+                            var entry = zip.nextEntry
+                            while (entry != null) {
+                                val safe = entry.name.replace('\\\\', '/')
+                                require(!safe.startsWith("/") && safe.split('/').none { it == ".." }) { "El ZIP contiene una ruta insegura y se canceló." }
+                                if (safe.isNotBlank()) {
+                                    val parts = safe.split('/').filter { it.isNotBlank() }
+                                    var dir = parent
+                                    for (part in parts.dropLast(if (entry.isDirectory) 0 else 1)) {
+                                        dir = dir.findFile(part)?.takeIf { it.isDirectory } ?: dir.createDirectory(part) ?: error("No se pudo crear una carpeta de destino.")
+                                    }
+                                    if (entry.isDirectory) {
+                                        if (dir.findFile(parts.last()) == null) dir.createDirectory(parts.last())
+                                    } else {
+                                        val name = parts.last()
+                                        require(dir.findFile(name) == null) { "Ya existe '$name'. No se sobrescribieron archivos." }
+                                        val dest = dir.createFile("application/octet-stream", name) ?: error("No se pudo crear '$name'.")
+                                        context.contentResolver.openOutputStream(dest.uri, "w").use { output ->
+                                            requireNotNull(output) { "No se pudo escribir '$name'." }
+                                            zip.copyTo(output)
+                                        }
+                                        count++
+                                    }
+                                }
+                                zip.closeEntry()
+                                entry = zip.nextEntry
+                            }
+                        }
+                    }
+                    count
+                }
+                message = result.fold({ refresh++; "Extracción terminada: $it archivos." }, { it.message ?: "No se pudo extraer el ZIP." })
+                actionMenu = false
+            }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.FolderZip, null); Spacer(Modifier.width(8.dp)); Text("Extraer ZIP aquí") }
+            TextButton(onClick = { deleteDialog = true; actionMenu = false }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.DeleteOutline, null, tint = MaterialTheme.colorScheme.error); Spacer(Modifier.width(8.dp)); Text("Eliminar", color = MaterialTheme.colorScheme.error) }
+        } },
+        confirmButton = { TextButton(onClick = { actionMenu = false }) { Text("Cerrar") } }
+    )
+
+    if (renameDialog && actionFile != null) AlertDialog(
+        onDismissRequest = { renameDialog = false },
+        title = { Text("Renombrar archivo") },
+        text = { OutlinedTextField(renameValue, { renameValue = it }, label = { Text("Nuevo nombre") }, singleLine = true) },
+        confirmButton = { TextButton(onClick = {
+            val file = actionFile
+            val result = runCatching {
+                val name = renameValue.trim()
+                require(name.isNotBlank() && name != "." && name != ".." && !name.contains('/')) { "Escribe un nombre válido." }
+                require(file != null) { "No hay archivo seleccionado." }
+                require(file.renameTo(name)) { "Android no permitió renombrar. Puede faltar permiso." }
+                name
+            }
+            message = result.fold({ refresh++; indexed = indexed.toList(); "Renombrado a: $it" }, { it.message ?: "No se pudo renombrar." })
+            renameDialog = false
+        }) { Text("Renombrar") } },
+        dismissButton = { TextButton(onClick = { renameDialog = false }) { Text("Cancelar") } }
     )
 
     if (deleteDialog && actionFile != null) AlertDialog(
