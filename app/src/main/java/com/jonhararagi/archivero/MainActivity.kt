@@ -8,6 +8,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -40,6 +46,23 @@ fun ArchiveroApp() {
     var folderName by remember { mutableStateOf("") }
     var selected by remember { mutableStateOf<DocumentFile?>(null) }
     var showActions by remember { mutableStateOf(false) }
+    var playerUri by remember { mutableStateOf<Uri?>(null) }
+    var playerTitle by remember { mutableStateOf("Reproductor") }
+    var playerIsVideo by remember { mutableStateOf(false) }
+    val chooseMedia = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: SecurityException) { }
+            val mime = context.contentResolver.getType(uri).orEmpty()
+            if (mime.startsWith("audio/") || mime.startsWith("video/")) {
+                playerUri = uri
+                playerTitle = uri.lastPathSegment?.substringAfterLast("/") ?: "Multimedia"
+                playerIsVideo = mime.startsWith("video/")
+            } else {
+                try { context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime.ifBlank { "image/*" }).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)) }
+                catch (_: Exception) { message = "No hay una aplicación compatible para abrir este archivo." }
+            }
+        }
+    }
 
     val chooseFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) {
@@ -72,6 +95,7 @@ fun ArchiveroApp() {
                         }
                     },
                     actions = {
+                        IconButton(onClick = { chooseMedia.launch(arrayOf("audio/*", "video/*", "image/*")) }) { Icon(Icons.Default.PlayCircle, contentDescription = "Abrir música o video") }
                         IconButton(onClick = { if (rootUri == null) chooseFolder.launch(null) else refresh++ }) { Icon(Icons.Default.Refresh, contentDescription = "Actualizar") }
                     }
                 )
@@ -125,8 +149,14 @@ fun ArchiveroApp() {
                                         if (file.isDirectory) { currentUri = file.uri; refresh++ }
                                         else {
                                             try {
-                                                val mime = context.contentResolver.getType(file.uri) ?: "*/*"
-                                                context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(file.uri, mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+                                                val mime = context.contentResolver.getType(file.uri).orEmpty()
+                                                if (mime.startsWith("audio/") || mime.startsWith("video/")) {
+                                                    playerUri = file.uri
+                                                    playerTitle = file.name ?: "Multimedia"
+                                                    playerIsVideo = mime.startsWith("video/")
+                                                } else {
+                                                    context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(file.uri, mime.ifBlank { "*/*" }).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+                                                }
                                             } catch (_: Exception) { message = "No hay una aplicación compatible para abrir este archivo." }
                                         }
                                     }.padding(horizontal = 12.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -163,8 +193,8 @@ fun ArchiveroApp() {
 
     if (showActions && selected != null) AlertDialog(
         onDismissRequest = { showActions = false },
-        title = { Text(selected?.name ?: "Archivo") },
-        text = { Text("¿Qué quieres hacer con este elemento?") },
+        title = { Text("Eliminar elemento") },
+        text = { Text("¿Eliminar definitivamente “${selected?.name ?: "Archivo"}”? Esta acción no se puede deshacer.") },
         confirmButton = {
             TextButton(onClick = {
                 val f = selected
@@ -178,6 +208,44 @@ fun ArchiveroApp() {
         },
         dismissButton = { TextButton(onClick = { showActions = false }) { Text("Cerrar") } }
     )
+
+
+    if (playerUri != null) {
+        Dialog(
+            onDismissRequest = { /* Solo se cierra con la X. */ },
+            properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnBackPress = false, dismissOnClickOutside = false)
+        ) {
+            Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+                Column(Modifier.fillMaxSize().padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.weight(1f)) {
+                            Text(if (playerIsVideo) "Reproductor de video" else "Reproductor de música", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text(playerTitle, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
+                        }
+                        IconButton(onClick = { playerUri = null }) { Icon(Icons.Default.Close, contentDescription = "Cerrar reproductor") }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    key(playerUri.toString()) {
+                        val exoPlayer = remember(playerUri) {
+                            ExoPlayer.Builder(context).build().apply {
+                                setMediaItem(MediaItem.fromUri(playerUri!!))
+                                prepare()
+                                playWhenReady = true
+                            }
+                        }
+                        DisposableEffect(exoPlayer) { onDispose { exoPlayer.release() } }
+                        AndroidView(
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                            factory = { viewContext -> PlayerView(viewContext).apply { player = exoPlayer; useController = true; keepScreenOn = playerIsVideo } },
+                            update = { it.player = exoPlayer }
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text("El reproductor permanece abierto al terminar la reproducción. Toca ✕ para cerrarlo.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
 
     message?.let { msg ->
         AlertDialog(onDismissRequest = { message = null }, title = { Text("Archivero") }, text = { Text(msg) }, confirmButton = { TextButton(onClick = { message = null }) { Text("Aceptar") } })
