@@ -108,9 +108,16 @@ fun ArchiveroApp() {
     // Keep the actual DocumentFile while navigating. Child document URIs are not tree URIs,
     // so recreating them with fromTreeUri breaks folder navigation on Android SAF.
     val current = currentFolder
-    val entries = remember(current, refresh) {
-        current?.listFiles()?.sortedWith(compareBy<DocumentFile> { !it.isDirectory }.thenBy { it.name?.lowercase() ?: "" })?.toList().orEmpty()
+    // Document providers can revoke access or fail while enumerating. Treat that as a
+    // recoverable UI state rather than letting a provider exception crash the app.
+    val entriesResult = remember(current, refresh) {
+        runCatching {
+            current?.listFiles()?.sortedWith(
+                compareBy<DocumentFile> { !it.isDirectory }.thenBy { it.name?.lowercase() ?: "" }
+            )?.toList().orEmpty()
+        }
     }
+    val entries = entriesResult.getOrElse { emptyList() }
     val visibleEntries = remember(entries, searchQuery) {
         val query = searchQuery.trim()
         if (query.isEmpty()) entries else entries.filter { it.name.orEmpty().contains(query, ignoreCase = true) }
@@ -187,8 +194,19 @@ fun ArchiveroApp() {
                         Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Icon(Icons.Default.SearchOff, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.secondary)
-                                Text(if (entries.isEmpty()) "Esta carpeta está vacía" else "No se encontraron archivos")
-                                if (searchQuery.isNotEmpty()) TextButton(onClick = { searchQuery = "" }) { Text("Limpiar búsqueda") }
+                                Text(
+                                    when {
+                                        entriesResult.isFailure -> "No se pudo leer esta carpeta"
+                                        entries.isEmpty() -> "Esta carpeta está vacía"
+                                        else -> "No se encontraron archivos"
+                                    }
+                                )
+                                if (entriesResult.isFailure) {
+                                    Text("El acceso puede haber cambiado. Vuelve a elegir la ubicación para continuar.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    TextButton(onClick = { chooseFolder.launch(null) }) { Text("Elegir otra carpeta") }
+                                } else if (searchQuery.isNotEmpty()) {
+                                    TextButton(onClick = { searchQuery = "" }) { Text("Limpiar búsqueda") }
+                                }
                             }
                         }
                     } else {
