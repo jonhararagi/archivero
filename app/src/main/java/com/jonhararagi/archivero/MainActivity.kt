@@ -102,10 +102,14 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun ArchiveroApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
-    var selectedPaletteName by rememberSaveable { mutableStateOf(Palette.VERDE.name) }
+    var selectedPaletteName by rememberSaveable {
+        mutableStateOf(context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).getString("palette", Palette.VERDE.name) ?: Palette.VERDE.name)
+    }
     val activePalette = Palette.valueOf(selectedPaletteName)
     var showAppearance by remember { mutableStateOf(false) }
-    var wallpaperUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var wallpaperUri by rememberSaveable {
+        mutableStateOf(context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).getString("wallpaper", null))
+    }
     var wallpaperBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var scanStatus by rememberSaveable { mutableStateOf("") }
     var scanProgress by remember { mutableIntStateOf(0) }
@@ -203,7 +207,11 @@ fun ArchiveroApp() {
         playerQueueFiles = if (video) emptyList() else queue
         playbackRequestId++
     }
+    LaunchedEffect(selectedPaletteName) {
+        context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).edit().putString("palette", selectedPaletteName).apply()
+    }
     LaunchedEffect(wallpaperUri) {
+        context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).edit().putString("wallpaper", wallpaperUri).apply()
         val saved = wallpaperUri
         wallpaperBitmap = if (saved == null) null else withContext(Dispatchers.IO) {
             runCatching {
@@ -775,7 +783,7 @@ fun ArchiveroApp() {
                             Icon(Icons.Default.Shuffle, "Aleatorio", tint = if (shuffleEnabled) activePalette.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         IconButton(onClick = { mediaController?.seekToPrevious() }) { Icon(Icons.Default.SkipPrevious, "Canción anterior", modifier = Modifier.size(34.dp)) }
-                        FilledIconButton(onClick = { mediaController?.let { c -> if (c.isPlaying) c.pause() else c.play() },
+                        FilledIconButton(onClick = { mediaController?.let { c -> if (c.isPlaying) c.pause() else c.play() } },
                             modifier = Modifier.size(68.dp), colors = IconButtonDefaults.filledIconButtonColors(containerColor = activePalette.primary, contentColor = Color.White)) {
                             Icon(if (playbackIsPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                                 if (playbackIsPlaying) "Pausar" else "Reproducir", modifier = Modifier.size(38.dp))
