@@ -377,6 +377,38 @@ fun ArchiveroApp() {
             TextButton(onClick = {
                 val file = actionFile
                 val result = runCatching {
+                    require(file != null && !file.isDirectory) { "Selecciona un archivo para mover." }
+                    val parent = current ?: error("No hay carpeta de destino.")
+                    require(parent.canWrite()) { "No hay permiso de escritura en la carpeta abierta." }
+                    require(file.uri != parent.uri) { "Elige una carpeta de destino diferente." }
+                    val original = file.name ?: "archivo"
+                    val base = original.substringBeforeLast('.', original)
+                    val ext = original.substringAfterLast('.', "")
+                    var candidate = original
+                    var n = 2
+                    while (parent.findFile(candidate) != null) { candidate = "$base ($n)" + if (ext.isNotBlank()) ".$ext" else ""; n++ }
+                    val dest = parent.createFile(context.contentResolver.getType(file.uri) ?: "application/octet-stream", candidate) ?: error("No se pudo crear el archivo de destino.")
+                    try {
+                        context.contentResolver.openInputStream(file.uri).use { input ->
+                            requireNotNull(input) { "No se pudo leer el archivo original." }
+                            context.contentResolver.openOutputStream(dest.uri, "w").use { output ->
+                                requireNotNull(output) { "No se pudo escribir el destino." }
+                                input.copyTo(output)
+                            }
+                        }
+                        require(file.delete()) { "El archivo se copió, pero Android no permitió borrar el original. No se perdió información." }
+                    } catch (e: Exception) {
+                        if (dest.length() == 0L) dest.delete()
+                        throw e
+                    }
+                    candidate
+                }
+                message = result.fold({ refresh++; indexed = indexed.filterNot { f -> f.uri == actionFile?.uri }; "Archivo movido: $it" }, { it.message ?: "No se pudo mover el archivo." })
+                actionMenu = false
+            }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.DriveFileMove, null); Spacer(Modifier.width(8.dp)); Text("Mover a carpeta abierta") }
+            TextButton(onClick = {
+                val file = actionFile
+                val result = runCatching {
                     require(file != null && !file.isDirectory) { "Selecciona un archivo para comprimir." }
                     val parent = current ?: error("No hay carpeta de destino.")
                     require(parent.canWrite()) { "No hay permiso de escritura en la carpeta abierta." }
