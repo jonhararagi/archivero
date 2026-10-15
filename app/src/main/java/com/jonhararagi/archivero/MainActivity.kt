@@ -1,7 +1,7 @@
 package com.jonhararagi.archivero
 
 import android.content.Intent
-import.net.Uri
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -170,7 +170,7 @@ fun ArchiveroApp() {
                 val f = selected
                 if (f != null) {
                     val parent = f.parentFile
-                    if (parent?.deleteFile(f.name ?: "") == true) { refresh++; message = "Elemento eliminado." }
+                    if (f.delete()) { refresh++; message = "Elemento eliminado." }
                     else message = "Android no permitió eliminarlo."
                 }
                 showActions = false
