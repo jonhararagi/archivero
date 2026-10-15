@@ -32,6 +32,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.documentfile.provider.DocumentFile
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
@@ -77,6 +80,8 @@ fun ArchiveroApp() {
     var query by rememberSaveable { mutableStateOf("") }
     var refresh by remember { mutableIntStateOf(0) }
     var indexed by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
+    var hasScanned by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     var scanning by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var newFolderDialog by remember { mutableStateOf(false) }
@@ -96,6 +101,7 @@ fun ArchiveroApp() {
             root = DocumentFile.fromTreeUri(context, uri)
             current = root
             indexed = emptyList()
+            hasScanned = false
             query = ""
             refresh++
         }
@@ -114,7 +120,7 @@ fun ArchiveroApp() {
         runCatching { current?.listFiles()?.sortedWith(compareBy<DocumentFile> { !it.isDirectory }.thenBy { it.name.orEmpty().lowercase() })?.toList().orEmpty() }
     }
     val entries = entriesResult.getOrElse { emptyList() }
-    val sourceFiles = if (indexed.isNotEmpty()) indexed else entries.filterNot { it.isDirectory }
+    val sourceFiles = if (hasScanned) indexed else entries.filterNot { it.isDirectory }
     val activeKind = Kind.valueOf(selectedKind)
     val matchingFiles = sourceFiles.filter { file ->
         val ext = file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT)
@@ -127,28 +133,34 @@ fun ArchiveroApp() {
     fun scan() {
         val start = root
         if (start == null) { message = "Primero elige una carpeta para analizar."; return }
-        scanning = true
-        val found = mutableListOf<DocumentFile>()
-        val queue = ArrayDeque<Pair<DocumentFile, Int>>()
-        queue.add(start to 0)
-        var visited = 0
-        while (queue.isNotEmpty() && visited < 5000) {
-            val item = queue.removeFirst()
-            val children = runCatching { item.first.listFiles().toList() }.getOrElse { emptyList() }
-            children.forEach { child ->
-                if (visited < 5000) {
-                    visited++
-                    if (child.isDirectory) {
-                        if (item.second < 8 && !child.name.orEmpty().startsWith(".")) queue.add(child to item.second + 1)
-                    } else found.add(child)
+        if (scanning) return
+        scope.launch {
+            scanning = true
+            val result = withContext(Dispatchers.IO) {
+                val found = mutableListOf<DocumentFile>()
+                val queue = ArrayDeque<Pair<DocumentFile, Int>>()
+                queue.add(start to 0)
+                var visited = 0
+                while (queue.isNotEmpty() && visited < 5000) {
+                    val item = queue.removeFirst()
+                    val children = runCatching { item.first.listFiles().toList() }.getOrElse { emptyList() }
+                    for (child in children) {
+                        if (visited >= 5000) break
+                        visited++
+                        if (child.isDirectory) {
+                            if (item.second < 8 && !child.name.orEmpty().startsWith(".")) queue.add(child to item.second + 1)
+                        } else found.add(child)
+                    }
                 }
+                Triple(found, visited, visited >= 5000)
             }
+            indexed = result.first
+            hasScanned = true
+            scanning = false
+            refresh++
+            message = if (result.third) "Análisis parcial: se alcanzaron 5.000 elementos por seguridad. Elige una carpeta más concreta para completar la búsqueda."
+                else "Análisis terminado: " + result.first.size + " archivos en la ubicación autorizada."
         }
-        indexed = found
-        scanning = false
-        refresh++
-        message = if (visited >= 5000) "Análisis parcial: se alcanzaron 5.000 elementos por seguridad. Elige una carpeta más concreta para completar la búsqueda."
-            else "Análisis terminado: " + found.size + " archivos en la ubicación autorizada."
     }
 
     MaterialTheme(colorScheme = lightColorScheme(
@@ -219,7 +231,7 @@ fun ArchiveroApp() {
                         Spacer(Modifier.height(10.dp))
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                CategoryTile(Kind.IMAGES, Modifier.weight(1f)) { selectedKind = Kind.IMAGES.name; screen = Screen.TYPES; if (indexed.isEmpty()) scan() }
+                                CategoryTile(Kind.IMAGES, Modifier.weight(1f)) { selectedKind = Kind.IMAGES.name; screen = Screen.TYPES; if (!hasScanned) scan() }
                                 CategoryTile(Kind.VIDEOS, Modifier.weight(1f)) { selectedKind = Kind.VIDEOS.name; screen = Screen.TYPES; if (indexed.isEmpty()) scan() }
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -262,7 +274,7 @@ fun ArchiveroApp() {
                         SearchBox(query) { query = it }
                         Text(matchingFiles.size.toString() + " archivos encontrados", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(vertical = 6.dp))
                         FileList(matchingFiles, { openDocument(it, context, { u,t,v -> playerUri=u; playerTitle=t; playerVideo=v }, { message=it }) }, { actionFile=it; deleteDialog=true }, Modifier.weight(1f))
-                        if (indexed.isEmpty()) TextButton(onClick = { scan() }, enabled = !scanning) { Text(if (scanning) "Analizando..." else "Analizar ubicación") }
+                        if (!hasScanned) TextButton(onClick = { scan() }, enabled = !scanning) { Text(if (scanning) "Analizando..." else "Analizar ubicación") }
                     }
                     Screen.FOLDERS -> {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -302,7 +314,7 @@ fun ArchiveroApp() {
                         Text("Temporales, registros y archivos de 100 MB o más. No se borra nada automáticamente.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         SearchBox(query) { query = it }
                         FileList(cleanupFiles, { openDocument(it, context, { u,t,v -> playerUri=u; playerTitle=t; playerVideo=v }, { message=it }) }, { actionFile=it; deleteDialog=true }, Modifier.weight(1f))
-                        if (indexed.isEmpty()) TextButton(onClick = { scan() }, enabled = !scanning) { Text("Analizar ubicación") }
+                        if (!hasScanned) TextButton(onClick = { scan() }, enabled = !scanning) { Text("Analizar ubicación") }
                     }
                 }
             }
