@@ -1,19 +1,25 @@
 package com.jonhararagi.archivero
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.os.StatFs
+import android.webkit.MimeTypeMap
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -31,7 +37,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -39,17 +48,30 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.media3.common.MediaItem
-import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Player
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
 import androidx.media3.ui.PlayerView
+import java.util.concurrent.Executor
 import java.util.Locale
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 private enum class Screen { HOME, TYPES, FOLDERS, CLEAN }
+private enum class Palette(val label: String, val primary: Color, val secondary: Color, val background: Color) {
+    VERDE("Verde bosque", Color(0xFF285E55), Color(0xFF547D73), Color(0xFFF4F7F5)),
+    VIOLETA("Violeta", Color(0xFF7048A8), Color(0xFF9575CD), Color(0xFFF7F2FC)),
+    ROSA("Rosa", Color(0xFFAD476C), Color(0xFFD981A0), Color(0xFFFFF4F7)),
+    AZUL("Azul", Color(0xFF285DA8), Color(0xFF668CC6), Color(0xFFF2F6FD)),
+    AMBAR("Ámbar", Color(0xFF93600B), Color(0xFFC28B2C), Color(0xFFFFF8E9))
+}
 private enum class Kind(val title: String, val icon: ImageVector, val tint: Color, val extensions: Set<String>) {
     IMAGES("Imágenes", Icons.Default.Image, Color(0xFF7657B5), setOf("jpg","jpeg","png","webp","gif","bmp","heic","heif","svg")),
     VIDEOS("Videos", Icons.Default.Movie, Color(0xFFB3261E), setOf("mp4","mkv","mov","avi","webm","3gp","m4v")),
@@ -80,6 +102,13 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun ArchiveroApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
+    var selectedPaletteName by rememberSaveable { mutableStateOf(Palette.VERDE.name) }
+    val activePalette = Palette.valueOf(selectedPaletteName)
+    var showAppearance by remember { mutableStateOf(false) }
+    var wallpaperUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var wallpaperBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    var scanStatus by rememberSaveable { mutableStateOf("") }
+    var scanProgress by remember { mutableIntStateOf(0) }
     var rootUri by rememberSaveable { mutableStateOf<Uri?>(null) }
     var permissionRefresh by remember { mutableIntStateOf(0) }
     var hasAllFilesAccess by remember { mutableStateOf(Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager()) }
@@ -103,8 +132,90 @@ fun ArchiveroApp() {
     var renameDialog by remember { mutableStateOf(false) }
     var renameValue by remember { mutableStateOf("") }
     var playerUri by remember { mutableStateOf<Uri?>(null) }
+    var playbackUri by remember { mutableStateOf<Uri?>(null) }
     var playerTitle by remember { mutableStateOf("") }
     var playerVideo by remember { mutableStateOf(false) }
+    var playerQueueFiles by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
+    var playbackRequestId by remember { mutableIntStateOf(0) }
+    var playbackIsPlaying by remember { mutableStateOf(false) }
+    var shuffleEnabled by remember { mutableStateOf(false) }
+    var repeatMode by remember { mutableIntStateOf(Player.REPEAT_MODE_OFF) }
+    var playbackPosition by remember { mutableLongStateOf(0L) }
+    var playbackDuration by remember { mutableLongStateOf(0L) }
+    val controllerFuture = remember(context) {
+        MediaController.Builder(context, SessionToken(context, ComponentName(context, MusicPlaybackService::class.java))).buildAsync()
+    }
+    var mediaController by remember { mutableStateOf<MediaController?>(null) }
+    val mainExecutor = remember { Executor { command -> Handler(Looper.getMainLooper()).post(command) } }
+    DisposableEffect(controllerFuture) {
+        controllerFuture.addListener({ mediaController = runCatching { controllerFuture.get() }.getOrNull() }, mainExecutor)
+        onDispose { MediaController.releaseFuture(controllerFuture); mediaController = null }
+    }
+    DisposableEffect(mediaController) {
+        val controller = mediaController
+        val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) { playbackIsPlaying = isPlaying }
+            override fun onShuffleModeEnabledChanged(shuffleModeEnabledValue: Boolean) { shuffleEnabled = shuffleModeEnabledValue }
+            override fun onRepeatModeChanged(repeatModeValue: Int) { repeatMode = repeatModeValue }
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                val title = mediaItem?.mediaMetadata?.title?.toString()
+                if (!title.isNullOrBlank()) playerTitle = title
+            }
+        }
+        controller?.addListener(listener)
+        onDispose { controller?.removeListener(listener) }
+    }
+    LaunchedEffect(mediaController) {
+        while (isActive) {
+            mediaController?.let { controller ->
+                playbackIsPlaying = controller.isPlaying
+                shuffleEnabled = controller.shuffleModeEnabled
+                repeatMode = controller.repeatMode
+                playbackPosition = controller.currentPosition.coerceAtLeast(0L)
+                playbackDuration = controller.duration.takeIf { it > 0L } ?: 0L
+            }
+            delay(450)
+        }
+    }
+    LaunchedEffect(mediaController, playbackRequestId) {
+        val controller = mediaController ?: return@LaunchedEffect
+        val requested = playbackUri ?: return@LaunchedEffect
+        if (playbackRequestId == 0) return@LaunchedEffect
+        val audioFiles = playerQueueFiles.filter { file ->
+            !file.isDirectory && file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) in Kind.MUSIC.extensions
+        }.distinctBy { it.uri.toString() }
+        val items = audioFiles.map { file ->
+            MediaItem.Builder().setUri(file.uri)
+                .setMediaMetadata(MediaMetadata.Builder().setTitle(file.name ?: "Pista").build()).build()
+        }
+        val selectedIndex = items.indexOfFirst { it.localConfiguration?.uri == requested }
+        if (!playerVideo && selectedIndex >= 0) controller.setMediaItems(items, selectedIndex, 0L)
+        else controller.setMediaItem(MediaItem.Builder().setUri(requested)
+            .setMediaMetadata(MediaMetadata.Builder().setTitle(playerTitle).build()).build())
+        controller.prepare()
+        controller.play()
+    }
+    fun startPlayback(uri: Uri, title: String, video: Boolean, queue: List<DocumentFile>) {
+        playerUri = uri
+        playbackUri = uri
+        playerTitle = title
+        playerVideo = video
+        playerQueueFiles = if (video) emptyList() else queue
+        playbackRequestId++
+    }
+    LaunchedEffect(wallpaperUri) {
+        val saved = wallpaperUri
+        wallpaperBitmap = if (saved == null) null else withContext(Dispatchers.IO) {
+            runCatching {
+                val uri = Uri.parse(saved)
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                context.contentResolver.openInputStream(uri).use { stream -> BitmapFactory.decodeStream(stream, null, bounds) }
+                val largest = maxOf(bounds.outWidth, bounds.outHeight).coerceAtLeast(1)
+                val options = BitmapFactory.Options().apply { inSampleSize = (largest / 1600).coerceAtLeast(1) }
+                context.contentResolver.openInputStream(uri).use { stream -> BitmapFactory.decodeStream(stream, null, options)?.asImageBitmap() }
+            }.getOrNull()
+        }
+    }
     val disk = remember(refresh) { Disk.read() }
 
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -116,8 +227,16 @@ fun ArchiveroApp() {
             current = root
             indexed = emptyList()
             hasScanned = false
+            scanStatus = ""
             query = ""
             refresh++
+        }
+    }
+    val pickWallpaper = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: SecurityException) { }
+            wallpaperUri = uri.toString()
+            showAppearance = false
         }
     }
 
@@ -181,44 +300,60 @@ fun ArchiveroApp() {
 
     fun scan() {
         val start = root
-        if (start == null) { message = "Primero elige una carpeta para analizar."; return }
+        if (start == null) { scanStatus = "Primero elige una carpeta para analizar."; return }
         if (scanning) return
         scope.launch {
             scanning = true
+            scanProgress = 0
+            scanStatus = "Preparando búsqueda..."
             val result = withContext(Dispatchers.IO) {
                 val found = mutableListOf<DocumentFile>()
                 val queue = ArrayDeque<Pair<DocumentFile, Int>>()
                 queue.add(start to 0)
                 var visited = 0
-                while (queue.isNotEmpty() && visited < 5000) {
+                var depthLimitHit = false
+                val maxEntries = 100_000
+                val maxDepth = 20
+                while (queue.isNotEmpty() && visited < maxEntries) {
                     val item = queue.removeFirst()
                     val children = runCatching { item.first.listFiles().toList() }.getOrElse { emptyList() }
                     for (child in children) {
-                        if (visited >= 5000) break
+                        if (visited >= maxEntries) break
                         visited++
                         if (child.isDirectory) {
-                            if (item.second < 8 && !child.name.orEmpty().startsWith(".")) queue.add(child to item.second + 1)
+                            if (item.second < maxDepth && !child.name.orEmpty().startsWith(".")) queue.add(child to item.second + 1)
+                            else if (item.second >= maxDepth) depthLimitHit = true
                         } else found.add(child)
+                        if (visited % 1000 == 0) withContext(Dispatchers.Main) { scanProgress = visited }
                     }
                 }
-                Triple(found, visited, visited >= 5000)
+                Triple(found, visited, visited >= maxEntries || queue.isNotEmpty() || depthLimitHit)
             }
             indexed = result.first
             hasScanned = true
             scanning = false
+            scanProgress = result.second
             refresh++
-            message = if (result.third) "Análisis parcial: se alcanzaron 5.000 elementos por seguridad. Elige una carpeta más concreta para completar la búsqueda."
-                else "Análisis terminado: " + result.first.size + " archivos en la ubicación autorizada."
+            scanStatus = if (result.third) {
+                "Resultados parciales: ${result.first.size} archivos revisados (${result.second} elementos). Para completar, analiza una carpeta más específica."
+            } else {
+                "Búsqueda completa: ${result.first.size} archivos encontrados."
+            }
         }
     }
 
     MaterialTheme(colorScheme = lightColorScheme(
-        primary = Color(0xFF285E55), secondary = Color(0xFF547D73),
-        background = Color(0xFFF4F7F5), surface = Color.White,
-        surfaceVariant = Color(0xFFE7EFEB)
+        primary = activePalette.primary, secondary = activePalette.secondary,
+        background = activePalette.background, surface = Color.White,
+        surfaceVariant = activePalette.secondary.copy(alpha = 0.12f)
     )) {
-        Scaffold(
-            containerColor = MaterialTheme.colorScheme.background,
+        Box(Modifier.fillMaxSize()) {
+            wallpaperBitmap?.let { image ->
+                Image(bitmap = image, contentDescription = "Fondo personalizado de Archivero",
+                    modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alpha = 0.28f)
+            }
+            Scaffold(
+            containerColor = activePalette.background.copy(alpha = if (wallpaperBitmap != null) 0.78f else 1f),
             topBar = {
                 TopAppBar(
                     title = {
@@ -237,8 +372,11 @@ fun ArchiveroApp() {
                             }
                         }
                     },
-                    actions = { IconButton(onClick = { if (rootUri == null) pickFolder.launch(null) else refresh++ }) { Icon(Icons.Default.Refresh, "Actualizar") } },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+                    actions = {
+                        IconButton(onClick = { showAppearance = true }) { Icon(Icons.Default.Palette, "Personalizar apariencia") }
+                        IconButton(onClick = { if (rootUri == null) pickFolder.launch(null) else refresh++ }) { Icon(Icons.Default.Refresh, "Actualizar") }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = activePalette.background.copy(alpha = 0.88f))
                 )
             },
             bottomBar = {
@@ -276,7 +414,7 @@ fun ArchiveroApp() {
                     }
                 } else when (screen) {
                     Screen.HOME -> {
-                        DiskCard(disk, root?.name ?: "Ubicación elegida") { pickFolder.launch(null) }
+                        DiskCard(disk, root?.name ?: "Ubicación elegida", activePalette.primary) { pickFolder.launch(null) }
                         Spacer(Modifier.height(18.dp))
                         Header("¿Qué estás buscando?", "Accesos directos a tus archivos")
                         Spacer(Modifier.height(10.dp))
@@ -302,8 +440,10 @@ fun ArchiveroApp() {
                         Spacer(Modifier.height(12.dp))
                         OutlinedButton(onClick = { scan() }, modifier = Modifier.fillMaxWidth(), enabled = !scanning) {
                             if (scanning) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Icon(Icons.Default.ManageSearch, null)
-                            Spacer(Modifier.width(8.dp)); Text(if (scanning) "Analizando..." else "Analizar toda esta ubicación")
+                            Spacer(Modifier.width(8.dp)); Text(if (scanning) "Analizando..." else "Buscar archivos en toda la ubicación")
                         }
+                        if (scanning) Text("Revisados: $scanProgress elementos", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (scanStatus.isNotBlank()) Text(scanStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 6.dp))
                     }
                     Screen.TYPES -> {
                         Header("Buscar por tipo", "Elige una categoría, luego filtra por nombre")
@@ -323,9 +463,11 @@ fun ArchiveroApp() {
                             }
                         }
                         SearchBox(query) { query = it }
+                        if (scanning) Text("Buscando... $scanProgress elementos revisados", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (scanStatus.isNotBlank()) Text(scanStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
                         Text(matchingFiles.size.toString() + " archivos encontrados", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(vertical = 6.dp))
-                        FileList(matchingFiles, { openDocument(it, context, { u,t,v -> playerUri=u; playerTitle=t; playerVideo=v }, { message=it }) }, { actionFile=it; actionMenu=true }, Modifier.weight(1f))
-                        if (!hasScanned) TextButton(onClick = { scan() }, enabled = !scanning) { Text(if (scanning) "Analizando..." else "Analizar ubicación") }
+                        FileList(matchingFiles, { openDocument(it, context, { u,t,v -> startPlayback(u,t,v,sourceFiles.filter { f -> !f.isDirectory && f.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) in Kind.MUSIC.extensions }) }, { message=it }) }, { actionFile=it; actionMenu=true }, Modifier.weight(1f))
+                        if (!hasScanned || scanStatus.startsWith("Resultados parciales")) TextButton(onClick = { scan() }, enabled = !scanning) { Text(if (scanning) "Analizando..." else "Volver a analizar ubicación") }
                     }
                     Screen.FOLDERS -> {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -346,7 +488,7 @@ fun ArchiveroApp() {
                             items(entries.filter { it.name.orEmpty().contains(query, true) }, key = { it.uri.toString() }) { file ->
                                 DocumentRow(file, {
                                     if (file.isDirectory) { current = file; currentUri = file.uri; refresh++ }
-                                    else openDocument(file, context, { u,t,v -> playerUri=u; playerTitle=t; playerVideo=v }, { message=it })
+                                    else openDocument(file, context, { u,t,v -> startPlayback(u,t,v,entries.filter { f -> !f.isDirectory && f.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) in Kind.MUSIC.extensions }) }, { message=it })
                                 }, { actionFile=file; deleteDialog=true })
                             }
                         }
@@ -354,7 +496,7 @@ fun ArchiveroApp() {
                     Screen.CLEAN -> {
                         Header("Recupera espacio", "Detecta candidatos, tú decides qué borrar")
                         Spacer(Modifier.height(10.dp))
-                        DiskCard(disk, root?.name ?: "Ubicación elegida") { pickFolder.launch(null) }
+                        DiskCard(disk, root?.name ?: "Ubicación elegida", activePalette.primary) { pickFolder.launch(null) }
                         Spacer(Modifier.height(10.dp))
                         OutlinedButton(onClick = { scan() }, modifier = Modifier.fillMaxWidth(), enabled = !scanning) {
                             if (scanning) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Icon(Icons.Default.ManageSearch, null)
@@ -364,11 +506,36 @@ fun ArchiveroApp() {
                         Text("Archivos grandes y candidatos a basura", fontWeight = FontWeight.Bold)
                         Text("Temporales, registros y archivos de 100 MB o más. No se borra nada automáticamente.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         SearchBox(query) { query = it }
-                        FileList(cleanupFiles, { openDocument(it, context, { u,t,v -> playerUri=u; playerTitle=t; playerVideo=v }, { message=it }) }, { actionFile=it; deleteDialog=true }, Modifier.weight(1f))
-                        if (!hasScanned) TextButton(onClick = { scan() }, enabled = !scanning) { Text("Analizar ubicación") }
+                        if (scanning) Text("Buscando... $scanProgress elementos revisados", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (scanStatus.isNotBlank()) Text(scanStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        FileList(cleanupFiles, { openDocument(it, context, { u,t,v -> startPlayback(u,t,v,sourceFiles.filter { f -> !f.isDirectory && f.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) in Kind.MUSIC.extensions }) }, { message=it }) }, { actionFile=it; deleteDialog=true }, Modifier.weight(1f))
+                        if (!hasScanned || scanStatus.startsWith("Resultados parciales")) TextButton(onClick = { scan() }, enabled = !scanning) { Text(if (scanning) "Analizando..." else "Volver a analizar ubicación") }
                     }
                 }
             }
+            if (showAppearance) AlertDialog(
+                onDismissRequest = { showAppearance = false },
+                title = { Text("Personalizar Archivero") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Color de la aplicación", fontWeight = FontWeight.Bold)
+                        Palette.values().forEach { palette ->
+                            Row(Modifier.fillMaxWidth().clickable { selectedPaletteName = palette.name }.padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(26.dp).background(palette.primary, CircleShape))
+                                Spacer(Modifier.width(10.dp))
+                                Text(palette.label, modifier = Modifier.weight(1f))
+                                if (selectedPaletteName == palette.name) Icon(Icons.Default.CheckCircle, null, tint = palette.primary)
+                            }
+                        }
+                        OutlinedButton(onClick = { pickWallpaper.launch(arrayOf("image/*")) }, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.Image, null); Spacer(Modifier.width(8.dp)); Text("Elegir una imagen de fondo")
+                        }
+                        if (wallpaperUri != null) TextButton(onClick = { wallpaperUri = null; wallpaperBitmap = null }) { Text("Quitar imagen de fondo") }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { showAppearance = false }) { Text("Listo") } }
+            )
         }
     }
 
@@ -568,16 +735,68 @@ fun ArchiveroApp() {
     )
 
     if (playerUri != null) Dialog(onDismissRequest = { playerUri = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-            Column(Modifier.fillMaxSize().padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) { Text(if (playerVideo) "Reproductor de video" else "Reproductor de música", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); Text(playerTitle, maxLines = 2) }
-                    IconButton(onClick = { playerUri = null }) { Icon(Icons.Default.Close, "Cerrar reproductor") }
+        Surface(Modifier.fillMaxSize(), color = activePalette.background) {
+            Column(Modifier.fillMaxSize().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(if (playerVideo) "Reproductor de video" else "Reproductor de música", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text("Archivero · ${if (playerVideo) "Vídeo" else "Música"}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    IconButton(onClick = { playerUri = null }) { Icon(Icons.Default.Close, "Cerrar reproductor; la música seguirá en segundo plano") }
                 }
-                key(playerUri.toString()) {
-                    val exo = remember(playerUri) { ExoPlayer.Builder(context).build().apply { setMediaItem(MediaItem.fromUri(playerUri!!)); prepare(); playWhenReady = true } }
-                    DisposableEffect(exo) { onDispose { exo.release() } }
-                    AndroidView(factory = { ctx -> PlayerView(ctx).apply { player = exo; useController = true } }, modifier = Modifier.fillMaxWidth().weight(1f), update = { view -> view.player = exo })
+                if (playerVideo) {
+                    val controller = mediaController
+                    if (controller == null) Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                    else AndroidView(factory = { ctx -> PlayerView(ctx).apply { player = controller; useController = true } },
+                        modifier = Modifier.fillMaxWidth().weight(1f), update = { view -> view.player = controller })
+                } else {
+                    Spacer(Modifier.height(18.dp))
+                    Box(Modifier.fillMaxWidth().weight(0.7f).padding(horizontal = 22.dp)
+                        .background(activePalette.primary.copy(alpha = 0.10f), RoundedCornerShape(30.dp)), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.MusicNote, null, tint = activePalette.primary, modifier = Modifier.size(112.dp))
+                    }
+                    Spacer(Modifier.height(22.dp))
+                    Text(playerTitle.ifBlank { "Elige una canción" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, maxLines = 2)
+                    Text(if (playerQueueFiles.isEmpty()) "Reproducción de una pista" else "Lista de reproducción · ${playerQueueFiles.size} canciones",
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(15.dp))
+                    val fraction = if (playbackDuration > 0L) (playbackPosition.toFloat() / playbackDuration).coerceIn(0f, 1f) else 0f
+                    Slider(value = fraction,
+                        onValueChange = { v -> if (playbackDuration > 0L) playbackPosition = (playbackDuration * v).toLong() },
+                        onValueChangeFinished = { mediaController?.seekTo(playbackPosition) },
+                        modifier = Modifier.fillMaxWidth())
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(formatTime(playbackPosition), style = MaterialTheme.typography.labelSmall)
+                        Text(formatTime(playbackDuration), style = MaterialTheme.typography.labelSmall)
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { mediaController?.let { it.shuffleModeEnabled = !it.shuffleModeEnabled } }) {
+                            Icon(Icons.Default.Shuffle, "Aleatorio", tint = if (shuffleEnabled) activePalette.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        IconButton(onClick = { mediaController?.seekToPrevious() }) { Icon(Icons.Default.SkipPrevious, "Canción anterior", modifier = Modifier.size(34.dp)) }
+                        FilledIconButton(onClick = { mediaController?.let { c -> if (c.isPlaying) c.pause() else c.play() },
+                            modifier = Modifier.size(68.dp), colors = IconButtonDefaults.filledIconButtonColors(containerColor = activePalette.primary, contentColor = Color.White)) {
+                            Icon(if (playbackIsPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                if (playbackIsPlaying) "Pausar" else "Reproducir", modifier = Modifier.size(38.dp))
+                        }
+                        IconButton(onClick = { mediaController?.seekToNext() }) { Icon(Icons.Default.SkipNext, "Canción siguiente", modifier = Modifier.size(34.dp)) }
+                        IconButton(onClick = {
+                            mediaController?.let { c -> c.repeatMode = when (c.repeatMode) {
+                                Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                                Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                                else -> Player.REPEAT_MODE_OFF
+                            } }
+                        }) {
+                            Icon(if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                                "Cambiar repetición", tint = if (repeatMode != Player.REPEAT_MODE_OFF) activePalette.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text("Puedes volver al inicio o bloquear el móvil. La reproducción continúa y los controles quedan en la notificación de Android.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(12.dp))
+                    TextButton(onClick = { playerUri = null }) { Text("Seguir escuchando en segundo plano") }
                 }
             }
         }
@@ -587,8 +806,8 @@ fun ArchiveroApp() {
 }
 
 @Composable
-private fun DiskCard(disk: Disk?, location: String, onChange: () -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF285E55)), shape = RoundedCornerShape(23.dp)) {
+private fun DiskCard(disk: Disk?, location: String, accent: Color = Color(0xFF285E55), onChange: () -> Unit) {
+    Card(colors = CardDefaults.cardColors(containerColor = accent), shape = RoundedCornerShape(23.dp)) {
         Column(Modifier.fillMaxWidth().padding(17.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -666,8 +885,11 @@ private fun DiskCard(disk: Disk?, location: String, onChange: () -> Unit) {
 }
 private fun openDocument(file: DocumentFile, context: Context, onMedia: (Uri, String, Boolean) -> Unit, onError: (String) -> Unit) {
     try {
-        val mime = context.contentResolver.getType(file.uri).orEmpty()
-        if (mime.startsWith("audio/") || mime.startsWith("video/")) onMedia(file.uri, file.name ?: "Multimedia", mime.startsWith("video/"))
+        val extension = file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT)
+        val mime = context.contentResolver.getType(file.uri) ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: ""
+        val isAudio = mime.startsWith("audio/") || extension in Kind.MUSIC.extensions
+        val isVideo = mime.startsWith("video/") || extension in Kind.VIDEOS.extensions
+        if (isAudio || isVideo) onMedia(file.uri, file.name ?: "Multimedia", isVideo)
         else context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(file.uri, mime.ifBlank { "*/*" }).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
     } catch (_: Exception) { onError("No se pudo abrir el archivo. Puede faltar una aplicación compatible o el permiso de acceso.") }
 }
@@ -687,6 +909,10 @@ private fun isJunk(file: DocumentFile): Boolean {
     val name = file.name.orEmpty().lowercase(Locale.ROOT)
     val ext = name.substringAfterLast('.', "")
     return ext in setOf("tmp","temp","log","bak","old","cache","dmp") || name.startsWith(".") || name.contains("thumb")
+}
+private fun formatTime(milliseconds: Long): String {
+    val seconds = milliseconds.coerceAtLeast(0L) / 1000L
+    return String.format(Locale.getDefault(), "%d:%02d", seconds / 60L, seconds % 60L)
 }
 private fun formatBytes(bytes: Long): String = when {
     bytes < 1024L -> bytes.toString() + " B"
