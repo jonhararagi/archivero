@@ -56,14 +56,18 @@ fun ArchiveroApp() {
     val chooseMedia = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             try { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: SecurityException) { }
-            val mime = context.contentResolver.getType(uri).orEmpty()
-            if (mime.startsWith("audio/") || mime.startsWith("video/")) {
-                playerUri = uri
-                playerTitle = uri.lastPathSegment?.substringAfterLast("/") ?: "Multimedia"
-                playerIsVideo = mime.startsWith("video/")
-            } else {
-                try { context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime.ifBlank { "image/*" }).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)) }
-                catch (_: Exception) { message = "No hay una aplicación compatible para abrir este archivo." }
+            try {
+                val mime = context.contentResolver.getType(uri).orEmpty()
+                if (mime.startsWith("audio/") || mime.startsWith("video/")) {
+                    playerUri = uri
+                    playerTitle = uri.lastPathSegment?.substringAfterLast("/") ?: "Multimedia"
+                    playerIsVideo = mime.startsWith("video/")
+                } else {
+                    try { context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime.ifBlank { "image/*" }).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)) }
+                    catch (_: Exception) { message = "No hay una aplicación compatible para abrir este archivo." }
+                }
+            } catch (_: Exception) {
+                message = "No se pudo consultar o abrir el archivo. Puede que el acceso haya caducado o que el proveedor no responda."
             }
         }
     }
