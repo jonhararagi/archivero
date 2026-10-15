@@ -5,11 +5,15 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
+import android.os.Build
+import android.provider.Settings
 import android.os.StatFs
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -77,6 +81,8 @@ class MainActivity : ComponentActivity() {
 fun ArchiveroApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
     var rootUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+    var permissionRefresh by remember { mutableIntStateOf(0) }
+    var hasAllFilesAccess by remember { mutableStateOf(Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager()) }
     var currentUri by remember { mutableStateOf<Uri?>(null) }
     var root by remember { mutableStateOf<DocumentFile?>(null) }
     var current by remember { mutableStateOf<DocumentFile?>(null) }
@@ -112,6 +118,38 @@ fun ArchiveroApp() {
             hasScanned = false
             query = ""
             refresh++
+        }
+    }
+
+    val activity = context as? ComponentActivity
+    DisposableEffect(activity) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) permissionRefresh++
+        }
+        activity?.lifecycle?.addObserver(observer)
+        onDispose { activity?.lifecycle?.removeObserver(observer) }
+    }
+
+    LaunchedEffect(permissionRefresh) {
+        hasAllFilesAccess = Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager()
+        if (hasAllFilesAccess && root == null) {
+            val storage = DocumentFile.fromFile(Environment.getExternalStorageDirectory())
+            root = storage
+            current = storage
+            rootUri = storage.uri
+            currentUri = storage.uri
+            indexed = emptyList()
+            hasScanned = false
+        }
+    }
+
+    fun requestAllFilesAccess() {
+        if (Build.VERSION.SDK_INT >= 30 && !Environment.isExternalStorageManager()) {
+            try {
+                context.startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}")))
+            } catch (_: Exception) {
+                context.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+            }
         }
     }
 
@@ -226,10 +264,12 @@ fun ArchiveroApp() {
                         Spacer(Modifier.height(8.dp))
                         Text("Busca por tipo, explora carpetas y encuentra archivos grandes desde un solo lugar.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(20.dp))
-                        Button(onClick = { pickFolder.launch(null) }, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(8.dp)); Text("Elegir almacenamiento")
+                        Button(onClick = { requestAllFilesAccess() }, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(8.dp)); Text("Permitir acceso a mis archivos")
                         }
-                        Text("Android te pedirá permiso para la ubicación elegida.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Se abrirá el ajuste oficial de Android. Actívalo una sola vez para navegar por Descargas, Documentos, Imágenes y otras carpetas. Archivero trabaja localmente y no envía tus archivos.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(8.dp))
+                        TextButton(onClick = { pickFolder.launch(null) }) { Text("O elegir una carpeta específica") }
                     }
                 } else when (screen) {
                     Screen.HOME -> {
