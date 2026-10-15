@@ -452,7 +452,7 @@ fun ArchiveroApp() {
                         ZipInputStream(raw).use { zip ->
                             var entry = zip.nextEntry
                             while (entry != null) {
-                                val safe = entry.name.replace('\\\\', '/')
+                                val safe = entry.name.replace(92.toChar(), '/')
                                 require(!safe.startsWith("/") && safe.split('/').none { it == ".." }) { "El ZIP contiene una ruta insegura y se canceló." }
                                 if (safe.isNotBlank()) {
                                     val parts = safe.split('/').filter { it.isNotBlank() }
