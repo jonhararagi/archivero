@@ -468,7 +468,12 @@ fun ArchiveroApp() {
                                         val dest = dir.createFile("application/octet-stream", name) ?: error("No se pudo crear '$name'.")
                                         context.contentResolver.openOutputStream(dest.uri, "w").use { output ->
                                             requireNotNull(output) { "No se pudo escribir '$name'." }
-                                            zip.copyTo(output)
+                                            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                                            while (true) {
+                                                val read = zip.read(buffer)
+                                                if (read < 0) break
+                                                output.write(buffer, 0, read)
+                                            }
                                         }
                                         count++
                                     }
