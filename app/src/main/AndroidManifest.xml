@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Permiso explícito para un administrador de archivos instalado por el usuario. Android lo habilita desde Ajustes. -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <!-- Los archivos se eligen mediante el selector seguro de Android; no requiere acceso global al almacenamiento. -->
     <application
         android:allowBackup="true"
