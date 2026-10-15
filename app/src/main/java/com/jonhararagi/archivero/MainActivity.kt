@@ -23,6 +23,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -61,11 +62,17 @@ import androidx.media3.session.SessionToken
 import androidx.media3.ui.PlayerView
 import java.util.concurrent.Executor
 import java.util.Locale
+import java.util.Date
+import java.text.SimpleDateFormat
+import java.security.MessageDigest
+import java.io.IOException
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 private enum class Screen { HOME, TYPES, FOLDERS, CLEAN }
+private enum class CleanupMode { SCREENSHOTS, DUPLICATES, VIDEOS }
+private data class DuplicateGroup(val hash: String, val files: List<DocumentFile>)
 private enum class Palette(val label: String, val primary: Color, val secondary: Color, val background: Color) {
     VERDE("Verde bosque", Color(0xFF285E55), Color(0xFF547D73), Color(0xFFF4F7F5)),
     VIOLETA("Violeta", Color(0xFF7048A8), Color(0xFF9575CD), Color(0xFFF7F2FC)),
@@ -114,6 +121,15 @@ fun ArchiveroApp() {
     var wallpaperBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var scanStatus by rememberSaveable { mutableStateOf("") }
     var scanProgress by remember { mutableIntStateOf(0) }
+    var cleanupModeName by rememberSaveable { mutableStateOf(CleanupMode.SCREENSHOTS.name) }
+    var duplicateGroups by remember { mutableStateOf<List<DuplicateGroup>>(emptyList()) }
+    var duplicateScanRunning by remember { mutableStateOf(false) }
+    var duplicateScanProgress by remember { mutableIntStateOf(0) }
+    var duplicateScanStatus by rememberSaveable { mutableStateOf("") }
+    var analyzeDuplicatesAfterScan by remember { mutableStateOf(false) }
+    var cleanupSelectedUris by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var bulkDeleteDialog by remember { mutableStateOf(false) }
+    var showPlayerPanel by rememberSaveable { mutableStateOf(false) }
     var rootUri by rememberSaveable { mutableStateOf<Uri?>(null) }
     var permissionRefresh by remember { mutableIntStateOf(0) }
     var hasAllFilesAccess by remember { mutableStateOf(Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager()) }
@@ -176,6 +192,10 @@ fun ArchiveroApp() {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 val title = mediaItem?.mediaMetadata?.title?.toString()
                 if (!title.isNullOrBlank()) playerTitle = title
+                mediaItem?.localConfiguration?.uri?.let { uri ->
+                    playbackUri = uri
+                    playerUri = uri
+                }
             }
         }
         controller?.addListener(listener)
@@ -211,6 +231,7 @@ fun ArchiveroApp() {
         playbackUri = uri
         playerTitle = title
         playerVideo = video
+        showPlayerPanel = true
         playerQueueItems = if (video) emptyList() else queue
             .filter { file -> !file.isDirectory && file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) in Kind.MUSIC.extensions }
             .distinctBy { it.uri.toString() }
@@ -292,6 +313,7 @@ fun ArchiveroApp() {
             playerVideo = false
             playbackError = null
             showQueue = false
+            showPlayerPanel = true
             playbackRequestId++
         }
     }
@@ -351,8 +373,23 @@ fun ArchiveroApp() {
         val kindMatches = if (activeKind == Kind.OTHER) Kind.values().filter { it != Kind.OTHER }.none { ext in it.extensions } else ext in activeKind.extensions
         kindMatches && file.name.orEmpty().contains(query.trim(), ignoreCase = true)
     }
-    val cleanupFiles = sourceFiles.filter { isJunk(it) || it.length() >= 100L * 1024 * 1024 }
-        .filter { it.name.orEmpty().contains(query.trim(), ignoreCase = true) }.sortedByDescending { it.length() }
+    val activeCleanupMode = runCatching { CleanupMode.valueOf(cleanupModeName) }.getOrDefault(CleanupMode.SCREENSHOTS)
+    val duplicateDisplayGroups = duplicateGroups.mapNotNull { group ->
+        val visible = group.files.filter { it.name.orEmpty().contains(query.trim(), ignoreCase = true) }
+        if (visible.isEmpty()) null else group.copy(files = visible)
+    }
+    val oldScreenshotFiles = sourceFiles.filter { isOldScreenshot(it) }.sortedBy { it.lastModified() }
+    val largeVideoFiles = sourceFiles.filter {
+        it.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) in Kind.VIDEOS.extensions &&
+            it.length() >= 100L * 1024 * 1024
+    }.sortedByDescending { it.length() }
+    val cleanupFiles = when (activeCleanupMode) {
+        CleanupMode.SCREENSHOTS -> oldScreenshotFiles
+        CleanupMode.DUPLICATES -> duplicateDisplayGroups.flatMap { it.files }.distinctBy { it.uri.toString() }
+        CleanupMode.VIDEOS -> largeVideoFiles
+    }.filter { it.name.orEmpty().contains(query.trim(), ignoreCase = true) }
+    val selectedCleanupFiles = cleanupFiles.filter { it.uri.toString() in cleanupSelectedUris }
+    val selectedCleanupBytes = selectedCleanupFiles.sumOf { it.length().coerceAtLeast(0L) }
 
     fun scan() {
         val start = root
@@ -398,6 +435,119 @@ fun ArchiveroApp() {
         }
     }
 
+    fun analyzeDuplicates() {
+        if (!hasScanned) {
+            analyzeDuplicatesAfterScan = true
+            scan()
+            duplicateScanStatus = "Primero se analiza la ubicación; después se compara el contenido de los archivos del mismo tamaño."
+            return
+        }
+        if (duplicateScanRunning) return
+        val candidates = sourceFiles
+            .filter { !it.isDirectory && it.length() > 0L }
+            .groupBy { it.length() }
+            .filter { (size, files) -> size > 0L && files.size > 1 }
+            .values.flatten()
+            .distinctBy { it.uri.toString() }
+        if (candidates.isEmpty()) {
+            duplicateGroups = emptyList()
+            duplicateScanProgress = 0
+            duplicateScanStatus = "No hay archivos con el mismo tamaño para comparar. No se ha eliminado nada."
+            return
+        }
+        duplicateScanRunning = true
+        duplicateScanProgress = 0
+        duplicateScanStatus = "Comparando el contenido completo de ${candidates.size} archivos..."
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                val hashes = linkedMapOf<String, MutableList<DocumentFile>>()
+                var unreadable = 0
+                for (index in candidates.indices) {
+                    val file = candidates[index]
+                    val hash = runCatching { sha256Content(context, file) }.getOrNull()
+                    if (hash == null) {
+                        unreadable++
+                    } else {
+                        hashes.getOrPut("${file.length()}|$hash") { mutableListOf() }.add(file)
+                    }
+                    if ((index + 1) % 5 == 0 || index == candidates.lastIndex) {
+                        withContext(Dispatchers.Main) { duplicateScanProgress = index + 1 }
+                    }
+                }
+                val confirmed = hashes.entries
+                    .filter { it.value.size > 1 }
+                    .map { entry ->
+                        DuplicateGroup(
+                            hash = entry.key.substringAfter('|'),
+                            files = entry.value.sortedBy { it.name.orEmpty().lowercase(Locale.ROOT) }
+                        )
+                    }
+                    .sortedByDescending { group -> group.files.firstOrNull()?.length() ?: 0L }
+                Triple(confirmed, unreadable, candidates.size)
+            }
+            duplicateGroups = result.first
+            duplicateScanRunning = false
+            cleanupSelectedUris = emptySet()
+            duplicateScanStatus = buildString {
+                append("Comparación finalizada: ${result.first.size} grupos con contenido idéntico confirmado por SHA-256. No se borró nada.")
+                if (result.second > 0) append(" ${result.second} archivo(s) no se pudieron leer y no se clasificaron como duplicados.")
+            }
+        }
+    }
+
+    fun requestBulkDelete() {
+        if (selectedCleanupFiles.isEmpty()) return
+        if (activeCleanupMode == CleanupMode.DUPLICATES && duplicateGroups.any { group ->
+                group.files.size > 1 && group.files.all { it.uri.toString() in cleanupSelectedUris }
+            }) {
+            message = "Para proteger tus archivos, deja al menos una copia sin marcar en cada grupo de duplicados."
+            return
+        }
+        bulkDeleteDialog = true
+    }
+
+    fun confirmBulkDelete() {
+        bulkDeleteDialog = false
+        val selected = selectedCleanupFiles
+        if (selected.isEmpty()) return
+        if (activeCleanupMode == CleanupMode.DUPLICATES && duplicateGroups.any { group ->
+                group.files.size > 1 && group.files.all { it.uri.toString() in selected.map { file -> file.uri.toString() }.toSet() }
+            }) {
+            message = "No se borró nada: deja al menos una copia de cada grupo de duplicados."
+            return
+        }
+        scope.launch {
+            val results = withContext(Dispatchers.IO) {
+                selected.map { file ->
+                    file.uri.toString() to runCatching { file.delete() }.getOrDefault(false)
+                }
+            }
+            val deletedUris = results.filter { it.second }.map { it.first }.toSet()
+            val failed = results.size - deletedUris.size
+            if (deletedUris.isNotEmpty()) {
+                indexed = indexed.filterNot { it.uri.toString() in deletedUris }
+                duplicateGroups = duplicateGroups.mapNotNull { group ->
+                    val remaining = group.files.filterNot { it.uri.toString() in deletedUris }
+                    if (remaining.size > 1) group.copy(files = remaining) else null
+                }
+                refresh++
+            }
+            cleanupSelectedUris = emptySet()
+            scanStatus = "Limpieza revisada: ${deletedUris.size} eliminado(s); ${failed} no se pudieron eliminar."
+            message = scanStatus
+        }
+    }
+
+    LaunchedEffect(analyzeDuplicatesAfterScan, hasScanned, scanning) {
+        if (analyzeDuplicatesAfterScan && hasScanned && !scanning) {
+            analyzeDuplicatesAfterScan = false
+            analyzeDuplicates()
+        }
+    }
+    LaunchedEffect(screen, rootUri, hasScanned, scanning) {
+        if (screen == Screen.CLEAN && root != null && !hasScanned && !scanning) scan()
+    }
+
     MaterialTheme(colorScheme = lightColorScheme(
         primary = activePalette.primary, secondary = activePalette.secondary,
         background = activePalette.background, surface = Color.White,
@@ -436,11 +586,42 @@ fun ArchiveroApp() {
                 )
             },
             bottomBar = {
-                NavigationBar(containerColor = Color.White) {
-                    NavigationBarItem(screen == Screen.HOME, { screen = Screen.HOME; query = "" }, { Icon(Icons.Default.Home, null) }, label = { Text("Inicio") })
-                    NavigationBarItem(screen == Screen.TYPES, { screen = Screen.TYPES; query = "" }, { Icon(Icons.Default.Category, null) }, label = { Text("Tipos") })
-                    NavigationBarItem(screen == Screen.FOLDERS, { screen = Screen.FOLDERS; query = "" }, { Icon(Icons.Default.FolderOpen, null) }, label = { Text("Carpetas") })
-                    NavigationBarItem(screen == Screen.CLEAN, { screen = Screen.CLEAN; query = "" }, { Icon(Icons.Default.CleaningServices, null) }, label = { Text("Limpiar") })
+                Column {
+                    if (playerUri != null && !showPlayerPanel && !playerVideo) {
+                        Surface(
+                            color = Color.White,
+                            tonalElevation = 4.dp,
+                            shadowElevation = 3.dp,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth().clickable { showPlayerPanel = true }.padding(horizontal = 12.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    Modifier.size(38.dp).background(activePalette.primary.copy(alpha = 0.12f), RoundedCornerShape(10.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) { Icon(Icons.Default.MusicNote, null, tint = activePalette.primary) }
+                                Spacer(Modifier.width(10.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(playerTitle.ifBlank { "Reproductor de música" }, maxLines = 1, fontWeight = FontWeight.Bold)
+                                    Text(if (playbackIsPlaying) "Reproduciendo · toca para abrir" else "En pausa · toca para abrir",
+                                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                IconButton(onClick = { mediaController?.let { controller -> if (controller.isPlaying) controller.pause() else controller.play() } }) {
+                                    Icon(if (playbackIsPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                        if (playbackIsPlaying) "Pausar música" else "Continuar música", tint = activePalette.primary)
+                                }
+                                IconButton(onClick = { showPlayerPanel = true }) { Icon(Icons.Default.OpenInFull, "Abrir reproductor") }
+                            }
+                        }
+                    }
+                    NavigationBar(containerColor = Color.White) {
+                        NavigationBarItem(screen == Screen.HOME, { screen = Screen.HOME; query = "" }, { Icon(Icons.Default.Home, null) }, label = { Text("Inicio") })
+                        NavigationBarItem(screen == Screen.TYPES, { screen = Screen.TYPES; query = "" }, { Icon(Icons.Default.Category, null) }, label = { Text("Tipos") })
+                        NavigationBarItem(screen == Screen.FOLDERS, { screen = Screen.FOLDERS; query = "" }, { Icon(Icons.Default.FolderOpen, null) }, label = { Text("Carpetas") })
+                        NavigationBarItem(screen == Screen.CLEAN, { screen = Screen.CLEAN; query = ""; cleanupSelectedUris = emptySet() }, { Icon(Icons.Default.CleaningServices, null) }, label = { Text("Limpiar") })
+                    }
                 }
             },
             floatingActionButton = {
@@ -480,7 +661,13 @@ fun ArchiveroApp() {
                                 CategoryTile(Kind.VIDEOS, Modifier.weight(1f)) { selectedKind = Kind.VIDEOS.name; screen = Screen.TYPES; if (indexed.isEmpty()) scan() }
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                CategoryTile(Kind.MUSIC, Modifier.weight(1f)) { selectedKind = Kind.MUSIC.name; screen = Screen.TYPES; if (indexed.isEmpty()) scan() }
+                                CategoryTile(Kind.MUSIC, Modifier.weight(1f)) {
+                        selectedKind = Kind.MUSIC.name
+                        screen = Screen.TYPES
+                        playerVideo = false
+                        showPlayerPanel = true
+                        if (indexed.isEmpty()) scan()
+                    }
                                 CategoryTile(Kind.DOCS, Modifier.weight(1f)) { selectedKind = Kind.DOCS.name; screen = Screen.TYPES; if (indexed.isEmpty()) scan() }
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -506,7 +693,13 @@ fun ArchiveroApp() {
                         Spacer(Modifier.height(10.dp))
                         LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                             items(Kind.values().toList()) { kind ->
-                                Card(onClick = { selectedKind = kind.name }, colors = CardDefaults.cardColors(containerColor = if (activeKind == kind) MaterialTheme.colorScheme.secondaryContainer else Color.White)) {
+                                Card(onClick = {
+                                    selectedKind = kind.name
+                                    if (kind == Kind.MUSIC) {
+                                        playerVideo = false
+                                        showPlayerPanel = true
+                                    }
+                                }, colors = CardDefaults.cardColors(containerColor = if (activeKind == kind) MaterialTheme.colorScheme.secondaryContainer else Color.White)) {
                                     Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                                         KindIcon(kind, 42); Spacer(Modifier.width(12.dp))
                                         Column(Modifier.weight(1f)) {
@@ -550,22 +743,147 @@ fun ArchiveroApp() {
                         }
                     }
                     Screen.CLEAN -> {
-                        Header("Recupera espacio", "Detecta candidatos, tú decides qué borrar")
+                        Header("Galería de limpieza inteligente", "Revisa cada archivo antes de borrarlo")
                         Spacer(Modifier.height(10.dp))
                         DiskCard(disk, root?.name ?: "Ubicación elegida", activePalette.primary) { pickFolder.launch(null) }
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(8.dp))
                         OutlinedButton(onClick = { scan() }, modifier = Modifier.fillMaxWidth(), enabled = !scanning) {
                             if (scanning) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Icon(Icons.Default.ManageSearch, null)
-                            Spacer(Modifier.width(8.dp)); Text(if (scanning) "Analizando..." else "Analizar archivos")
+                            Spacer(Modifier.width(8.dp)); Text(if (scanning) "Analizando ubicación..." else "Volver a analizar ubicación")
                         }
-                        Spacer(Modifier.height(8.dp))
-                        Text("Archivos grandes y candidatos a basura", fontWeight = FontWeight.Bold)
-                        Text("Temporales, registros y archivos de 100 MB o más. No se borra nada automáticamente.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(6.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            FilterChip(
+                                selected = activeCleanupMode == CleanupMode.SCREENSHOTS,
+                                onClick = { cleanupModeName = CleanupMode.SCREENSHOTS.name; cleanupSelectedUris = emptySet() },
+                                label = { Text("Capturas") },
+                                modifier = Modifier.weight(1f)
+                            )
+                            FilterChip(
+                                selected = activeCleanupMode == CleanupMode.DUPLICATES,
+                                onClick = { cleanupModeName = CleanupMode.DUPLICATES.name; cleanupSelectedUris = emptySet() },
+                                label = { Text("Duplicados") },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            FilterChip(
+                                selected = activeCleanupMode == CleanupMode.VIDEOS,
+                                onClick = { cleanupModeName = CleanupMode.VIDEOS.name; cleanupSelectedUris = emptySet() },
+                                label = { Text("Vídeos grandes") },
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (activeCleanupMode == CleanupMode.DUPLICATES) {
+                                OutlinedButton(
+                                    onClick = { analyzeDuplicates() },
+                                    enabled = !duplicateScanRunning && hasScanned,
+                                    modifier = Modifier.weight(1.3f)
+                                ) {
+                                    if (duplicateScanRunning) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    else Icon(Icons.Default.Fingerprint, null)
+                                    Spacer(Modifier.width(5.dp))
+                                    Text(if (duplicateScanRunning) "Comparando..." else "Comparar contenido")
+                                }
+                            } else {
+                                Text(
+                                    if (activeCleanupMode == CleanupMode.SCREENSHOTS) "Más de 90 días" else "Desde 100 MB",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.weight(1.3f).align(Alignment.CenterVertically)
+                                )
+                            }
+                        }
+                        Text(
+                            when (activeCleanupMode) {
+                                CleanupMode.SCREENSHOTS -> "Capturas de pantalla con más de 90 días. Si Android no informa la fecha, se dejan fuera."
+                                CleanupMode.DUPLICATES -> "Solo se agrupan copias con el mismo tamaño y SHA-256 del contenido completo. El nombre no decide si son duplicados."
+                                CleanupMode.VIDEOS -> "Vídeos de 100 MB o más, ordenados del más grande al más pequeño."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                         SearchBox(query) { query = it }
-                        if (scanning) Text("Buscando... $scanProgress elementos revisados", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (scanning) Text("Explorando: $scanProgress elementos", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (activeCleanupMode == CleanupMode.DUPLICATES && duplicateScanRunning) {
+                            LinearProgressIndicator(
+                                progress = { if (duplicateScanProgress == 0) 0f else duplicateScanProgress.toFloat() /
+                                    sourceFiles.count { !it.isDirectory && it.length() > 0L && sourceFiles.count { other -> !other.isDirectory && other.length() == it.length() } > 1 }.coerceAtLeast(1) },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text("Leyendo contenido: $duplicateScanProgress archivos comparados", style = MaterialTheme.typography.labelSmall)
+                        }
                         if (scanStatus.isNotBlank()) Text(scanStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        FileList(cleanupFiles, { openDocument(it, context, { u,t,v -> startPlayback(u,t,v,sourceFiles.filter { f -> !f.isDirectory && f.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) in Kind.MUSIC.extensions }) }, { message=it }) }, { actionFile=it; deleteDialog=true }, Modifier.weight(1f))
-                        if (!hasScanned || scanStatus.startsWith("Resultados parciales")) TextButton(onClick = { scan() }, enabled = !scanning) { Text(if (scanning) "Analizando..." else "Volver a analizar ubicación") }
+                        if (activeCleanupMode == CleanupMode.DUPLICATES && duplicateScanStatus.isNotBlank()) {
+                            Text(duplicateScanStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if (cleanupFiles.isEmpty() && activeCleanupMode != CleanupMode.DUPLICATES) {
+                            EmptyNotice(
+                                if (activeCleanupMode == CleanupMode.SCREENSHOTS) "No encontramos capturas antiguas" else "No encontramos vídeos grandes",
+                                "Prueba otra ubicación o vuelve a analizar los archivos.",
+                                if (activeCleanupMode == CleanupMode.SCREENSHOTS) Icons.Default.ImageSearch else Icons.Default.Movie
+                            )
+                        }
+                        if (activeCleanupMode == CleanupMode.DUPLICATES && duplicateDisplayGroups.isEmpty() && !duplicateScanRunning) {
+                            EmptyNotice(
+                                if (duplicateScanStatus.isBlank()) "Compara los archivos para empezar" else "No hay duplicados confirmados",
+                                "Se comprueba el contenido completo. No se borra nada durante el análisis.",
+                                Icons.Default.Fingerprint
+                            )
+                        }
+                        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            if (activeCleanupMode == CleanupMode.DUPLICATES) {
+                                items(duplicateDisplayGroups, key = { it.hash }) { group ->
+                                    Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+                                        Column(Modifier.fillMaxWidth().padding(10.dp)) {
+                                            Text("${group.files.size} copias con contenido idéntico", fontWeight = FontWeight.Bold)
+                                            Text("SHA-256: ${group.hash.take(20)}… · ${formatBytes(group.files.firstOrNull()?.length() ?: 0L)} cada una",
+                                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            group.files.forEach { file ->
+                                                CleanupCandidateRow(
+                                                    file = file,
+                                                    checked = file.uri.toString() in cleanupSelectedUris,
+                                                    subtitle = "${formatBytes(file.length())} · ${cleanupLocation(file)}",
+                                                    onChecked = { checked ->
+                                                        cleanupSelectedUris = if (checked) cleanupSelectedUris + file.uri.toString()
+                                                        else cleanupSelectedUris - file.uri.toString()
+                                                    },
+                                                    onOpen = { openDocument(file, context, { u,t,v -> startPlayback(u,t,v,sourceFiles.filter { f -> !f.isDirectory && f.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) in Kind.MUSIC.extensions }) }, { message = it }) }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                items(cleanupFiles, key = { it.uri.toString() }) { file ->
+                                    val subtitle = when (activeCleanupMode) {
+                                        CleanupMode.SCREENSHOTS -> "Captura · ${formatDate(file.lastModified())} · ${formatBytes(file.length())} · ${cleanupLocation(file)}"
+                                        CleanupMode.VIDEOS -> "Vídeo pesado · ${formatBytes(file.length())} · ${cleanupLocation(file)}"
+                                        else -> formatBytes(file.length())
+                                    }
+                                    CleanupCandidateRow(
+                                        file = file,
+                                        checked = file.uri.toString() in cleanupSelectedUris,
+                                        subtitle = subtitle,
+                                        onChecked = { checked ->
+                                            cleanupSelectedUris = if (checked) cleanupSelectedUris + file.uri.toString()
+                                            else cleanupSelectedUris - file.uri.toString()
+                                        },
+                                        onOpen = { openDocument(file, context, { u,t,v -> startPlayback(u,t,v,sourceFiles.filter { f -> !f.isDirectory && f.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) in Kind.MUSIC.extensions }) }, { message = it }) }
+                                    )
+                                }
+                            }
+                        }
+                        if (selectedCleanupFiles.isNotEmpty()) {
+                            Button(
+                                onClick = { requestBulkDelete() },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                            ) {
+                                Icon(Icons.Default.DeleteSweep, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Revisar borrado · ${selectedCleanupFiles.size} archivo(s) · ${formatBytes(selectedCleanupBytes)}")
+                            }
+                        }
                     }
                 }
             }
@@ -779,6 +1097,18 @@ fun ArchiveroApp() {
         dismissButton = { TextButton(onClick = { renameDialog = false }) { Text("Cancelar") } }
     )
 
+    if (bulkDeleteDialog) AlertDialog(
+        onDismissRequest = { bulkDeleteDialog = false },
+        title = { Text("Revisar limpieza") },
+        text = {
+            Text("Vas a eliminar ${selectedCleanupFiles.size} archivo(s) seleccionados (${formatBytes(selectedCleanupBytes)}). Se revisarán los elementos marcados; esta acción puede ser permanente. Archivero nunca borra candidatos automáticamente.")
+        },
+        confirmButton = {
+            TextButton(onClick = { confirmBulkDelete() }) { Text("Confirmar eliminación", color = MaterialTheme.colorScheme.error) }
+        },
+        dismissButton = { TextButton(onClick = { bulkDeleteDialog = false }) { Text("Seguir revisando") } }
+    )
+
     if (deleteDialog && actionFile != null) AlertDialog(
         onDismissRequest = { deleteDialog = false }, title = { Text("Eliminar elemento") },
         text = { Text("¿Eliminar " + (actionFile?.name ?: "este archivo") + "? La operación puede ser permanente. Revisa el nombre antes de continuar.") },
@@ -791,120 +1121,151 @@ fun ArchiveroApp() {
         dismissButton = { TextButton(onClick = { deleteDialog = false }) { Text("Cancelar") } }
     )
 
-    if (playerUri != null) Dialog(onDismissRequest = { playerUri = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxSize(), color = activePalette.background) {
-            Column(Modifier.fillMaxSize().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(if (playerVideo) "Reproductor de video" else "Reproductor de música", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text("Archivero · ${if (playerVideo) "Vídeo" else "Música"}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    if (showPlayerPanel) Dialog(
+        onDismissRequest = { showPlayerPanel = false },
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        if (playerVideo && playerUri != null) {
+            Surface(Modifier.fillMaxSize(), color = activePalette.background) {
+                Column(Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Reproductor de vídeo", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text(playerTitle, maxLines = 1, style = MaterialTheme.typography.bodySmall)
+                        }
+                        IconButton(onClick = { showPlayerPanel = false }) { Icon(Icons.Default.KeyboardArrowDown, "Minimizar reproductor") }
                     }
-                    IconButton(onClick = { playerUri = null }) { Icon(Icons.Default.Close, "Cerrar reproductor; la música seguirá en segundo plano") }
-                }
-                if (playerVideo) {
                     val controller = mediaController
-                    if (controller == null) Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-                    else AndroidView(factory = { ctx -> PlayerView(ctx).apply { player = controller; useController = true } },
-                        modifier = Modifier.fillMaxWidth().weight(1f), update = { view -> view.player = controller })
-                } else {
-                    Spacer(Modifier.height(18.dp))
-                    Box(Modifier.fillMaxWidth().weight(0.7f).padding(horizontal = 22.dp)
-                        .background(activePalette.primary.copy(alpha = 0.10f), RoundedCornerShape(30.dp)), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.MusicNote, null, tint = activePalette.primary, modifier = Modifier.size(112.dp))
-                    }
-                    Spacer(Modifier.height(22.dp))
-                    Text(playerTitle.ifBlank { "Elige una canción" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, maxLines = 2)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { playbackUri?.let { toggleFavorite(it) } }, enabled = playbackUri != null) {
-                            Icon(
-                                if (playbackUri?.toString() in favoriteUris) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                "Añadir o quitar de favoritos",
-                                tint = if (playbackUri?.toString() in favoriteUris) Color(0xFFD64D68) else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        OutlinedButton(onClick = { pickMusic.launch(arrayOf("audio/*")) }) {
-                            Icon(Icons.Default.QueueMusic, null); Spacer(Modifier.width(6.dp)); Text("Añadir temas")
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        IconButton(onClick = { showQueue = !showQueue }, enabled = playerQueueItems.isNotEmpty()) {
-                            Icon(Icons.Default.PlaylistPlay, "Mostrar lista de reproducción")
-                        }
-                    }
-                    Text(
-                        if (playerQueueItems.isEmpty()) "Elige canciones del teléfono" else "Lista de reproducción · ${playerQueueItems.size} canciones",
-                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
+                    if (controller == null) Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    } else AndroidView(
+                        factory = { ctx -> PlayerView(ctx).apply { player = controller; useController = true } },
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        update = { view -> view.player = controller }
                     )
-                    if (playbackError != null) {
-                        Text("No se pudo reproducir: $playbackError", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                        TextButton(onClick = { pickMusic.launch(arrayOf("audio/*")) }) { Text("Elegir otra canción") }
-                    }
-                    if (showQueue && playerQueueItems.isNotEmpty()) {
-                        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 136.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            items(playerQueueItems, key = { it.localConfiguration?.uri.toString() }) { item ->
-                                TextButton(
-                                    onClick = {
-                                        val uri = item.localConfiguration?.uri ?: return@TextButton
-                                        playbackUri = uri
-                                        playerUri = uri
-                                        playerTitle = item.mediaMetadata.title?.toString() ?: "Pista"
-                                        playbackRequestId++
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Icon(Icons.Default.MusicNote, null)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(item.mediaMetadata.title?.toString() ?: "Pista", maxLines = 1, modifier = Modifier.weight(1f))
-                                    if (item.localConfiguration?.uri == playbackUri) Icon(Icons.Default.Equalizer, null)
+                    TextButton(onClick = { showPlayerPanel = false }) { Text("Minimizar") }
+                }
+            }
+        } else {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+                Surface(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp).heightIn(max = 720.dp),
+                    color = activePalette.background,
+                    shape = RoundedCornerShape(28.dp),
+                    shadowElevation = 12.dp
+                ) {
+                    Column(
+                        Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Reproductor de música", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                Text("Archivero · la música no se corta al minimizar", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            IconButton(onClick = { showPlayerPanel = false }) {
+                                Icon(Icons.Default.KeyboardArrowDown, "Minimizar reproductor sin detener la música")
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Box(
+                            Modifier.fillMaxWidth().height(76.dp).background(activePalette.primary.copy(alpha = 0.10f), RoundedCornerShape(20.dp)),
+                            contentAlignment = Alignment.Center
+                        ) { Icon(Icons.Default.MusicNote, null, tint = activePalette.primary, modifier = Modifier.size(62.dp)) }
+                        Spacer(Modifier.height(12.dp))
+                        Text(playerTitle.ifBlank { "Elige una canción" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, maxLines = 2)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { playbackUri?.let { toggleFavorite(it) } }, enabled = playbackUri != null) {
+                                Icon(
+                                    if (playbackUri?.toString() in favoriteUris) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                    "Añadir o quitar de favoritos",
+                                    tint = if (playbackUri?.toString() in favoriteUris) Color(0xFFD64D68) else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            OutlinedButton(onClick = { pickMusic.launch(arrayOf("audio/*")) }) {
+                                Icon(Icons.Default.QueueMusic, null); Spacer(Modifier.width(6.dp)); Text("Añadir temas")
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            IconButton(onClick = { showQueue = !showQueue }, enabled = playerQueueItems.isNotEmpty()) {
+                                Icon(Icons.Default.PlaylistPlay, "Mostrar lista de reproducción")
+                            }
+                        }
+                        Text(
+                            if (playerQueueItems.isEmpty()) "Elige canciones del teléfono" else "Lista de reproducción · ${playerQueueItems.size} canciones",
+                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (playbackError != null) {
+                            Text("No se pudo reproducir: $playbackError", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            TextButton(onClick = { pickMusic.launch(arrayOf("audio/*")) }) { Text("Elegir otra canción") }
+                        }
+                        if (showQueue && playerQueueItems.isNotEmpty()) {
+                            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 136.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                items(playerQueueItems, key = { it.localConfiguration?.uri.toString() }) { item ->
+                                    TextButton(
+                                        onClick = {
+                                            val uri = item.localConfiguration?.uri ?: return@TextButton
+                                            playbackUri = uri
+                                            playerUri = uri
+                                            playerTitle = item.mediaMetadata.title?.toString() ?: "Pista"
+                                            playerVideo = false
+                                            showPlayerPanel = true
+                                            playbackRequestId++
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Icon(Icons.Default.MusicNote, null)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(item.mediaMetadata.title?.toString() ?: "Pista", maxLines = 1, modifier = Modifier.weight(1f))
+                                        if (item.localConfiguration?.uri == playbackUri) Icon(Icons.Default.Equalizer, null)
+                                    }
                                 }
                             }
                         }
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                        TextButton(onClick = {
-                            sleepTimerMinutes = when (sleepTimerMinutes) { 0 -> 15; 15 -> 30; 30 -> 60; else -> 0 }
-                        }) {
-                            Icon(Icons.Default.Bedtime, null); Spacer(Modifier.width(6.dp))
-                            Text(if (sleepTimerMinutes == 0) "Temporizador apagado" else "Pausa en $sleepTimerMinutes min")
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                            TextButton(onClick = {
+                                sleepTimerMinutes = when (sleepTimerMinutes) { 0 -> 15; 15 -> 30; 30 -> 60; else -> 0 }
+                            }) {
+                                Icon(Icons.Default.Bedtime, null); Spacer(Modifier.width(6.dp))
+                                Text(if (sleepTimerMinutes == 0) "Temporizador apagado" else "Pausa en $sleepTimerMinutes min")
+                            }
                         }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    val fraction = if (playbackDuration > 0L) (playbackPosition.toFloat() / playbackDuration).coerceIn(0f, 1f) else 0f
-                    Slider(value = fraction,
-                        onValueChange = { v -> if (playbackDuration > 0L) playbackPosition = (playbackDuration * v).toLong() },
-                        onValueChangeFinished = { mediaController?.seekTo(playbackPosition) },
-                        modifier = Modifier.fillMaxWidth())
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(formatTime(playbackPosition), style = MaterialTheme.typography.labelSmall)
-                        Text(formatTime(playbackDuration), style = MaterialTheme.typography.labelSmall)
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { mediaController?.let { it.shuffleModeEnabled = !it.shuffleModeEnabled } }) {
-                            Icon(Icons.Default.Shuffle, "Aleatorio", tint = if (shuffleEnabled) activePalette.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(4.dp))
+                        val fraction = if (playbackDuration > 0L) (playbackPosition.toFloat() / playbackDuration).coerceIn(0f, 1f) else 0f
+                        Slider(value = fraction,
+                            onValueChange = { v -> if (playbackDuration > 0L) playbackPosition = (playbackDuration * v).toLong() },
+                            onValueChangeFinished = { mediaController?.seekTo(playbackPosition) },
+                            modifier = Modifier.fillMaxWidth())
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(formatTime(playbackPosition), style = MaterialTheme.typography.labelSmall)
+                            Text(formatTime(playbackDuration), style = MaterialTheme.typography.labelSmall)
                         }
-                        IconButton(onClick = { mediaController?.seekToPrevious() }) { Icon(Icons.Default.SkipPrevious, "Canción anterior", modifier = Modifier.size(34.dp)) }
-                        FilledIconButton(onClick = { mediaController?.let { c -> if (c.isPlaying) c.pause() else c.play() } },
-                            modifier = Modifier.size(68.dp), colors = IconButtonDefaults.filledIconButtonColors(containerColor = activePalette.primary, contentColor = Color.White)) {
-                            Icon(if (playbackIsPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                if (playbackIsPlaying) "Pausar" else "Reproducir", modifier = Modifier.size(38.dp))
+                        Spacer(Modifier.height(8.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { mediaController?.let { it.shuffleModeEnabled = !it.shuffleModeEnabled } }) {
+                                Icon(Icons.Default.Shuffle, "Aleatorio", tint = if (shuffleEnabled) activePalette.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            IconButton(onClick = { mediaController?.seekToPrevious() }) { Icon(Icons.Default.SkipPrevious, "Canción anterior", modifier = Modifier.size(30.dp)) }
+                            FilledIconButton(onClick = { mediaController?.let { controller -> if (controller.isPlaying) controller.pause() else controller.play() } },
+                                modifier = Modifier.size(58.dp), colors = IconButtonDefaults.filledIconButtonColors(containerColor = activePalette.primary, contentColor = Color.White)) {
+                                Icon(if (playbackIsPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    if (playbackIsPlaying) "Pausar" else "Reproducir", modifier = Modifier.size(32.dp))
+                            }
+                            IconButton(onClick = { mediaController?.seekToNext() }) { Icon(Icons.Default.SkipNext, "Canción siguiente", modifier = Modifier.size(30.dp)) }
+                            IconButton(onClick = {
+                                mediaController?.let { controller -> controller.repeatMode = when (controller.repeatMode) {
+                                    Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                                    Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                                    else -> Player.REPEAT_MODE_OFF
+                                } }
+                            }) {
+                                Icon(if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                                    "Cambiar repetición", tint = if (repeatMode != Player.REPEAT_MODE_OFF) activePalette.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
-                        IconButton(onClick = { mediaController?.seekToNext() }) { Icon(Icons.Default.SkipNext, "Canción siguiente", modifier = Modifier.size(34.dp)) }
-                        IconButton(onClick = {
-                            mediaController?.let { c -> c.repeatMode = when (c.repeatMode) {
-                                Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-                                Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-                                else -> Player.REPEAT_MODE_OFF
-                            } }
-                        }) {
-                            Icon(if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
-                                "Cambiar repetición", tint = if (repeatMode != Player.REPEAT_MODE_OFF) activePalette.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text("Desliza hacia abajo o toca la flecha para minimizar. La reproducción sigue activa y queda disponible en la notificación multimedia de Android.",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Spacer(Modifier.height(10.dp))
-                    Text("Puedes volver al inicio o bloquear el móvil. La reproducción continúa y los controles quedan en la notificación de Android.",
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(12.dp))
-                    TextButton(onClick = { playerUri = null }) { Text("Seguir escuchando en segundo plano") }
                 }
             }
         }
@@ -991,6 +1352,62 @@ private fun DiskCard(disk: Disk?, location: String, accent: Color = Color(0xFF28
         Text(title, fontWeight = FontWeight.Bold); Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
     }
 }
+@Composable private fun CleanupCandidateRow(
+    file: DocumentFile,
+    checked: Boolean,
+    subtitle: String,
+    onChecked: (Boolean) -> Unit,
+    onOpen: () -> Unit
+) {
+    Row(
+        Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(checked = checked, onCheckedChange = onChecked)
+        Box(Modifier.size(36.dp).background(Color(0xFFE9EDF4), RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
+            Icon(fileIcon(file), null, tint = Color(0xFF52657D))
+        }
+        Spacer(Modifier.width(8.dp))
+        Column(Modifier.weight(1f).clickable(onClick = onOpen)) {
+            Text(file.name ?: "Sin nombre", fontWeight = FontWeight.SemiBold, maxLines = 2)
+            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+        }
+        IconButton(onClick = onOpen) { Icon(Icons.Default.Visibility, "Revisar archivo") }
+    }
+}
+private fun sha256Content(context: Context, file: DocumentFile): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+    val input = context.contentResolver.openInputStream(file.uri)
+        ?: throw IOException("Android no pudo leer el archivo")
+    input.use { stream ->
+        val buffer = ByteArray(64 * 1024)
+        while (true) {
+            val read = stream.read(buffer)
+            if (read < 0) break
+            if (read > 0) digest.update(buffer, 0, read)
+        }
+    }
+    return digest.digest().joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
+}
+private fun isScreenshot(file: DocumentFile): Boolean {
+    val ext = file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT)
+    if (ext !in Kind.IMAGES.extensions) return false
+    val metadata = "${file.name.orEmpty()} ${file.uri}".lowercase(Locale.ROOT)
+    return listOf("screenshot", "screen_shot", "screen-shot", "screen capture", "captura", "screenshots").any { it in metadata }
+}
+private fun isOldScreenshot(file: DocumentFile): Boolean {
+    val modified = file.lastModified()
+    val cutoff = System.currentTimeMillis() - 90L * 24L * 60L * 60L * 1000L
+    return isScreenshot(file) && modified > 0L && modified < cutoff
+}
+private fun cleanupLocation(file: DocumentFile): String {
+    val raw = Uri.decode(file.uri.toString())
+    val tail = raw.substringAfter("primary:", raw).substringAfter("external:", raw)
+    val parent = tail.substringBeforeLast('/').trim('/')
+    return if (parent.isBlank()) "Ubicación autorizada" else "Carpeta: ${parent.takeLast(58)}"
+}
+private fun formatDate(milliseconds: Long): String =
+    SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(milliseconds))
 private fun openDocument(file: DocumentFile, context: Context, onMedia: (Uri, String, Boolean) -> Unit, onError: (String) -> Unit) {
     val name = file.name ?: "archivo sin nombre"
     val extension = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
