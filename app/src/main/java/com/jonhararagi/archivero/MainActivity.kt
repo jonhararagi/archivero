@@ -153,12 +153,15 @@ fun ArchiveroApp() {
         }
     }
 
-    LaunchedEffect(rootUri) {
+    LaunchedEffect(rootUri, hasAllFilesAccess) {
         val saved = rootUri ?: return@LaunchedEffect
         if (root == null) {
-            val restored = runCatching { DocumentFile.fromTreeUri(context, saved) }.getOrNull()
-            if (restored != null && restored.canRead()) { root = restored; current = restored; currentUri = saved }
-            else { rootUri = null; currentUri = null; message = "Android ya no permite acceder a esa ubicación. Elígela otra vez." }
+            val restored = runCatching {
+                if (saved.scheme == "file" && hasAllFilesAccess) DocumentFile.fromFile(Environment.getExternalStorageDirectory())
+                else DocumentFile.fromTreeUri(context, saved)
+            }.getOrNull()
+            if (restored != null && restored.canRead()) { root = restored; current = restored; currentUri = restored.uri }
+            else if (saved.scheme != "file") { rootUri = null; currentUri = null; message = "Android ya no permite acceder a esa ubicación. Elígela otra vez." }
         }
     }
 
