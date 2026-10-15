@@ -40,6 +40,8 @@ fun ArchiveroApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
     var rootUri by remember { mutableStateOf<Uri?>(null) }
     var currentUri by remember { mutableStateOf<Uri?>(null) }
+    var rootFolder by remember { mutableStateOf<DocumentFile?>(null) }
+    var currentFolder by remember { mutableStateOf<DocumentFile?>(null) }
     var refresh by remember { mutableIntStateOf(0) }
     var message by remember { mutableStateOf<String?>(null) }
     var showNewFolder by remember { mutableStateOf(false) }
@@ -71,13 +73,15 @@ fun ArchiveroApp() {
             } catch (_: SecurityException) { }
             rootUri = uri
             currentUri = uri
+            rootFolder = DocumentFile.fromTreeUri(context, uri)
+            currentFolder = rootFolder
             refresh++
         }
     }
 
-    val current = remember(currentUri, refresh) {
-        currentUri?.let { DocumentFile.fromTreeUri(context, it) }
-    }
+    // Keep the actual DocumentFile while navigating. Child document URIs are not tree URIs,
+    // so recreating them with fromTreeUri breaks folder navigation on Android SAF.
+    val current = currentFolder
     val entries = remember(current, refresh) {
         current?.listFiles()?.sortedWith(compareBy<DocumentFile> { !it.isDirectory }.thenBy { it.name?.lowercase() ?: "" })?.toList().orEmpty()
     }
@@ -89,7 +93,12 @@ fun ArchiveroApp() {
                     title = { Column { Text("Archivero", fontWeight = FontWeight.Bold); Text(if (current == null) "Tus archivos, en orden" else current.name ?: "Almacenamiento", style = MaterialTheme.typography.labelMedium) } },
                     navigationIcon = {
                         if (currentUri != null && rootUri != currentUri) {
-                            IconButton(onClick = { current?.parentFile?.uri?.let { currentUri = it; refresh++ } ?: run { currentUri = rootUri; refresh++ } }) {
+                            IconButton(onClick = {
+                                val parent = current?.parentFile
+                                if (parent != null) { currentFolder = parent; currentUri = parent.uri }
+                                else { currentFolder = rootFolder; currentUri = rootUri }
+                                refresh++
+                            }) {
                                 Icon(Icons.Default.ArrowBack, contentDescription = "Volver")
                             }
                         }
@@ -107,7 +116,7 @@ fun ArchiveroApp() {
             },
             bottomBar = {
                 NavigationBar {
-                    NavigationBarItem(selected = true, onClick = { currentUri = rootUri; refresh++ }, icon = { Icon(Icons.Default.Folder, null) }, label = { Text("Archivos") })
+                    NavigationBarItem(selected = true, onClick = { currentFolder = rootFolder; currentUri = rootUri; refresh++ }, icon = { Icon(Icons.Default.Folder, null) }, label = { Text("Archivos") })
                     NavigationBarItem(selected = false, onClick = { chooseFolder.launch(null) }, icon = { Icon(Icons.Default.Storage, null) }, label = { Text("Ubicación") })
                 }
             }
@@ -146,7 +155,7 @@ fun ArchiveroApp() {
                             items(entries, key = { it.uri.toString() }) { file ->
                                 Card(Modifier.fillMaxWidth()) {
                                     Row(Modifier.fillMaxWidth().clickable {
-                                        if (file.isDirectory) { currentUri = file.uri; refresh++ }
+                                        if (file.isDirectory) { currentFolder = file; currentUri = file.uri; refresh++ }
                                         else {
                                             try {
                                                 val mime = context.contentResolver.getType(file.uri).orEmpty()
