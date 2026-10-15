@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -38,7 +39,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun ArchiveroApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
-    var rootUri by remember { mutableStateOf<Uri?>(null) }
+    var rootUri by rememberSaveable { mutableStateOf<Uri?>(null) }
     var currentUri by remember { mutableStateOf<Uri?>(null) }
     var rootFolder by remember { mutableStateOf<DocumentFile?>(null) }
     var currentFolder by remember { mutableStateOf<DocumentFile?>(null) }
@@ -77,6 +78,30 @@ fun ArchiveroApp() {
             rootFolder = DocumentFile.fromTreeUri(context, uri)
             currentFolder = rootFolder
             refresh++
+        }
+    }
+
+    // The folder permission survives process death, but ordinary Compose state does not.
+    // Restore the chosen root after Android recreates the activity; start safely at the root.
+    LaunchedEffect(rootUri) {
+        val savedRoot = rootUri ?: return@LaunchedEffect
+        if (rootFolder == null) {
+            try {
+                val restored = DocumentFile.fromTreeUri(context, savedRoot)
+                if (restored != null && restored.canRead()) {
+                    rootFolder = restored
+                    currentFolder = restored
+                    currentUri = savedRoot
+                } else {
+                    rootUri = null
+                    currentUri = null
+                    message = "No se pudo recuperar la carpeta elegida. Vuelve a seleccionarla."
+                }
+            } catch (_: SecurityException) {
+                rootUri = null
+                currentUri = null
+                message = "Android ya no permite acceder a esa carpeta. Selecciónala de nuevo."
+            }
         }
     }
 
