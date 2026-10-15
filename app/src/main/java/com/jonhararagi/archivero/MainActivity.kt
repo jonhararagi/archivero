@@ -375,6 +375,39 @@ fun ArchiveroApp() {
             TextButton(onClick = {
                 val file = actionFile
                 val result = runCatching {
+                    require(file != null && !file.isDirectory) { "Selecciona un archivo para comprimir." }
+                    val parent = current ?: error("No hay carpeta de destino.")
+                    require(parent.canWrite()) { "No hay permiso de escritura en la carpeta abierta." }
+                    val original = file.name ?: "archivo"
+                    val zipName = original.substringBeforeLast('.', original) + ".zip"
+                    var candidate = zipName
+                    var n = 2
+                    while (parent.findFile(candidate) != null) { candidate = zipName.removeSuffix(".zip") + " ($n).zip"; n++ }
+                    val archive = parent.createFile("application/zip", candidate) ?: error("No se pudo crear el ZIP.")
+                    try {
+                        context.contentResolver.openInputStream(file.uri).use { input ->
+                            requireNotNull(input) { "No se pudo leer el archivo original." }
+                            context.contentResolver.openOutputStream(archive.uri, "w").use { output ->
+                                requireNotNull(output) { "No se pudo escribir el ZIP." }
+                                ZipOutputStream(output).use { zip ->
+                                    zip.putNextEntry(ZipEntry(original.substringAfterLast('/')))
+                                    input.copyTo(zip)
+                                    zip.closeEntry()
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        archive.delete()
+                        throw e
+                    }
+                    candidate
+                }
+                message = result.fold({ refresh++; "Archivo comprimido: $it" }, { it.message ?: "No se pudo comprimir." })
+                actionMenu = false
+            }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.FolderZip, null); Spacer(Modifier.width(8.dp)); Text("Comprimir en ZIP") }
+            TextButton(onClick = {
+                val file = actionFile
+                val result = runCatching {
                     require(file != null && !file.isDirectory) { "Selecciona un archivo ZIP." }
                     require(file.name.orEmpty().endsWith(".zip", true)) { "La extracción está disponible para archivos ZIP." }
                     val parent = current ?: error("No hay carpeta de destino.")
