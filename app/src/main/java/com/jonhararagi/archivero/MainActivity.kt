@@ -97,7 +97,7 @@ fun ArchiveroApp() {
                     currentUri = null
                     message = "No se pudo recuperar la carpeta elegida. Vuelve a seleccionarla."
                 }
-            } catch (_: SecurityException) {
+            } catch (_: Exception) {
                 rootUri = null
                 currentUri = null
                 message = "Android ya no permite acceder a esa carpeta. Selecciónala de nuevo."
@@ -251,9 +251,22 @@ fun ArchiveroApp() {
         text = { OutlinedTextField(value = folderName, onValueChange = { folderName = it }, label = { Text("Nombre de la carpeta") }, singleLine = true) },
         confirmButton = { TextButton(onClick = {
             val name = folderName.trim()
-            if (name.isNotEmpty() && current?.findFile(name) == null) {
-                if (current?.createDirectory(name) != null) { refresh++; message = "Carpeta creada." } else message = "No se pudo crear la carpeta."
-            } else message = "Escribe un nombre válido y que no esté en uso."
+            if (name.isEmpty()) {
+                message = "Escribe un nombre para la carpeta."
+            } else {
+                val creation = runCatching {
+                    val parent = current ?: error("No hay una carpeta seleccionada.")
+                    if (parent.findFile(name) != null) false
+                    else parent.createDirectory(name) != null
+                }
+                message = creation.fold(
+                    onSuccess = { created ->
+                        if (created) { refresh++; "Carpeta creada." }
+                        else "No se pudo crear la carpeta. Comprueba que el nombre no exista y que tengas permiso para escribir."
+                    },
+                    onFailure = { "Android o el proveedor de almacenamiento rechazó la creación. Comprueba los permisos y vuelve a intentarlo." }
+                )
+            }
             showNewFolder = false
         }) { Text("Crear") } },
         dismissButton = { TextButton(onClick = { showNewFolder = false }) { Text("Cancelar") } }
@@ -267,9 +280,14 @@ fun ArchiveroApp() {
             TextButton(onClick = {
                 val f = selected
                 if (f != null) {
-                    val parent = f.parentFile
-                    if (f.delete()) { refresh++; message = "Elemento eliminado." }
-                    else message = "Android no permitió eliminarlo."
+                    val deletion = runCatching { f.delete() }
+                    message = deletion.fold(
+                        onSuccess = { deleted ->
+                            if (deleted) { refresh++; "Elemento eliminado." }
+                            else "Android no permitió eliminarlo. Puede que falte permiso o que el archivo esté protegido."
+                        },
+                        onFailure = { "No se pudo eliminar el elemento porque el proveedor de almacenamiento rechazó la operación. Comprueba los permisos." }
+                    )
                 }
                 showActions = false
             }) { Text("Eliminar", color = MaterialTheme.colorScheme.error) }
