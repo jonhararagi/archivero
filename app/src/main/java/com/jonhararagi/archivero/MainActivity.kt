@@ -125,6 +125,7 @@ fun ArchiveroApp() {
     var duplicateGroups by remember { mutableStateOf<List<DuplicateGroup>>(emptyList()) }
     var duplicateScanRunning by remember { mutableStateOf(false) }
     var duplicateScanProgress by remember { mutableIntStateOf(0) }
+    var duplicateScanTotal by remember { mutableIntStateOf(0) }
     var duplicateScanStatus by rememberSaveable { mutableStateOf("") }
     var analyzeDuplicatesAfterScan by remember { mutableStateOf(false) }
     var cleanupSelectedUris by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -452,11 +453,13 @@ fun ArchiveroApp() {
         if (candidates.isEmpty()) {
             duplicateGroups = emptyList()
             duplicateScanProgress = 0
+            duplicateScanTotal = 0
             duplicateScanStatus = "No hay archivos con el mismo tamaño para comparar. No se ha eliminado nada."
             return
         }
         duplicateScanRunning = true
         duplicateScanProgress = 0
+        duplicateScanTotal = candidates.size
         duplicateScanStatus = "Comparando el contenido completo de ${candidates.size} archivos..."
         scope.launch {
             val result = withContext(Dispatchers.IO) {
@@ -806,11 +809,10 @@ fun ArchiveroApp() {
                         if (scanning) Text("Explorando: $scanProgress elementos", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (activeCleanupMode == CleanupMode.DUPLICATES && duplicateScanRunning) {
                             LinearProgressIndicator(
-                                progress = { if (duplicateScanProgress == 0) 0f else duplicateScanProgress.toFloat() /
-                                    sourceFiles.count { !it.isDirectory && it.length() > 0L && sourceFiles.count { other -> !other.isDirectory && other.length() == it.length() } > 1 }.coerceAtLeast(1) },
+                                progress = { if (duplicateScanTotal == 0) 0f else duplicateScanProgress.toFloat() / duplicateScanTotal.coerceAtLeast(1) },
                                 modifier = Modifier.fillMaxWidth()
                             )
-                            Text("Leyendo contenido: $duplicateScanProgress archivos comparados", style = MaterialTheme.typography.labelSmall)
+                            Text("Leyendo contenido: $duplicateScanProgress / $duplicateScanTotal archivos comparados", style = MaterialTheme.typography.labelSmall)
                         }
                         if (scanStatus.isNotBlank()) Text(scanStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (activeCleanupMode == CleanupMode.DUPLICATES && duplicateScanStatus.isNotBlank()) {
@@ -1402,7 +1404,13 @@ private fun isOldScreenshot(file: DocumentFile): Boolean {
 }
 private fun cleanupLocation(file: DocumentFile): String {
     val raw = Uri.decode(file.uri.toString())
-    val tail = raw.substringAfter("primary:", raw).substringAfter("external:", raw)
+    val afterPrimary = raw.substringAfter("primary:", "")
+    val afterExternal = raw.substringAfter("external:", "")
+    val tail = when {
+        afterPrimary.isNotBlank() -> afterPrimary
+        afterExternal.isNotBlank() -> afterExternal
+        else -> raw.substringAfterLast('/')
+    }
     val parent = tail.substringBeforeLast('/').trim('/')
     return if (parent.isBlank()) "Ubicación autorizada" else "Carpeta: ${parent.takeLast(58)}"
 }
