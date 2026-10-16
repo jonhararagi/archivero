@@ -1,5 +1,6 @@
 package com.jonhararagi.archivero
 
+import android.content.ClipData
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -15,6 +16,7 @@ import android.provider.OpenableColumns
 import android.os.StatFs
 import android.webkit.MimeTypeMap
 import androidx.activity.ComponentActivity
+import androidx.core.content.FileProvider
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -66,6 +68,7 @@ import java.util.Locale
 import java.util.Date
 import java.text.SimpleDateFormat
 import java.security.MessageDigest
+import java.io.File
 import java.io.IOException
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
@@ -82,7 +85,7 @@ private enum class Palette(val label: String, val primary: Color, val secondary:
     AMBAR("Ámbar", Color(0xFF93600B), Color(0xFFC28B2C), Color(0xFFFFF8E9))
 }
 private enum class Kind(val title: String, val icon: ImageVector, val tint: Color, val extensions: Set<String>) {
-    IMAGES("Imágenes", Icons.Default.Image, Color(0xFF7657B5), setOf("jpg","jpeg","png","webp","gif","bmp","heic","heif","svg")),
+    IMAGES("Imágenes", Icons.Default.Image, Color(0xFF7657B5), setOf("jpg","jpeg","jpe","jfif","jps","png","webp","gif","bmp","heic","heif","avif","tif","tiff","svg")),
     VIDEOS("Videos", Icons.Default.Movie, Color(0xFFB3261E), setOf("mp4","mkv","mov","avi","webm","3gp","m4v")),
     MUSIC("Música", Icons.Default.MusicNote, Color(0xFF00796B), setOf("mp3","wav","aac","m4a","ogg","flac","opus","wma")),
     DOCS("Documentos", Icons.Default.Description, Color(0xFF245CA6), setOf("pdf","doc","docx","txt","rtf","odt","xls","xlsx","ppt","pptx","csv","md","json","xml","html","htm","log")),
@@ -242,6 +245,18 @@ fun ArchiveroApp() {
         controller.play()
     }
     fun startPlayback(uri: Uri, title: String, video: Boolean, queue: List<DocumentFile>) {
+        if (video) {
+            runCatching {
+                val intent = Intent(context, VideoPlayerActivity::class.java)
+                    .setData(uri)
+                    .putExtra("displayName", title)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                context.startActivity(intent)
+            }.onFailure { error ->
+                message = "No se pudo abrir el vídeo «" + title + "»: " + (error.message ?: "Android rechazó el archivo.")
+            }
+            return
+        }
         playerUri = uri
         playbackUri = uri
         playerTitle = title
@@ -1515,7 +1530,12 @@ private fun openDocument(file: DocumentFile, context: Context, onMedia: (Uri, St
     }
 
     runCatching {
-        context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(file.uri, mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+        val safeUri = uriForExternalViewer(context, file.uri)
+        val viewIntent = Intent(Intent.ACTION_VIEW)
+            .setDataAndType(safeUri, mime)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            .setClipData(ClipData.newUri(context.contentResolver, name, safeUri))
+        context.startActivity(Intent.createChooser(viewIntent, "Abrir con otra aplicación"))
     }.onFailure { error ->
         onError(when (error) {
             is SecurityException -> "Android negó el permiso para abrir «" + name + "». Vuelve a elegir su carpeta."
@@ -1523,6 +1543,16 @@ private fun openDocument(file: DocumentFile, context: Context, onMedia: (Uri, St
         })
     }
 }
+internal fun uriForExternalViewer(context: Context, uri: Uri): Uri {
+    if (uri.scheme != "file") return uri
+    val path = uri.path ?: throw IOException("La ruta del archivo no está disponible.")
+    return FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        File(path)
+    )
+}
+
 private fun displayName(context: Context, uri: Uri): String {
     val fromProvider = runCatching {
         context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->

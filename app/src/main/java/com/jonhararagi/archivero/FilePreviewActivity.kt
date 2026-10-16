@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.Bundle
@@ -34,6 +35,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -56,6 +58,9 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.util.Locale
+import java.io.File
+import android.os.ParcelFileDescriptor
+import kotlin.math.roundToInt
 import java.util.zip.ZipInputStream
 
 class FilePreviewActivity : ComponentActivity() {
@@ -81,7 +86,7 @@ private fun FilePreviewScreen(uri: Uri?, name: String, mime: String, onBack: () 
     val extension = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
     val mode = when {
         extension == "pdf" -> PreviewMode.PDF
-        extension in setOf("jpg", "jpeg", "png", "webp", "gif", "bmp", "heic", "heif") -> PreviewMode.IMAGE
+        extension in setOf("jpg", "jpeg", "jpe", "jfif", "jps", "png", "webp", "gif", "bmp", "heic", "heif", "avif", "tif", "tiff") -> PreviewMode.IMAGE
         extension in setOf("doc", "xls", "ppt") -> PreviewMode.LEGACY
         extension in setOf("txt", "csv", "rtf", "md", "json", "xml", "html", "htm", "log", "docx", "xlsx", "pptx", "odt", "ods", "odp", "svg") -> PreviewMode.TEXT
         mime.startsWith("image/") -> PreviewMode.IMAGE
@@ -93,6 +98,7 @@ private fun FilePreviewScreen(uri: Uri?, name: String, mime: String, onBack: () 
     var loading by remember(uri) { mutableStateOf(true) }
     var pageIndex by remember(uri) { mutableIntStateOf(0) }
     var pageCount by remember(uri) { mutableIntStateOf(0) }
+    var pageSliderValue by remember(uri) { mutableStateOf(0f) }
 
     LaunchedEffect(uri, mode) {
         if (mode == PreviewMode.PDF) return@LaunchedEffect
@@ -138,6 +144,7 @@ private fun FilePreviewScreen(uri: Uri?, name: String, mime: String, onBack: () 
             }
             bitmap = result.first
             pageCount = result.second
+            pageSliderValue = pageIndex.toFloat()
         } catch (error: Exception) {
             bitmap = null
             previewError = error.message ?: "No se pudo abrir este PDF."
@@ -152,9 +159,11 @@ private fun FilePreviewScreen(uri: Uri?, name: String, mime: String, onBack: () 
             return
         }
         val guessedMime = mime.ifBlank { guessMime(extension) }
-        val viewIntent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, guessedMime)
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         try {
+            val safeUri = uriForExternalViewer(context, uri)
+            val viewIntent = Intent(Intent.ACTION_VIEW).setDataAndType(safeUri, guessedMime)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                .setClipData(android.content.ClipData.newUri(context.contentResolver, name, safeUri))
             context.startActivity(Intent.createChooser(viewIntent, "Abrir con otra aplicación"))
         } catch (_: ActivityNotFoundException) {
             previewError = "No hay otra aplicación instalada que pueda abrir este formato. La vista previa integrada no pudo leer el archivo."
@@ -201,21 +210,25 @@ private fun FilePreviewScreen(uri: Uri?, name: String, mime: String, onBack: () 
                     bitmap = bitmap!!.asImageBitmap(),
                     contentDescription = "Página " + (pageIndex + 1),
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.weight(1f).fillMaxWidth().background(androidx.compose.ui.graphics.Color(0xFF303030))
+                    modifier = Modifier.weight(1f).fillMaxWidth().background(androidx.compose.ui.graphics.Color.White)
                 )
-                Spacer(Modifier.height(8.dp))
+                Text("Página " + (pageIndex + 1) + " de " + pageCount, style = MaterialTheme.typography.labelLarge)
+                Slider(
+                    value = pageSliderValue.coerceIn(0f, (pageCount - 1).coerceAtLeast(0).toFloat()),
+                    onValueChange = { pageSliderValue = it },
+                    valueRange = 0f..(pageCount - 1).coerceAtLeast(0).toFloat(),
+                    steps = (pageCount - 2).coerceAtLeast(0),
+                    onValueChangeFinished = { pageIndex = pageSliderValue.roundToInt().coerceIn(0, (pageCount - 1).coerceAtLeast(0)) }
+                )
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = { pageIndex = (pageIndex - 1).coerceAtLeast(0) }, enabled = pageIndex > 0) {
-                        Text("Anterior")
-                    }
-                    Text("Página " + (pageIndex + 1) + " de " + pageCount)
-                    TextButton(onClick = { pageIndex = (pageIndex + 1).coerceAtMost(pageCount - 1) }, enabled = pageIndex + 1 < pageCount) {
-                        Text("Siguiente")
-                    }
+                    TextButton(onClick = { pageIndex = 0 }, enabled = pageIndex > 0) { Text("Primera") }
+                    TextButton(onClick = { pageIndex = (pageIndex - 1).coerceAtLeast(0) }, enabled = pageIndex > 0) { Text("Anterior") }
+                    TextButton(onClick = { pageIndex = (pageIndex + 1).coerceAtMost(pageCount - 1) }, enabled = pageIndex + 1 < pageCount) { Text("Siguiente") }
+                    TextButton(onClick = { pageIndex = (pageCount - 1).coerceAtLeast(0) }, enabled = pageIndex + 1 < pageCount) { Text("Última") }
                 }
             } else if ((mode == PreviewMode.TEXT || mode == PreviewMode.LEGACY) && textContent != null) {
                 Text(
@@ -245,21 +258,31 @@ private fun FilePreviewScreen(uri: Uri?, name: String, mime: String, onBack: () 
     }
 }
 
+private fun decodeWithBounds(context: Context, uri: Uri, options: BitmapFactory.Options): Bitmap? {
+    if (uri.scheme == "file") return BitmapFactory.decodeFile(uri.path, options)
+    return context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+}
+
 private fun decodeImage(context: Context, uri: Uri): Bitmap? {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-        ?: throw IOException("Android no pudo leer la imagen.")
+    decodeWithBounds(context, uri, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+        throw IOException("No se reconoce el contenido como una imagen compatible. Prueba «Abrir con otra aplicación».")
+    }
     val largest = maxOf(bounds.outWidth, bounds.outHeight).coerceAtLeast(1)
     var sample = 1
     while (largest / sample > 2200) sample *= 2
     val options = BitmapFactory.Options().apply { inSampleSize = sample }
-    return context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
-        ?: throw IOException("Android no pudo cargar los datos de la imagen.")
+    return decodeWithBounds(context, uri, options)
+        ?: throw IOException("Android no pudo decodificar esta imagen. El archivo puede usar un formato no compatible o estar dañado.")
 }
 
 private fun renderPdfPage(context: Context, uri: Uri, requestedPage: Int): Pair<Bitmap, Int> {
-    val descriptor = context.contentResolver.openFileDescriptor(uri, "r")
-        ?: throw IOException("Android no permite leer este PDF.")
+    val descriptor = if (uri.scheme == "file") {
+        ParcelFileDescriptor.open(File(uri.path ?: throw IOException("Ruta PDF no válida.")), ParcelFileDescriptor.MODE_READ_ONLY)
+    } else {
+        context.contentResolver.openFileDescriptor(uri, "r")
+    } ?: throw IOException("Android no permite leer este PDF.")
     descriptor.use { pfd ->
         PdfRenderer(pfd).use { renderer ->
             if (renderer.pageCount < 1) throw IOException("El PDF no contiene páginas.")
@@ -269,6 +292,7 @@ private fun renderPdfPage(context: Context, uri: Uri, requestedPage: Int): Pair<
                 val width = (page.width * scale).toInt().coerceAtLeast(1)
                 val height = (page.height * scale).toInt().coerceAtLeast(1)
                 val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                Canvas(bitmap).drawColor(android.graphics.Color.WHITE)
                 page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                 return bitmap to renderer.pageCount
             }
