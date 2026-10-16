@@ -95,6 +95,7 @@ private fun FilePreviewScreen(uri: Uri?, name: String, mime: String, onBack: () 
     var pageCount by remember(uri) { mutableIntStateOf(0) }
 
     LaunchedEffect(uri, mode) {
+        if (mode == PreviewMode.PDF) return@LaunchedEffect
         bitmap = null
         textContent = null
         previewError = null

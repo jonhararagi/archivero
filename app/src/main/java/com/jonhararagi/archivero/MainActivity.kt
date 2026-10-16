@@ -430,9 +430,9 @@ fun ArchiveroApp() {
                 scanProgress = result.second
                 refresh++
                 scanStatus = if (result.third) {
-                    "Resultados parciales: \${result.first.size} archivos revisados (\${result.second} elementos). Para completar, analiza una carpeta más específica."
+                    "Resultados parciales: ${result.first.size} archivos revisados (${result.second} elementos). Para completar, analiza una carpeta más específica."
                 } else {
-                    "Búsqueda completa: \${result.first.size} archivos encontrados."
+                    "Búsqueda completa: ${result.first.size} archivos encontrados."
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
