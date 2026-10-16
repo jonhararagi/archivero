@@ -164,7 +164,8 @@ private fun FilePreviewScreen(uri: Uri?, name: String, mime: String, onBack: () 
             val viewIntent = Intent(Intent.ACTION_VIEW).setDataAndType(safeUri, guessedMime)
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             viewIntent.clipData = android.content.ClipData.newUri(context.contentResolver, name, safeUri)
-            context.startActivity(Intent.createChooser(viewIntent, "Abrir con otra aplicación"))
+            // Launch the resolver directly so Android can offer "Solo esta vez" / "Siempre".
+            context.startActivity(viewIntent)
         } catch (_: ActivityNotFoundException) {
             previewError = "No hay otra aplicación instalada que pueda abrir este formato. La vista previa integrada no pudo leer el archivo."
         } catch (error: Exception) {

@@ -77,6 +77,7 @@ import java.util.zip.ZipOutputStream
 private enum class Screen { HOME, TYPES, FOLDERS, CLEAN }
 private enum class CleanupMode { SCREENSHOTS, DUPLICATES, VIDEOS }
 private data class DuplicateGroup(val hash: String, val files: List<DocumentFile>)
+private data class PendingOpenRequest(val file: DocumentFile, val queue: List<DocumentFile>)
 private data class FilteredFileLists(
     val folders: List<DocumentFile>,
     val matching: List<DocumentFile>,
@@ -161,6 +162,12 @@ fun ArchiveroApp() {
     var newFolderDialog by remember { mutableStateOf(false) }
     var folderName by remember { mutableStateOf("") }
     var actionFile by remember { mutableStateOf<DocumentFile?>(null) }
+    var pendingOpenRequest by remember { mutableStateOf<PendingOpenRequest?>(null) }
+    var selectedOpenMethod by remember(pendingOpenRequest?.file?.uri?.toString()) {
+        mutableStateOf(pendingOpenRequest?.let { request ->
+            savedOpenMethod(context, request.file) ?: if (canOpenNatively(context, request.file)) "ARCHIVERO" else "EXTERNAL"
+        } ?: "ARCHIVERO")
+    }
     var deleteDialog by remember { mutableStateOf(false) }
     var actionMenu by remember { mutableStateOf(false) }
     var renameDialog by remember { mutableStateOf(false) }
@@ -302,6 +309,32 @@ fun ArchiveroApp() {
             }
         }
     }
+    fun requestOpen(file: DocumentFile, queue: List<DocumentFile>) {
+        val saved = savedOpenMethod(context, file)
+        if (saved == "EXTERNAL" || (saved == "ARCHIVERO" && !canOpenNatively(context, file))) {
+            openDocument(file, context, false, { u, t, v -> startPlayback(u, t, v, queue) }, { message = it })
+            return
+        }
+        if (saved == "ARCHIVERO" && canOpenNatively(context, file)) {
+            openDocument(file, context, true, { u, t, v -> startPlayback(u, t, v, queue) }, { message = it })
+            return
+        }
+        pendingOpenRequest = PendingOpenRequest(file, queue)
+    }
+    fun confirmOpenChoice(request: PendingOpenRequest, method: String, always: Boolean) {
+        val actualMethod = if (method == "ARCHIVERO" && canOpenNatively(context, request.file)) "ARCHIVERO" else "EXTERNAL"
+        if (always) {
+            context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
+                .edit().putString(openPreferenceKey(context, request.file), actualMethod).apply()
+        }
+        pendingOpenRequest = null
+        openDocument(
+            request.file, context, actualMethod == "ARCHIVERO",
+            { u, t, v -> startPlayback(u, t, v, request.queue) },
+            { message = it }
+        )
+    }
+
     fun toggleFavorite(uri: Uri) {
         val next = favoriteUris.toMutableSet()
         if (!next.add(uri.toString())) next.remove(uri.toString())
@@ -868,7 +901,7 @@ fun ArchiveroApp() {
                         if (filteringFiles) Text("Filtrando archivos en segundo plano…", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (scanStatus.isNotBlank()) Text(scanStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
                         Text(matchingFiles.size.toString() + " archivos encontrados", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(vertical = 6.dp))
-                        FileList(matchingFiles, { openDocument(it, context, { u,t,v -> startPlayback(u,t,v,sourceFiles) }, { message=it }) }, { actionFile=it; actionMenu=true }, Modifier.weight(1f))
+                        FileList(matchingFiles, { requestOpen(it, sourceFiles) }, { actionFile=it; actionMenu=true }, Modifier.weight(1f))
                         if (!hasScanned || scanStatus.startsWith("Resultados parciales")) TextButton(onClick = { scan() }, enabled = !scanning) { Text(if (scanning) "Analizando..." else "Volver a analizar ubicación") }
                     }
                     Screen.FOLDERS -> {
@@ -890,7 +923,7 @@ fun ArchiveroApp() {
                             items(folderEntries, key = { it.uri.toString() }) { file ->
                                 DocumentRow(file, {
                                     if (file.isDirectory) { current = file; currentUri = file.uri; refresh++ }
-                                    else openDocument(file, context, { u,t,v -> startPlayback(u,t,v,entries) }, { message=it })
+                                    else requestOpen(file, entries)
                                 }, { actionFile=file; deleteDialog=true })
                             }
                         }
@@ -999,7 +1032,7 @@ fun ArchiveroApp() {
                                                         cleanupSelectedUris = if (checked) cleanupSelectedUris + file.uri.toString()
                                                         else cleanupSelectedUris - file.uri.toString()
                                                     },
-                                                    onOpen = { openDocument(file, context, { u,t,v -> startPlayback(u,t,v,sourceFiles) }, { message = it }) }
+                                                    onOpen = { requestOpen(file, sourceFiles) }
                                                 )
                                             }
                                         }
@@ -1020,7 +1053,7 @@ fun ArchiveroApp() {
                                             cleanupSelectedUris = if (checked) cleanupSelectedUris + file.uri.toString()
                                             else cleanupSelectedUris - file.uri.toString()
                                         },
-                                        onOpen = { openDocument(file, context, { u,t,v -> startPlayback(u,t,v,sourceFiles) }, { message = it }) }
+                                        onOpen = { requestOpen(file, sourceFiles) }
                                     )
                                 }
                             }
@@ -1441,6 +1474,56 @@ fun ArchiveroApp() {
         }
     }
 
+    pendingOpenRequest?.let { request ->
+        val nativeAvailable = canOpenNatively(context, request.file)
+        AlertDialog(
+            onDismissRequest = { pendingOpenRequest = null },
+            title = { Text("¿Cómo quieres abrirlo?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(request.file.name ?: "Archivo", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Row(
+                        Modifier.fillMaxWidth().clickable(enabled = nativeAvailable) { selectedOpenMethod = "ARCHIVERO" },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = selectedOpenMethod == "ARCHIVERO",
+                            onClick = { selectedOpenMethod = "ARCHIVERO" },
+                            enabled = nativeAvailable
+                        )
+                        Column(Modifier.weight(1f)) {
+                            Text("Abrir con Archivero", fontWeight = FontWeight.SemiBold,
+                                color = if (nativeAvailable) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                if (nativeAvailable) "Vista previa o reproductor integrado" else "Archivero no tiene un visor para este formato",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().clickable { selectedOpenMethod = "EXTERNAL" },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = selectedOpenMethod == "EXTERNAL", onClick = { selectedOpenMethod = "EXTERNAL" })
+                        Column(Modifier.weight(1f)) {
+                            Text("Elegir aplicación instalada", fontWeight = FontWeight.SemiBold)
+                            Text("Android mostrará las aplicaciones compatibles y podrá recordar la elegida",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            },
+            dismissButton = { TextButton(onClick = { pendingOpenRequest = null }) { Text("Cancelar") } },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { confirmOpenChoice(request, selectedOpenMethod, false) }) { Text("Solo esta vez") }
+                    Button(onClick = { confirmOpenChoice(request, selectedOpenMethod, true) }) { Text("Usar siempre") }
+                }
+            }
+        )
+    }
+
     message?.let { msg -> AlertDialog(onDismissRequest = { message = null }, title = { Text("Archivero") }, text = { Text(msg) }, confirmButton = { TextButton(onClick = { message = null }) { Text("Entendido") } }) }
 }
 
@@ -1584,7 +1667,28 @@ private fun cleanupLocation(file: DocumentFile): String {
 }
 private fun formatDate(milliseconds: Long): String =
     SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(milliseconds))
-private fun openDocument(file: DocumentFile, context: Context, onMedia: (Uri, String, Boolean) -> Unit, onError: (String) -> Unit) {
+private fun openPreferenceKey(context: Context, file: DocumentFile): String {
+    val extension = file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT)
+    val mime = runCatching { context.contentResolver.getType(file.uri) }.getOrNull().orEmpty()
+    val keyPart = extension.ifBlank { mime.lowercase(Locale.ROOT).replace(Regex("[^a-z0-9]+"), "_") }.ifBlank { "unknown" }
+    return "open_with_$keyPart"
+}
+private fun savedOpenMethod(context: Context, file: DocumentFile): String? {
+    return context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
+        .getString(openPreferenceKey(context, file), null)
+        ?.takeIf { it == "ARCHIVERO" || it == "EXTERNAL" }
+}
+private fun canOpenNatively(context: Context, file: DocumentFile): Boolean {
+    val extension = file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT)
+    val mime = runCatching { context.contentResolver.getType(file.uri) }.getOrNull().orEmpty()
+    return extension in Kind.IMAGES.extensions ||
+        extension in Kind.DOCS.extensions ||
+        extension in setOf("md", "json", "xml", "html", "htm", "log") ||
+        extension in Kind.MUSIC.extensions ||
+        extension in Kind.VIDEOS.extensions ||
+        mime.startsWith("audio/") || mime.startsWith("video/")
+}
+private fun openDocument(file: DocumentFile, context: Context, useNative: Boolean, onMedia: (Uri, String, Boolean) -> Unit, onError: (String) -> Unit) {
     val name = file.name ?: "archivo sin nombre"
     val extension = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
     val extensionMime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension).orEmpty()
@@ -1593,7 +1697,7 @@ private fun openDocument(file: DocumentFile, context: Context, onMedia: (Uri, St
     val isAudio = extension in Kind.MUSIC.extensions || mime.startsWith("audio/")
     val isVideo = extension in Kind.VIDEOS.extensions || mime.startsWith("video/")
 
-    if (isAudio || isVideo) {
+    if (useNative && (isAudio || isVideo)) {
         onMedia(file.uri, name, isVideo)
         return
     }
@@ -1602,7 +1706,7 @@ private fun openDocument(file: DocumentFile, context: Context, onMedia: (Uri, St
         extension in Kind.DOCS.extensions ||
         extension in setOf("md", "json", "xml", "html", "htm", "log")
 
-    if (internallyPreviewable) {
+    if (useNative && internallyPreviewable) {
         runCatching {
             val intent = Intent(context, FilePreviewActivity::class.java)
                 .setData(file.uri)
@@ -1616,18 +1720,14 @@ private fun openDocument(file: DocumentFile, context: Context, onMedia: (Uri, St
         return
     }
 
-    if (mime.isBlank()) {
-        onError("No reconozco el formato de «" + name + "». Puedes revisar el archivo desde su carpeta o intentar compartirlo con una aplicación compatible.")
-        return
-    }
-
     runCatching {
         val safeUri = uriForExternalViewer(context, file.uri)
         val viewIntent = Intent(Intent.ACTION_VIEW)
-            .setDataAndType(safeUri, mime)
+            .setDataAndType(safeUri, mime.ifBlank { "*/*" })
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         viewIntent.clipData = ClipData.newUri(context.contentResolver, name, safeUri)
-        context.startActivity(Intent.createChooser(viewIntent, "Abrir con otra aplicación"))
+        // Use Android's resolver directly so it can offer "Solo esta vez" / "Siempre".
+        context.startActivity(viewIntent)
     }.onFailure { error ->
         onError(when (error) {
             is SecurityException -> "Android negó el permiso para abrir «" + name + "». Vuelve a elegir su carpeta."
