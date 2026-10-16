@@ -52,6 +52,7 @@ import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.media3.common.MediaItem
@@ -84,7 +85,7 @@ private enum class Kind(val title: String, val icon: ImageVector, val tint: Colo
     IMAGES("Imágenes", Icons.Default.Image, Color(0xFF7657B5), setOf("jpg","jpeg","png","webp","gif","bmp","heic","heif","svg")),
     VIDEOS("Videos", Icons.Default.Movie, Color(0xFFB3261E), setOf("mp4","mkv","mov","avi","webm","3gp","m4v")),
     MUSIC("Música", Icons.Default.MusicNote, Color(0xFF00796B), setOf("mp3","wav","aac","m4a","ogg","flac","opus","wma")),
-    DOCS("Documentos", Icons.Default.Description, Color(0xFF245CA6), setOf("pdf","doc","docx","txt","rtf","odt","xls","xlsx","ppt","pptx","csv")),
+    DOCS("Documentos", Icons.Default.Description, Color(0xFF245CA6), setOf("pdf","doc","docx","txt","rtf","odt","xls","xlsx","ppt","pptx","csv","md","json","xml","html","htm","log")),
     APK("APK", Icons.Default.Android, Color(0xFF397447), setOf("apk","xapk","apks")),
     ZIP("Comprimidos", Icons.Default.FolderZip, Color(0xFF8A4F00), setOf("zip","rar","7z","tar","gz","bz2")),
     OTHER("Otros", Icons.Default.InsertDriveFile, Color(0xFF58616B), emptySet())
@@ -113,7 +114,7 @@ fun ArchiveroApp() {
     var selectedPaletteName by rememberSaveable {
         mutableStateOf(context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).getString("palette", Palette.VERDE.name) ?: Palette.VERDE.name)
     }
-    val activePalette = Palette.valueOf(selectedPaletteName)
+    val activePalette = runCatching { Palette.valueOf(selectedPaletteName) }.getOrDefault(Palette.VERDE)
     var showAppearance by remember { mutableStateOf(false) }
     var wallpaperUri by rememberSaveable {
         mutableStateOf(context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).getString("wallpaper", null))
@@ -187,7 +188,7 @@ fun ArchiveroApp() {
             override fun onShuffleModeEnabledChanged(shuffleModeEnabledValue: Boolean) { shuffleEnabled = shuffleModeEnabledValue }
             override fun onRepeatModeChanged(repeatModeValue: Int) { repeatMode = repeatModeValue }
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                playbackError = error.message ?: "Android no pudo decodificar esta pista. Prueba otra copia o formato."
+                playbackError = error.errorCodeName + ": " + (error.message ?: "Android no pudo decodificar esta pista. Prueba otra copia o formato.")
                 playbackIsPlaying = false
             }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -368,7 +369,7 @@ fun ArchiveroApp() {
     }
     val entries = entriesResult.getOrElse { emptyList() }
     val sourceFiles = if (hasScanned) indexed else entries.filterNot { it.isDirectory }
-    val activeKind = Kind.valueOf(selectedKind)
+    val activeKind = runCatching { Kind.valueOf(selectedKind) }.getOrDefault(Kind.IMAGES)
     val matchingFiles = sourceFiles.filter { file ->
         val ext = file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT)
         val kindMatches = if (activeKind == Kind.OTHER) Kind.values().filter { it != Kind.OTHER }.none { ext in it.extensions } else ext in activeKind.extensions
@@ -400,38 +401,46 @@ fun ArchiveroApp() {
             scanning = true
             scanProgress = 0
             scanStatus = "Preparando búsqueda..."
-            val result = withContext(Dispatchers.IO) {
-                val found = mutableListOf<DocumentFile>()
-                val queue = ArrayDeque<Pair<DocumentFile, Int>>()
-                queue.add(start to 0)
-                var visited = 0
-                var depthLimitHit = false
-                val maxEntries = 100_000
-                val maxDepth = 20
-                while (queue.isNotEmpty() && visited < maxEntries) {
-                    val item = queue.removeFirst()
-                    val children = runCatching { item.first.listFiles().toList() }.getOrElse { emptyList() }
-                    for (child in children) {
-                        if (visited >= maxEntries) break
-                        visited++
-                        if (child.isDirectory) {
-                            if (item.second < maxDepth && !child.name.orEmpty().startsWith(".")) queue.add(child to item.second + 1)
-                            else if (item.second >= maxDepth) depthLimitHit = true
-                        } else found.add(child)
-                        if (visited % 1000 == 0) withContext(Dispatchers.Main) { scanProgress = visited }
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    val found = mutableListOf<DocumentFile>()
+                    val queue = ArrayDeque<Pair<DocumentFile, Int>>()
+                    queue.add(start to 0)
+                    var visited = 0
+                    var depthLimitHit = false
+                    val maxEntries = 100_000
+                    val maxDepth = 20
+                    while (queue.isNotEmpty() && visited < maxEntries) {
+                        val item = queue.removeFirst()
+                        val children = runCatching { item.first.listFiles().toList() }.getOrElse { emptyList() }
+                        for (child in children) {
+                            if (visited >= maxEntries) break
+                            visited++
+                            if (child.isDirectory) {
+                                if (item.second < maxDepth && !child.name.orEmpty().startsWith(".")) queue.add(child to item.second + 1)
+                                else if (item.second >= maxDepth) depthLimitHit = true
+                            } else found.add(child)
+                            if (visited % 1000 == 0) withContext(Dispatchers.Main) { scanProgress = visited }
+                        }
                     }
+                    Triple(found, visited, visited >= maxEntries || queue.isNotEmpty() || depthLimitHit)
                 }
-                Triple(found, visited, visited >= maxEntries || queue.isNotEmpty() || depthLimitHit)
-            }
-            indexed = result.first
-            hasScanned = true
-            scanning = false
-            scanProgress = result.second
-            refresh++
-            scanStatus = if (result.third) {
-                "Resultados parciales: ${result.first.size} archivos revisados (${result.second} elementos). Para completar, analiza una carpeta más específica."
-            } else {
-                "Búsqueda completa: ${result.first.size} archivos encontrados."
+                indexed = result.first
+                hasScanned = true
+                scanProgress = result.second
+                refresh++
+                scanStatus = if (result.third) {
+                    "Resultados parciales: \${result.first.size} archivos revisados (\${result.second} elementos). Para completar, analiza una carpeta más específica."
+                } else {
+                    "Búsqueda completa: \${result.first.size} archivos encontrados."
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                scanStatus = "La búsqueda se interrumpió sin borrar archivos. Comprueba los permisos e inténtalo con una carpeta más pequeña."
+                message = scanStatus
+            } finally {
+                scanning = false
             }
         }
     }
@@ -1419,30 +1428,46 @@ private fun formatDate(milliseconds: Long): String =
 private fun openDocument(file: DocumentFile, context: Context, onMedia: (Uri, String, Boolean) -> Unit, onError: (String) -> Unit) {
     val name = file.name ?: "archivo sin nombre"
     val extension = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
-    // Some document providers throw from getType() even though the file is readable.
-    // Extension-based recognition must happen first so local audio never falls through
-    // to an unrelated ACTION_VIEW handler.
     val extensionMime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension).orEmpty()
-    val isAudioByExtension = extension in Kind.MUSIC.extensions
-    val isVideoByExtension = extension in Kind.VIDEOS.extensions
-    val mime = runCatching { context.contentResolver.getType(file.uri) }.getOrNull()
-        ?: extensionMime
-    val isAudio = isAudioByExtension || mime.startsWith("audio/")
-    val isVideo = isVideoByExtension || mime.startsWith("video/")
+    val providedMime = runCatching { context.contentResolver.getType(file.uri) }.getOrNull().orEmpty()
+    val mime = providedMime.ifBlank { extensionMime }
+    val isAudio = extension in Kind.MUSIC.extensions || mime.startsWith("audio/")
+    val isVideo = extension in Kind.VIDEOS.extensions || mime.startsWith("video/")
+
     if (isAudio || isVideo) {
         onMedia(file.uri, name, isVideo)
         return
     }
-    if (mime.isBlank()) {
-        onError("No reconozco el formato de «$name». Si es música, usa «Añadir temas» dentro del reproductor para abrirla directamente desde Android.")
+
+    val internallyPreviewable = extension in Kind.IMAGES.extensions ||
+        extension in Kind.DOCS.extensions ||
+        extension in setOf("md", "json", "xml", "html", "htm", "log")
+
+    if (internallyPreviewable) {
+        runCatching {
+            val intent = Intent(context, FilePreviewActivity::class.java)
+                .setData(file.uri)
+                .putExtra("displayName", name)
+                .putExtra("mimeType", mime)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            context.startActivity(intent)
+        }.onFailure {
+            onError("No se pudo abrir la vista previa de «" + name + "». Comprueba los permisos del archivo e inténtalo otra vez.")
+        }
         return
     }
+
+    if (mime.isBlank()) {
+        onError("No reconozco el formato de «" + name + "». Puedes revisar el archivo desde su carpeta o intentar compartirlo con una aplicación compatible.")
+        return
+    }
+
     runCatching {
         context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(file.uri, mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
     }.onFailure { error ->
         onError(when (error) {
-            is SecurityException -> "Android negó el permiso para abrir «$name». Vuelve a elegir su carpeta o selecciónalo desde «Añadir temas»."
-            else -> "No se pudo abrir «$name» como $mime. Prueba seleccionarlo desde «Añadir temas» si es una pista de audio."
+            is SecurityException -> "Android negó el permiso para abrir «" + name + "». Vuelve a elegir su carpeta."
+            else -> "No hay una aplicación compatible para abrir «" + name + "» (" + mime + "). La vista previa integrada cubre imágenes, PDF y documentos de texto comunes."
         })
     }
 }
