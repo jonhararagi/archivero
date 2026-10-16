@@ -143,6 +143,8 @@ fun ArchiveroApp() {
     var query by rememberSaveable { mutableStateOf("") }
     var refresh by remember { mutableIntStateOf(0) }
     var indexed by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
+    var listedEntries by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
+    var listingFailed by remember { mutableStateOf(false) }
     var hasScanned by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var scanning by remember { mutableStateOf(false) }
@@ -320,6 +322,13 @@ fun ArchiveroApp() {
         }
     }
 
+    val pickVideo = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: SecurityException) { }
+            startPlayback(uri, displayName(context, uri), true, emptyList())
+        }
+    }
+
     val activity = context as? ComponentActivity
     DisposableEffect(activity) {
         val observer = LifecycleEventObserver { _, event ->
@@ -364,34 +373,55 @@ fun ArchiveroApp() {
         }
     }
 
-    val entriesResult = remember(current, refresh) {
-        runCatching { current?.listFiles()?.sortedWith(compareBy<DocumentFile> { !it.isDirectory }.thenBy { it.name.orEmpty().lowercase() })?.toList().orEmpty() }
+    LaunchedEffect(currentUri, refresh) {
+        val folderToList = current
+        listingFailed = false
+        val result = withContext(Dispatchers.IO) {
+            runCatching {
+                folderToList?.listFiles()
+                    ?.sortedWith(compareBy<DocumentFile> { !it.isDirectory }.thenBy { it.name.orEmpty().lowercase(Locale.ROOT) })
+                    ?.toList().orEmpty()
+            }
+        }
+        listedEntries = result.getOrElse { emptyList() }
+        listingFailed = result.isFailure
     }
-    val entries = entriesResult.getOrElse { emptyList() }
-    val sourceFiles = if (hasScanned) indexed else entries.filterNot { it.isDirectory }
+    val entries = listedEntries
+    val folderEntries = remember(entries, query) { entries.filter { it.name.orEmpty().contains(query, ignoreCase = true) } }
+    val sourceFiles = remember(hasScanned, indexed, entries) {
+        if (hasScanned) indexed else entries.filterNot { it.isDirectory }
+    }
     val activeKind = runCatching { Kind.valueOf(selectedKind) }.getOrDefault(Kind.IMAGES)
-    val matchingFiles = sourceFiles.filter { file ->
-        val ext = file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT)
-        val kindMatches = if (activeKind == Kind.OTHER) Kind.values().filter { it != Kind.OTHER }.none { ext in it.extensions } else ext in activeKind.extensions
-        kindMatches && file.name.orEmpty().contains(query.trim(), ignoreCase = true)
+    val matchingFiles = remember(sourceFiles, activeKind, query) {
+        sourceFiles.filter { file ->
+            val ext = file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT)
+            val kindMatches = if (activeKind == Kind.OTHER) Kind.values().filter { it != Kind.OTHER }.none { ext in it.extensions } else ext in activeKind.extensions
+            kindMatches && file.name.orEmpty().contains(query.trim(), ignoreCase = true)
+        }
     }
     val activeCleanupMode = runCatching { CleanupMode.valueOf(cleanupModeName) }.getOrDefault(CleanupMode.SCREENSHOTS)
-    val duplicateDisplayGroups = duplicateGroups.mapNotNull { group ->
-        val visible = group.files.filter { it.name.orEmpty().contains(query.trim(), ignoreCase = true) }
-        if (visible.isEmpty()) null else group.copy(files = visible)
+    val duplicateDisplayGroups = remember(duplicateGroups, query) {
+        duplicateGroups.mapNotNull { group ->
+            val visible = group.files.filter { it.name.orEmpty().contains(query.trim(), ignoreCase = true) }
+            if (visible.isEmpty()) null else group.copy(files = visible)
+        }
     }
-    val oldScreenshotFiles = sourceFiles.filter { isOldScreenshot(it) }.sortedBy { it.lastModified() }
-    val largeVideoFiles = sourceFiles.filter {
-        it.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) in Kind.VIDEOS.extensions &&
-            it.length() >= 100L * 1024 * 1024
-    }.sortedByDescending { it.length() }
-    val cleanupFiles = when (activeCleanupMode) {
-        CleanupMode.SCREENSHOTS -> oldScreenshotFiles
-        CleanupMode.DUPLICATES -> duplicateDisplayGroups.flatMap { it.files }.distinctBy { it.uri.toString() }
-        CleanupMode.VIDEOS -> largeVideoFiles
-    }.filter { it.name.orEmpty().contains(query.trim(), ignoreCase = true) }
-    val selectedCleanupFiles = cleanupFiles.filter { it.uri.toString() in cleanupSelectedUris }
-    val selectedCleanupBytes = selectedCleanupFiles.sumOf { it.length().coerceAtLeast(0L) }
+    val oldScreenshotFiles = remember(sourceFiles) { sourceFiles.filter { isOldScreenshot(it) }.sortedBy { it.lastModified() } }
+    val largeVideoFiles = remember(sourceFiles) {
+        sourceFiles.filter {
+            it.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) in Kind.VIDEOS.extensions &&
+                it.length() >= 100L * 1024 * 1024
+        }.sortedByDescending { it.length() }
+    }
+    val cleanupFiles = remember(activeCleanupMode, oldScreenshotFiles, largeVideoFiles, duplicateDisplayGroups, query) {
+        when (activeCleanupMode) {
+            CleanupMode.SCREENSHOTS -> oldScreenshotFiles
+            CleanupMode.DUPLICATES -> duplicateDisplayGroups.flatMap { it.files }.distinctBy { it.uri.toString() }
+            CleanupMode.VIDEOS -> largeVideoFiles
+        }.filter { it.name.orEmpty().contains(query.trim(), ignoreCase = true) }
+    }
+    val selectedCleanupFiles = remember(cleanupFiles, cleanupSelectedUris) { cleanupFiles.filter { it.uri.toString() in cleanupSelectedUris } }
+    val selectedCleanupBytes = remember(selectedCleanupFiles) { selectedCleanupFiles.sumOf { it.length().coerceAtLeast(0L) } }
 
     fun scan() {
         val start = root
@@ -744,9 +774,9 @@ fun ArchiveroApp() {
                         }
                         SearchBox(query) { query = it }
                         Text(entries.size.toString() + " elementos", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(vertical = 6.dp))
-                        if (entriesResult.isFailure) EmptyNotice("No se pudo leer esta carpeta", "Comprueba los permisos de Android.", Icons.Default.FolderOff)
+                        if (listingFailed) EmptyNotice("No se pudo leer esta carpeta", "Comprueba los permisos de Android.", Icons.Default.FolderOff)
                         else LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            items(entries.filter { it.name.orEmpty().contains(query, true) }, key = { it.uri.toString() }) { file ->
+                            items(folderEntries, key = { it.uri.toString() }) { file ->
                                 DocumentRow(file, {
                                     if (file.isDirectory) { current = file; currentUri = file.uri; refresh++ }
                                     else openDocument(file, context, { u,t,v -> startPlayback(u,t,v,entries.filter { f -> !f.isDirectory && f.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) in Kind.MUSIC.extensions }) }, { message=it })
@@ -1154,6 +1184,10 @@ fun ArchiveroApp() {
                         modifier = Modifier.fillMaxWidth().weight(1f),
                         update = { view -> view.player = controller }
                     )
+                    if (playbackError != null) {
+                        Text("No se pudo reproducir: " + playbackError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        Button(onClick = { pickVideo.launch(arrayOf("video/*")) }) { Text("Elegir otro vídeo") }
+                    }
                     TextButton(onClick = { showPlayerPanel = false }) { Text("Minimizar") }
                 }
             }

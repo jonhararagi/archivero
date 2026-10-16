@@ -347,9 +347,12 @@ private fun xmlToReadable(xml: String): String =
 
 private fun guessMime(extension: String): String = when (extension) {
     "pdf" -> "application/pdf"
-    "doc", "docx" -> "application/msword"
-    "xls", "xlsx" -> "application/vnd.ms-excel"
-    "ppt", "pptx" -> "application/vnd.ms-powerpoint"
+    "doc" -> "application/msword"
+    "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    "xls" -> "application/vnd.ms-excel"
+    "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    "ppt" -> "application/vnd.ms-powerpoint"
+    "pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation"
     "txt", "md", "log" -> "text/plain"
     "csv" -> "text/csv"
     "json" -> "application/json"
