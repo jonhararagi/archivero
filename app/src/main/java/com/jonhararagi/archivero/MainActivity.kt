@@ -190,10 +190,21 @@ fun ArchiveroApp() {
             override fun onShuffleModeEnabledChanged(shuffleModeEnabledValue: Boolean) { shuffleEnabled = shuffleModeEnabledValue }
             override fun onRepeatModeChanged(repeatModeValue: Int) { repeatMode = repeatModeValue }
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                playbackError = error.errorCodeName + ": " + (error.message ?: "Android no pudo decodificar esta pista. Prueba otra copia o formato.")
-                playbackIsPlaying = false
+                val failedTitle = controller?.currentMediaItem?.mediaMetadata?.title?.toString().orEmpty()
+                val failedExtension = failedTitle.substringAfterLast('.', "").lowercase(Locale.ROOT)
+                val failedItemIsVideo = failedExtension in Kind.VIDEOS.extensions
+                if (!failedItemIsVideo && controller != null && controller.hasNextMediaItem()) {
+                    playbackError = "Falló «" + failedTitle + "» (" + error.errorCodeName + "). Intentando continuar con la siguiente pista."
+                    controller.seekToNextMediaItem()
+                    controller.prepare()
+                    controller.play()
+                } else {
+                    playbackError = error.errorCodeName + ": " + (error.message ?: "Android no pudo decodificar este archivo. Prueba otra copia o formato.")
+                    playbackIsPlaying = false
+                }
             }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                playbackError = null
                 val title = mediaItem?.mediaMetadata?.title?.toString()
                 if (!title.isNullOrBlank()) playerTitle = title
                 mediaItem?.localConfiguration?.uri?.let { uri ->
@@ -406,12 +417,19 @@ fun ArchiveroApp() {
             if (visible.isEmpty()) null else group.copy(files = visible)
         }
     }
-    val oldScreenshotFiles = remember(sourceFiles) { sourceFiles.filter { isOldScreenshot(it) }.sortedBy { it.lastModified() } }
-    val largeVideoFiles = remember(sourceFiles) {
-        sourceFiles.filter {
-            it.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) in Kind.VIDEOS.extensions &&
-                it.length() >= 100L * 1024 * 1024
-        }.sortedByDescending { it.length() }
+    var oldScreenshotFiles by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
+    var largeVideoFiles by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
+    LaunchedEffect(sourceFiles) {
+        val cleanupCandidates = withContext(Dispatchers.IO) {
+            val screenshots = sourceFiles.filter { isOldScreenshot(it) }.sortedBy { it.lastModified() }
+            val videos = sourceFiles.filter {
+                it.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) in Kind.VIDEOS.extensions &&
+                    it.length() >= 100L * 1024 * 1024
+            }.sortedByDescending { it.length() }
+            screenshots to videos
+        }
+        oldScreenshotFiles = cleanupCandidates.first
+        largeVideoFiles = cleanupCandidates.second
     }
     val cleanupFiles = remember(activeCleanupMode, oldScreenshotFiles, largeVideoFiles, duplicateDisplayGroups, query) {
         when (activeCleanupMode) {
