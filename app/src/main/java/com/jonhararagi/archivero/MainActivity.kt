@@ -77,6 +77,12 @@ import java.util.zip.ZipOutputStream
 private enum class Screen { HOME, TYPES, FOLDERS, CLEAN }
 private enum class CleanupMode { SCREENSHOTS, DUPLICATES, VIDEOS }
 private data class DuplicateGroup(val hash: String, val files: List<DocumentFile>)
+private data class FilteredFileLists(
+    val folders: List<DocumentFile>,
+    val matching: List<DocumentFile>,
+    val duplicates: List<DuplicateGroup>,
+    val cleanup: List<DocumentFile>
+)
 private enum class Palette(val label: String, val primary: Color, val secondary: Color, val background: Color) {
     VERDE("Verde bosque", Color(0xFF285E55), Color(0xFF547D73), Color(0xFFF4F7F5)),
     VIOLETA("Violeta", Color(0xFF7048A8), Color(0xFF9575CD), Color(0xFFF7F2FC)),
@@ -461,25 +467,17 @@ fun ArchiveroApp() {
         listingFailed = result.isFailure
     }
     val entries = listedEntries
-    val folderEntries = remember(entries, query) { entries.filter { it.name.orEmpty().contains(query, ignoreCase = true) } }
+    var folderEntries by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
+    var matchingFiles by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
+    var duplicateDisplayGroups by remember { mutableStateOf<List<DuplicateGroup>>(emptyList()) }
+    var cleanupFiles by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
+    var filteringFiles by remember { mutableStateOf(false) }
+    var filterRequestId by remember { mutableIntStateOf(0) }
     val sourceFiles = remember(hasScanned, indexed, entries) {
         if (hasScanned) indexed else entries.filterNot { it.isDirectory }
     }
     val activeKind = runCatching { Kind.valueOf(selectedKind) }.getOrDefault(Kind.IMAGES)
-    val matchingFiles = remember(sourceFiles, activeKind, query) {
-        sourceFiles.filter { file ->
-            val ext = file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT)
-            val kindMatches = if (activeKind == Kind.OTHER) Kind.values().filter { it != Kind.OTHER }.none { ext in it.extensions } else ext in activeKind.extensions
-            kindMatches && file.name.orEmpty().contains(query.trim(), ignoreCase = true)
-        }
-    }
     val activeCleanupMode = runCatching { CleanupMode.valueOf(cleanupModeName) }.getOrDefault(CleanupMode.SCREENSHOTS)
-    val duplicateDisplayGroups = remember(duplicateGroups, query) {
-        duplicateGroups.mapNotNull { group ->
-            val visible = group.files.filter { it.name.orEmpty().contains(query.trim(), ignoreCase = true) }
-            if (visible.isEmpty()) null else group.copy(files = visible)
-        }
-    }
     var oldScreenshotFiles by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
     var largeVideoFiles by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
     LaunchedEffect(sourceFiles) {
@@ -494,12 +492,43 @@ fun ArchiveroApp() {
         oldScreenshotFiles = cleanupCandidates.first
         largeVideoFiles = cleanupCandidates.second
     }
-    val cleanupFiles = remember(activeCleanupMode, oldScreenshotFiles, largeVideoFiles, duplicateDisplayGroups, query) {
-        when (activeCleanupMode) {
-            CleanupMode.SCREENSHOTS -> oldScreenshotFiles
-            CleanupMode.DUPLICATES -> duplicateDisplayGroups.flatMap { it.files }.distinctBy { it.uri.toString() }
-            CleanupMode.VIDEOS -> largeVideoFiles
-        }.filter { it.name.orEmpty().contains(query.trim(), ignoreCase = true) }
+    LaunchedEffect(entries, sourceFiles, activeKind, query, duplicateGroups, activeCleanupMode, oldScreenshotFiles, largeVideoFiles) {
+        filterRequestId++
+        val request = filterRequestId
+        filteringFiles = true
+        try {
+            val normalizedQuery = query.trim()
+            val result = withContext(Dispatchers.IO) {
+                val folders = entries.filter { it.name.orEmpty().contains(normalizedQuery, ignoreCase = true) }
+                val matching = sourceFiles.filter { file ->
+                    val ext = file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT)
+                    val kindMatches = if (activeKind == Kind.OTHER) {
+                        Kind.values().filter { it != Kind.OTHER }.none { ext in it.extensions }
+                    } else ext in activeKind.extensions
+                    kindMatches && file.name.orEmpty().contains(normalizedQuery, ignoreCase = true)
+                }
+                val duplicates = duplicateGroups.mapNotNull { group ->
+                    val visible = group.files.filter { it.name.orEmpty().contains(normalizedQuery, ignoreCase = true) }
+                    if (visible.isEmpty()) null else group.copy(files = visible)
+                }
+                val cleanup = when (activeCleanupMode) {
+                    CleanupMode.SCREENSHOTS -> oldScreenshotFiles
+                    CleanupMode.DUPLICATES -> duplicates.flatMap { it.files }.distinctBy { it.uri.toString() }
+                    CleanupMode.VIDEOS -> largeVideoFiles
+                }.filter { it.name.orEmpty().contains(normalizedQuery, ignoreCase = true) }
+                FilteredFileLists(folders, matching, duplicates, cleanup)
+            }
+            if (request == filterRequestId) {
+                folderEntries = result.folders
+                matchingFiles = result.matching
+                duplicateDisplayGroups = result.duplicates
+                cleanupFiles = result.cleanup
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } finally {
+            if (request == filterRequestId) filteringFiles = false
+        }
     }
     val selectedCleanupFiles = remember(cleanupFiles, cleanupSelectedUris) { cleanupFiles.filter { it.uri.toString() in cleanupSelectedUris } }
     val selectedCleanupBytes = remember(selectedCleanupFiles) { selectedCleanupFiles.sumOf { it.length().coerceAtLeast(0L) } }
@@ -836,6 +865,7 @@ fun ArchiveroApp() {
                         }
                         SearchBox(query) { query = it }
                         if (scanning) Text("Buscando... $scanProgress elementos revisados", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (filteringFiles) Text("Filtrando archivos en segundo plano…", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (scanStatus.isNotBlank()) Text(scanStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
                         Text(matchingFiles.size.toString() + " archivos encontrados", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(vertical = 6.dp))
                         FileList(matchingFiles, { openDocument(it, context, { u,t,v -> startPlayback(u,t,v,sourceFiles) }, { message=it }) }, { actionFile=it; actionMenu=true }, Modifier.weight(1f))
@@ -854,7 +884,7 @@ fun ArchiveroApp() {
                             }) { Icon(Icons.Default.ArrowBack, null); Text("Volver") }
                         }
                         SearchBox(query) { query = it }
-                        Text(entries.size.toString() + " elementos", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(vertical = 6.dp))
+                        Text(entries.size.toString() + " elementos" + if (filteringFiles) " · filtrando…" else "", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(vertical = 6.dp))
                         if (listingFailed) EmptyNotice("No se pudo leer esta carpeta", "Comprueba los permisos de Android.", Icons.Default.FolderOff)
                         else LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             items(folderEntries, key = { it.uri.toString() }) { file ->
