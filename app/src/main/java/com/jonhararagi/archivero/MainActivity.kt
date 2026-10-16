@@ -1534,7 +1534,7 @@ private fun openDocument(file: DocumentFile, context: Context, onMedia: (Uri, St
         val viewIntent = Intent(Intent.ACTION_VIEW)
             .setDataAndType(safeUri, mime)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            .setClipData(ClipData.newUri(context.contentResolver, name, safeUri))
+        viewIntent.clipData = ClipData.newUri(context.contentResolver, name, safeUri)
         context.startActivity(Intent.createChooser(viewIntent, "Abrir con otra aplicación"))
     }.onFailure { error ->
         onError(when (error) {

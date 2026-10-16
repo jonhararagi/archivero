@@ -153,7 +153,7 @@ private fun VideoPlayerScreen(
         }
 
         AndroidView(
-            factory = { ctx -> PlayerView(ctx).apply { useController = true; player = activePlayer } },
+            factory = { ctx -> PlayerView(ctx).apply { useController = true; this.player = activePlayer } },
             modifier = Modifier.weight(1f).fillMaxWidth(),
             update = { view -> if (view.player !== activePlayer) view.player = activePlayer }
         )
