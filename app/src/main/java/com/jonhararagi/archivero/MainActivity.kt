@@ -165,6 +165,8 @@ fun ArchiveroApp() {
     var playerVideo by remember { mutableStateOf(false) }
     var playerQueueItems by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
     var playbackRequestId by remember { mutableIntStateOf(0) }
+    var queueBuildRequest by remember { mutableIntStateOf(0) }
+    var loadingQueue by remember { mutableStateOf(false) }
     var showQueue by remember { mutableStateOf(false) }
     var sleepTimerMinutes by rememberSaveable { mutableIntStateOf(0) }
     var playbackError by remember { mutableStateOf<String?>(null) }
@@ -193,18 +195,11 @@ fun ArchiveroApp() {
             override fun onShuffleModeEnabledChanged(shuffleModeEnabledValue: Boolean) { shuffleEnabled = shuffleModeEnabledValue }
             override fun onRepeatModeChanged(repeatModeValue: Int) { repeatMode = repeatModeValue }
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                val failedTitle = controller?.currentMediaItem?.mediaMetadata?.title?.toString().orEmpty()
-                val failedExtension = failedTitle.substringAfterLast('.', "").lowercase(Locale.ROOT)
-                val failedItemIsVideo = failedExtension in Kind.VIDEOS.extensions
-                if (!failedItemIsVideo && controller != null && controller.hasNextMediaItem()) {
-                    playbackError = "Falló «" + failedTitle + "» (" + error.errorCodeName + "). Intentando continuar con la siguiente pista."
-                    controller.seekToNextMediaItem()
-                    controller.prepare()
-                    controller.play()
-                } else {
-                    playbackError = error.errorCodeName + ": " + (error.message ?: "Android no pudo decodificar este archivo. Prueba otra copia o formato.")
-                    playbackIsPlaying = false
-                }
+                // Do not auto-chain failing tracks from inside Media3's error callback.
+                // The user can try the next queue item explicitly from the player.
+                playbackError = error.errorCodeName + ": " +
+                    (error.message ?: "Android no pudo decodificar este archivo. Prueba otra copia o formato.")
+                playbackIsPlaying = false
             }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 playbackError = null
@@ -257,20 +252,49 @@ fun ArchiveroApp() {
             }
             return
         }
+
         playerUri = uri
         playbackUri = uri
         playerTitle = title
-        playerVideo = video
+        playerVideo = false
         showPlayerPanel = true
-        playerQueueItems = if (video) emptyList() else queue
-            .filter { file -> !file.isDirectory && file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) in Kind.MUSIC.extensions }
-            .distinctBy { it.uri.toString() }
-            .map { file ->
-                MediaItem.Builder().setUri(file.uri)
-                    .setMediaMetadata(MediaMetadata.Builder().setTitle(file.name ?: "Pista").setArtist("Archivero").build()).build()
-            }
         playbackError = null
-        playbackRequestId++
+        loadingQueue = true
+        queueBuildRequest++
+        val requestId = queueBuildRequest
+        scope.launch {
+            try {
+                val items = withContext(Dispatchers.IO) {
+                    queue.asSequence()
+                        .filter { file ->
+                            !file.isDirectory &&
+                                file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) in Kind.MUSIC.extensions
+                        }
+                        .distinctBy { it.uri.toString() }
+                        .map { file ->
+                            MediaItem.Builder().setUri(file.uri)
+                                .setMediaMetadata(MediaMetadata.Builder().setTitle(file.name ?: "Pista").setArtist("Archivero").build())
+                                .build()
+                        }
+                        .toList()
+                }
+                if (requestId != queueBuildRequest) return@launch
+                playerQueueItems = items
+                if (items.none { it.localConfiguration?.uri == uri }) {
+                    playbackError = "No se pudo añadir esta canción a la lista. Comprueba que el archivo siga disponible."
+                    return@launch
+                }
+                playbackRequestId++
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                if (requestId == queueBuildRequest) {
+                    playbackError = "No se pudo preparar la lista de música: " + (error.message ?: "comprueba los permisos.")
+                }
+            } finally {
+                if (requestId == queueBuildRequest) loadingQueue = false
+            }
+        }
     }
     fun toggleFavorite(uri: Uri) {
         val next = favoriteUris.toMutableSet()
@@ -329,22 +353,46 @@ fun ArchiveroApp() {
     }
     val pickMusic = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) {
-            uris.forEach { uri ->
-                try { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: SecurityException) { }
-            }
-            val queue = uris.distinct().map { uri ->
-                MediaItem.Builder().setUri(uri)
-                    .setMediaMetadata(MediaMetadata.Builder().setTitle(displayName(context, uri)).setArtist("Archivero").build()).build()
-            }
-            playerQueueItems = queue
-            playbackUri = queue.first().localConfiguration?.uri
-            playerUri = playbackUri
-            playerTitle = queue.first().mediaMetadata.title?.toString() ?: "Pista"
-            playerVideo = false
+            loadingQueue = true
+            queueBuildRequest++
+            val requestId = queueBuildRequest
             playbackError = null
             showQueue = false
             showPlayerPanel = true
-            playbackRequestId++
+            scope.launch {
+                try {
+                    val queue = withContext(Dispatchers.IO) {
+                        uris.distinct().map { uri ->
+                            try {
+                                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            } catch (_: SecurityException) {
+                            }
+                            MediaItem.Builder().setUri(uri)
+                                .setMediaMetadata(MediaMetadata.Builder().setTitle(displayName(context, uri)).setArtist("Archivero").build())
+                                .build()
+                        }
+                    }
+                    if (requestId != queueBuildRequest) return@launch
+                    if (queue.isEmpty()) {
+                        playbackError = "No se pudo añadir ninguna canción."
+                        return@launch
+                    }
+                    playerQueueItems = queue
+                    playbackUri = queue.first().localConfiguration?.uri
+                    playerUri = playbackUri
+                    playerTitle = queue.first().mediaMetadata.title?.toString() ?: "Pista"
+                    playerVideo = false
+                    playbackRequestId++
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    if (requestId == queueBuildRequest) {
+                        playbackError = "No se pudo preparar la lista: " + (error.message ?: "comprueba los permisos.")
+                    }
+                } finally {
+                    if (requestId == queueBuildRequest) loadingQueue = false
+                }
+            }
         }
     }
 
@@ -680,7 +728,7 @@ fun ArchiveroApp() {
                                 Spacer(Modifier.width(10.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(playerTitle.ifBlank { "Reproductor de música" }, maxLines = 1, fontWeight = FontWeight.Bold)
-                                    Text(if (playbackIsPlaying) "Reproduciendo · toca para abrir" else "En pausa · toca para abrir",
+                                    Text(if (loadingQueue) "Preparando lista · toca para abrir" else if (playbackIsPlaying) "Reproduciendo · toca para abrir" else "En pausa · toca para abrir",
                                         style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 IconButton(onClick = { mediaController?.let { controller -> if (controller.isPlaying) controller.pause() else controller.play() } }) {
@@ -790,7 +838,7 @@ fun ArchiveroApp() {
                         if (scanning) Text("Buscando... $scanProgress elementos revisados", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (scanStatus.isNotBlank()) Text(scanStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
                         Text(matchingFiles.size.toString() + " archivos encontrados", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(vertical = 6.dp))
-                        FileList(matchingFiles, { openDocument(it, context, { u,t,v -> startPlayback(u,t,v,sourceFiles.filter { f -> !f.isDirectory && f.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) in Kind.MUSIC.extensions }) }, { message=it }) }, { actionFile=it; actionMenu=true }, Modifier.weight(1f))
+                        FileList(matchingFiles, { openDocument(it, context, { u,t,v -> startPlayback(u,t,v,sourceFiles) }, { message=it }) }, { actionFile=it; actionMenu=true }, Modifier.weight(1f))
                         if (!hasScanned || scanStatus.startsWith("Resultados parciales")) TextButton(onClick = { scan() }, enabled = !scanning) { Text(if (scanning) "Analizando..." else "Volver a analizar ubicación") }
                     }
                     Screen.FOLDERS -> {
@@ -812,7 +860,7 @@ fun ArchiveroApp() {
                             items(folderEntries, key = { it.uri.toString() }) { file ->
                                 DocumentRow(file, {
                                     if (file.isDirectory) { current = file; currentUri = file.uri; refresh++ }
-                                    else openDocument(file, context, { u,t,v -> startPlayback(u,t,v,entries.filter { f -> !f.isDirectory && f.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) in Kind.MUSIC.extensions }) }, { message=it })
+                                    else openDocument(file, context, { u,t,v -> startPlayback(u,t,v,entries) }, { message=it })
                                 }, { actionFile=file; deleteDialog=true })
                             }
                         }
@@ -921,7 +969,7 @@ fun ArchiveroApp() {
                                                         cleanupSelectedUris = if (checked) cleanupSelectedUris + file.uri.toString()
                                                         else cleanupSelectedUris - file.uri.toString()
                                                     },
-                                                    onOpen = { openDocument(file, context, { u,t,v -> startPlayback(u,t,v,sourceFiles.filter { f -> !f.isDirectory && f.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) in Kind.MUSIC.extensions }) }, { message = it }) }
+                                                    onOpen = { openDocument(file, context, { u,t,v -> startPlayback(u,t,v,sourceFiles) }, { message = it }) }
                                                 )
                                             }
                                         }
@@ -942,7 +990,7 @@ fun ArchiveroApp() {
                                             cleanupSelectedUris = if (checked) cleanupSelectedUris + file.uri.toString()
                                             else cleanupSelectedUris - file.uri.toString()
                                         },
-                                        onOpen = { openDocument(file, context, { u,t,v -> startPlayback(u,t,v,sourceFiles.filter { f -> !f.isDirectory && f.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) in Kind.MUSIC.extensions }) }, { message = it }) }
+                                        onOpen = { openDocument(file, context, { u,t,v -> startPlayback(u,t,v,sourceFiles) }, { message = it }) }
                                     )
                                 }
                             }
@@ -1269,12 +1317,26 @@ fun ArchiveroApp() {
                             }
                         }
                         Text(
-                            if (playerQueueItems.isEmpty()) "Elige canciones del teléfono" else "Lista de reproducción · ${playerQueueItems.size} canciones",
+                            if (loadingQueue) "Preparando canciones sin bloquear la aplicación…" else if (playerQueueItems.isEmpty()) "Elige canciones del teléfono" else "Lista de reproducción · ${playerQueueItems.size} canciones",
                             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         if (playbackError != null) {
                             Text("No se pudo reproducir: $playbackError", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                            TextButton(onClick = { pickMusic.launch(arrayOf("audio/*")) }) { Text("Elegir otra canción") }
+                            Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                                TextButton(
+                                    onClick = {
+                                        mediaController?.let { controller ->
+                                            if (controller.hasNextMediaItem()) {
+                                                controller.seekToNextMediaItem()
+                                                controller.prepare()
+                                                controller.play()
+                                            }
+                                        }
+                                    },
+                                    enabled = mediaController?.hasNextMediaItem() == true
+                                ) { Text("Probar siguiente pista") }
+                                TextButton(onClick = { pickMusic.launch(arrayOf("audio/*")) }) { Text("Elegir otra") }
+                            }
                         }
                         if (showQueue && playerQueueItems.isNotEmpty()) {
                             LazyColumn(Modifier.fillMaxWidth().heightIn(max = 136.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
