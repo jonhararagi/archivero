@@ -18,6 +18,8 @@ Los archivos se procesan localmente. La aplicación no tiene una función de sub
 - Selección de varios archivos de audio para crear una cola de reproducción.
 - Reproductor Media3 con reproducción en segundo plano, notificación de controles, anterior/siguiente, posición, aleatorio, repetición, favoritos y temporizador.
 - Mini reproductor inferior que permite volver al reproductor completo sin detener la música.
+- Miniaturas reales para imágenes compatibles y la primera página de PDF en las listas de archivos y limpieza; otros formatos muestran iconos por tipo y extensión.
+- Las miniaturas se decodifican fuera del hilo principal, se reducen a un tamaño pequeño y usan una caché en memoria limitada para controlar el uso de RAM.
 - Vista previa integrada para formatos compatibles, además de la opción de abrir un archivo con otra aplicación.
 - Cinco paletas visuales y fondo local persistente.
 - Búsqueda recursiva con progreso, límite de 100.000 elementos y profundidad máxima 20. Si se alcanza un límite, se indica que los resultados son parciales.
@@ -34,13 +36,13 @@ El workflow incorpora pruebas unitarias de seguridad para rutas ZIP antes de gen
 
 ## Límites y validación
 
-El workflow de GitHub Actions compila el APK de depuración y lo publica como artefacto descargable. La compilación **no equivale a una prueba funcional en un teléfono**; el workflow actual no ejecuta pruebas unitarias ni instrumentadas.
+El workflow de GitHub Actions ejecuta pruebas unitarias de seguridad para rutas ZIP, compila el APK de depuración y lo publica como artefacto descargable. Estas pruebas **no equivalen a una prueba funcional en un teléfono**; todavía no hay pruebas instrumentadas que cubran los permisos y proveedores reales de Android.
 
 Aún se deben comprobar en Android real:
 - reproducción tras minimizar la app, bloquear la pantalla y cambiar entre Wi-Fi/datos; algunos ajustes de batería de Android/MIUI pueden restringir servicios en segundo plano;
 - selección y eliminación con proveedores de documentos distintos, permisos revocados y tarjetas SD;
 - lectura de directorios muy grandes y comportamiento cuando se alcanza el límite de escaneo;
-- archivos dañados, formatos no compatibles y operaciones sobre almacenamiento externo.
+- archivos dañados, formatos no compatibles, rendimiento de miniaturas en carpetas con muchos elementos y operaciones sobre almacenamiento externo.
 
 El análisis de capturas depende de que Android informe una fecha y de que el nombre o la ruta permita reconocerlas. Algunos archivos no son legibles mediante el proveedor elegido; no se deben clasificar como duplicados si no se puede leer su contenido. En dispositivos con muchos archivos, comparar SHA-256 puede consumir tiempo, batería y almacenamiento de E/S.
 
