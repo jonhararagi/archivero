@@ -1,27 +1,45 @@
 # Archivero 📁
 
-Administrador de archivos Android sencillo, accesible y respetuoso con los permisos.
+Administrador de archivos Android visual y sencillo, pensado para móvil y con operaciones de limpieza que requieren revisión del usuario.
 
-## Estado
-Primera versión funcional en desarrollo. Esta versión usa el selector de carpetas de Android (Storage Access Framework): el usuario elige la ubicación a administrar y la aplicación no solicita acceso general a todo el almacenamiento.
+## Estado actual
 
-## Incluido
-- Interfaz Material 3 pensada para móvil.
-- Selección explícita de una carpeta con permisos persistentes de Android.
-- Navegación por carpetas y listado ordenado de archivos.
-- Búsqueda rápida dentro de la carpeta actual, con estado vacío y limpieza de búsqueda.
-- Apertura de archivos mediante aplicaciones compatibles instaladas.
-- Reproductor integrado para audio y video, con cierre explícito.
-- Recuperación de la carpeta seleccionada si Android recrea el proceso, con aviso seguro si el permiso dejó de estar disponible.
-- Creación de carpetas.
-- Eliminación de elementos mediante el proveedor de documentos de Android.
-- Tamaño de archivo legible y estados vacíos.
+La aplicación combina dos modos de acceso:
 
-## Validación y límites conocidos
-La compilación de depuración se valida en GitHub Actions y se publica como artefacto descargable. Todavía hace falta probar el flujo en un teléfono real, especialmente permisos revocados, proveedores de documentos de terceros, archivos grandes y formatos sin aplicación compatible. Android puede limitar las operaciones que cada proveedor permite; la aplicación debe mostrar un error y no asumir que borrar o crear siempre tendrá éxito.
+- **Acceso a todo el almacenamiento:** en Android 11 o posterior, se solicita habilitar el permiso especial desde Ajustes para recorrer las carpetas compartidas del teléfono.
+- **Carpeta específica:** se puede elegir una ubicación con el selector del sistema Android sin conceder acceso global. El análisis queda limitado a esa ubicación.
 
-## Próximos pasos
-Ordenar/filtrar, selección múltiple, copiar/mover, renombrar, papelera cuando el proveedor lo permita, ZIP/extraer y pruebas instrumentadas en dispositivos reales.
+Los archivos se procesan localmente. La aplicación no tiene una función de subida de archivos a un servidor.
+
+## Funciones incluidas
+
+- Inicio visual con información de almacenamiento y accesos por categoría.
+- Categorías de imágenes, vídeos, música, documentos, APK, ZIP y otros formatos; búsqueda por nombre y navegación de carpetas.
+- Selección de varios archivos de audio para crear una cola de reproducción.
+- Reproductor Media3 con reproducción en segundo plano, notificación de controles, anterior/siguiente, posición, aleatorio, repetición, favoritos y temporizador.
+- Mini reproductor inferior que permite volver al reproductor completo sin detener la música.
+- Vista previa integrada para formatos compatibles, además de la opción de abrir un archivo con otra aplicación.
+- Cinco paletas visuales y fondo local persistente.
+- Búsqueda recursiva con progreso, límite de 100.000 elementos y profundidad máxima 20. Si se alcanza un límite, se indica que los resultados son parciales.
+- Limpieza revisable de capturas identificables de más de 90 días, vídeos de 100 MB o más y duplicados idénticos.
+- La detección de duplicados agrupa primero por tamaño y confirma el contenido mediante SHA-256; no usa el nombre como prueba.
+- La limpieza no elimina archivos automáticamente. El usuario revisa y marca elementos y confirma la acción. En los grupos de duplicados, se exige conservar al menos una copia.
+- Mensajes de error cuando Android o un proveedor de documentos no permite leer, crear o eliminar un elemento.
+
+## Límites y validación
+
+El workflow de GitHub Actions compila el APK de depuración y lo publica como artefacto descargable. La compilación **no equivale a una prueba funcional en un teléfono**; el workflow actual no ejecuta pruebas unitarias ni instrumentadas.
+
+Aún se deben comprobar en Android real:
+- reproducción tras minimizar la app, bloquear la pantalla y cambiar entre Wi-Fi/datos; algunos ajustes de batería de Android/MIUI pueden restringir servicios en segundo plano;
+- selección y eliminación con proveedores de documentos distintos, permisos revocados y tarjetas SD;
+- lectura de directorios muy grandes y comportamiento cuando se alcanza el límite de escaneo;
+- archivos dañados, formatos no compatibles y operaciones sobre almacenamiento externo.
+
+El análisis de capturas depende de que Android informe una fecha y de que el nombre o la ruta permita reconocerlas. Algunos archivos no son legibles mediante el proveedor elegido; no se deben clasificar como duplicados si no se puede leer su contenido. En dispositivos con muchos archivos, comparar SHA-256 puede consumir tiempo, batería y almacenamiento de E/S.
 
 ## Compilar
-Requiere JDK 17 y Android SDK 35. Abre el proyecto en Android Studio y sincroniza Gradle. También se incluye un workflow de GitHub Actions para compilar el APK de depuración y publicarlo como artefacto.
+
+Requiere JDK 17 y Android SDK 35. Abre el proyecto en Android Studio y sincroniza Gradle.
+
+[Ver compilaciones y descargar el APK generado por GitHub Actions](https://github.com/jonhararagi/archivero/actions/workflows/android.yml)
