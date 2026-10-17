@@ -141,6 +141,7 @@ fun ArchiveroApp() {
     var analyzeDuplicatesAfterScan by remember { mutableStateOf(false) }
     var cleanupSelectedUris by remember { mutableStateOf<Set<String>>(emptySet()) }
     var bulkDeleteDialog by remember { mutableStateOf(false) }
+    var fileOperationRunning by remember { mutableStateOf(false) }
     var showPlayerPanel by rememberSaveable { mutableStateOf(false) }
     var rootUri by rememberSaveable { mutableStateOf<Uri?>(null) }
     var permissionRefresh by remember { mutableIntStateOf(0) }
@@ -1099,6 +1100,18 @@ fun ArchiveroApp() {
     }
 }
 
+    if (fileOperationRunning) AlertDialog(
+        onDismissRequest = { },
+        title = { Text("Procesando archivos") },
+        text = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                Text("La operación se realiza en segundo plano. Los archivos grandes pueden tardar.")
+            }
+        },
+        confirmButton = { }
+    )
+
     if (newFolderDialog) AlertDialog(
         onDismissRequest = { newFolderDialog = false }, title = { Text("Nueva carpeta") },
         text = { OutlinedTextField(folderName, { folderName = it }, label = { Text("Nombre de la carpeta") }, singleLine = true) },
@@ -1122,141 +1135,90 @@ fun ArchiveroApp() {
             TextButton(onClick = {
                 val file = actionFile
                 val parent = current
-                val result = runCatching {
-                    require(file != null && !file.isDirectory) { "Selecciona un archivo." }
-                    require(parent != null && parent.canWrite()) { "Elige una carpeta de destino con permiso de escritura." }
-                    val original = file.name ?: "archivo"
-                    val base = original.substringBeforeLast('.', original)
-                    val ext = original.substringAfterLast('.', "")
-                    var candidate = "$base (copia)" + if (ext.isNotBlank()) ".$ext" else ""
-                    var n = 2
-                    while (parent.findFile(candidate) != null) { candidate = "$base (copia $n)" + if (ext.isNotBlank()) ".$ext" else ""; n++ }
-                    val dest = parent.createFile(context.contentResolver.getType(file.uri) ?: "application/octet-stream", candidate) ?: error("Android no permitió crear la copia.")
-                    context.contentResolver.openInputStream(file.uri).use { input ->
-                        requireNotNull(input) { "No se pudo leer el archivo original." }
-                        context.contentResolver.openOutputStream(dest.uri, "w").use { output ->
-                            requireNotNull(output) { "No se pudo escribir la copia." }
-                            input.copyTo(output)
+                if (fileOperationRunning) {
+                    message = "Ya hay una operación de archivos en curso."
+                } else if (file == null || parent == null) {
+                    message = "Selecciona un archivo y una carpeta de destino."
+                } else {
+                    fileOperationRunning = true
+                    actionMenu = false
+                    scope.launch {
+                        val result = withContext(Dispatchers.IO) {
+                            runCatching { FileOperations.copy(context, file, parent) }
                         }
+                        fileOperationRunning = false
+                        message = result.fold(
+                            { refresh++; "Copia creada: " + it },
+                            { it.message ?: "No se pudo copiar el archivo." }
+                        )
                     }
-                    dest.name ?: candidate
                 }
-                message = result.fold({ refresh++; "Copia creada: $it" }, { it.message ?: "No se pudo copiar el archivo." })
-                actionMenu = false
             }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.ContentCopy, null); Spacer(Modifier.width(8.dp)); Text("Copiar a carpeta abierta") }
             TextButton(onClick = {
                 val file = actionFile
-                val result = runCatching {
-                    require(file != null && !file.isDirectory) { "Selecciona un archivo para mover." }
-                    val parent = current ?: error("No hay carpeta de destino.")
-                    require(parent.canWrite()) { "No hay permiso de escritura en la carpeta abierta." }
-                    require(file.uri != parent.uri) { "Elige una carpeta de destino diferente." }
-                    val original = file.name ?: "archivo"
-                    val base = original.substringBeforeLast('.', original)
-                    val ext = original.substringAfterLast('.', "")
-                    var candidate = original
-                    var n = 2
-                    while (parent.findFile(candidate) != null) { candidate = "$base ($n)" + if (ext.isNotBlank()) ".$ext" else ""; n++ }
-                    val dest = parent.createFile(context.contentResolver.getType(file.uri) ?: "application/octet-stream", candidate) ?: error("No se pudo crear el archivo de destino.")
-                    try {
-                        context.contentResolver.openInputStream(file.uri).use { input ->
-                            requireNotNull(input) { "No se pudo leer el archivo original." }
-                            context.contentResolver.openOutputStream(dest.uri, "w").use { output ->
-                                requireNotNull(output) { "No se pudo escribir el destino." }
-                                input.copyTo(output)
-                            }
+                val parent = current
+                if (fileOperationRunning) {
+                    message = "Ya hay una operación de archivos en curso."
+                } else if (file == null || parent == null) {
+                    message = "Selecciona un archivo y una carpeta de destino."
+                } else {
+                    fileOperationRunning = true
+                    actionMenu = false
+                    scope.launch {
+                        val result = withContext(Dispatchers.IO) {
+                            runCatching { FileOperations.move(context, file, parent) }
                         }
-                        require(file.delete()) { "El archivo se copió, pero Android no permitió borrar el original. No se perdió información." }
-                    } catch (e: Exception) {
-                        if (dest.length() == 0L) dest.delete()
-                        throw e
+                        fileOperationRunning = false
+                        message = result.fold(
+                            { refresh++; indexed = indexed.filterNot { item -> item.uri == file.uri }; "Archivo movido: " + it },
+                            { it.message ?: "No se pudo mover el archivo." }
+                        )
                     }
-                    candidate
                 }
-                message = result.fold({ refresh++; indexed = indexed.filterNot { f -> f.uri == actionFile?.uri }; "Archivo movido: $it" }, { it.message ?: "No se pudo mover el archivo." })
-                actionMenu = false
             }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.DriveFileMove, null); Spacer(Modifier.width(8.dp)); Text("Mover a carpeta abierta") }
             TextButton(onClick = {
                 val file = actionFile
-                val result = runCatching {
-                    require(file != null && !file.isDirectory) { "Selecciona un archivo para comprimir." }
-                    val parent = current ?: error("No hay carpeta de destino.")
-                    require(parent.canWrite()) { "No hay permiso de escritura en la carpeta abierta." }
-                    val original = file.name ?: "archivo"
-                    val zipName = original.substringBeforeLast('.', original) + ".zip"
-                    var candidate = zipName
-                    var n = 2
-                    while (parent.findFile(candidate) != null) { candidate = zipName.removeSuffix(".zip") + " ($n).zip"; n++ }
-                    val archive = parent.createFile("application/zip", candidate) ?: error("No se pudo crear el ZIP.")
-                    try {
-                        context.contentResolver.openInputStream(file.uri).use { input ->
-                            requireNotNull(input) { "No se pudo leer el archivo original." }
-                            context.contentResolver.openOutputStream(archive.uri, "w").use { output ->
-                                requireNotNull(output) { "No se pudo escribir el ZIP." }
-                                ZipOutputStream(output).use { zip ->
-                                    zip.putNextEntry(ZipEntry(original.substringAfterLast('/')))
-                                    input.copyTo(zip)
-                                    zip.closeEntry()
-                                }
-                            }
+                val parent = current
+                if (fileOperationRunning) {
+                    message = "Ya hay una operación de archivos en curso."
+                } else if (file == null || parent == null) {
+                    message = "Selecciona un archivo y una carpeta de destino."
+                } else {
+                    fileOperationRunning = true
+                    actionMenu = false
+                    scope.launch {
+                        val result = withContext(Dispatchers.IO) {
+                            runCatching { FileOperations.compress(context, file, parent) }
                         }
-                    } catch (e: Exception) {
-                        archive.delete()
-                        throw e
+                        fileOperationRunning = false
+                        message = result.fold(
+                            { refresh++; "Archivo comprimido: " + it },
+                            { it.message ?: "No se pudo comprimir." }
+                        )
                     }
-                    candidate
                 }
-                message = result.fold({ refresh++; "Archivo comprimido: $it" }, { it.message ?: "No se pudo comprimir." })
-                actionMenu = false
             }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.FolderZip, null); Spacer(Modifier.width(8.dp)); Text("Comprimir en ZIP") }
             TextButton(onClick = {
                 val file = actionFile
-                val result = runCatching {
-                    require(file != null && !file.isDirectory) { "Selecciona un archivo ZIP." }
-                    require(file.name.orEmpty().endsWith(".zip", true)) { "La extracción está disponible para archivos ZIP." }
-                    val parent = current ?: error("No hay carpeta de destino.")
-                    require(parent.canWrite()) { "No hay permiso de escritura en la carpeta abierta." }
-                    var count = 0
-                    context.contentResolver.openInputStream(file.uri).use { raw ->
-                        requireNotNull(raw) { "No se pudo leer el ZIP." }
-                        ZipInputStream(raw).use { zip ->
-                            var entry = zip.nextEntry
-                            while (entry != null) {
-                                val safe = entry.name.replace(92.toChar(), '/')
-                                require(!safe.startsWith("/") && safe.split('/').none { it == ".." }) { "El ZIP contiene una ruta insegura y se canceló." }
-                                if (safe.isNotBlank()) {
-                                    val parts = safe.split('/').filter { it.isNotBlank() }
-                                    var dir = parent
-                                    for (part in parts.dropLast(if (entry.isDirectory) 0 else 1)) {
-                                        dir = dir.findFile(part)?.takeIf { it.isDirectory } ?: dir.createDirectory(part) ?: error("No se pudo crear una carpeta de destino.")
-                                    }
-                                    if (entry.isDirectory) {
-                                        if (dir.findFile(parts.last()) == null) dir.createDirectory(parts.last())
-                                    } else {
-                                        val name = parts.last()
-                                        require(dir.findFile(name) == null) { "Ya existe '$name'. No se sobrescribieron archivos." }
-                                        val dest = dir.createFile("application/octet-stream", name) ?: error("No se pudo crear '$name'.")
-                                        context.contentResolver.openOutputStream(dest.uri, "w").use { output ->
-                                            requireNotNull(output) { "No se pudo escribir '$name'." }
-                                            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                                            while (true) {
-                                                val read = zip.read(buffer)
-                                                if (read < 0) break
-                                                output.write(buffer, 0, read)
-                                            }
-                                        }
-                                        count++
-                                    }
-                                }
-                                zip.closeEntry()
-                                entry = zip.nextEntry
-                            }
+                val parent = current
+                if (fileOperationRunning) {
+                    message = "Ya hay una operación de archivos en curso."
+                } else if (file == null || parent == null) {
+                    message = "Selecciona un archivo ZIP y una carpeta de destino."
+                } else {
+                    fileOperationRunning = true
+                    actionMenu = false
+                    scope.launch {
+                        val result = withContext(Dispatchers.IO) {
+                            runCatching { FileOperations.extractZip(context, file, parent) }
                         }
+                        fileOperationRunning = false
+                        message = result.fold(
+                            { count -> refresh++; "Extracción terminada: " + count + " archivos." },
+                            { it.message ?: "No se pudo extraer el ZIP." }
+                        )
                     }
-                    count
                 }
-                message = result.fold({ refresh++; "Extracción terminada: $it archivos." }, { it.message ?: "No se pudo extraer el ZIP." })
-                actionMenu = false
             }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.FolderZip, null); Spacer(Modifier.width(8.dp)); Text("Extraer ZIP aquí") }
             TextButton(onClick = { deleteDialog = true; actionMenu = false }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.DeleteOutline, null, tint = MaterialTheme.colorScheme.error); Spacer(Modifier.width(8.dp)); Text("Eliminar", color = MaterialTheme.colorScheme.error) }
         } },
