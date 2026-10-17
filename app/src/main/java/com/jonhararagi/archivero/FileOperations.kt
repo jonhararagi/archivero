@@ -34,8 +34,10 @@ internal object FileOperations {
     fun move(context: Context, source: DocumentFile, parent: DocumentFile): String {
         requireUsableSource(source)
         requireWritableDirectory(parent)
-        require(source.uri != parent.uri) { "Elige una carpeta de destino diferente." }
         val original = source.name ?: "archivo"
+        require(parent.findFile(original)?.uri != source.uri) {
+            "El archivo ya está en la carpeta abierta. Abre otra carpeta antes de moverlo."
+        }
         val (base, extension) = splitName(original)
         val candidate = uniqueName(parent) { index ->
             if (index == 1) original else base + " (" + index + ")" + extension
