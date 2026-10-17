@@ -112,7 +112,7 @@ internal object FileOperations {
                         "El ZIP supera el límite de " + MAX_ARCHIVE_ENTRIES + " entradas. Se canceló la extracción."
                     }
 
-                    val parts = safeZipPathSegmentsForTest(entry.name)
+                    val parts = safeZipPathSegments(entry.name)
                     if (parts.isEmpty()) {
                         zip.closeEntry()
                         continue
@@ -168,8 +168,14 @@ internal object FileOperations {
                 }
             }
         } catch (error: Exception) {
-            val filesRemoved = createdFiles.asReversed().all { runCatching { it.delete() }.getOrDefault(false) }
-            val directoriesRemoved = createdDirectories.asReversed().all { runCatching { it.delete() }.getOrDefault(false) }
+            var filesRemoved = true
+            for (created in createdFiles.asReversed()) {
+                if (!runCatching { created.delete() }.getOrDefault(false)) filesRemoved = false
+            }
+            var directoriesRemoved = true
+            for (created in createdDirectories.asReversed()) {
+                if (!runCatching { created.delete() }.getOrDefault(false)) directoriesRemoved = false
+            }
             if (!filesRemoved || !directoriesRemoved) {
                 throw IOException(
                     (error.message ?: "Falló la extracción") +
@@ -248,7 +254,7 @@ internal object FileOperations {
     }
 }
 
-internal fun safeZipPathSegmentsForTest(entryName: String): List<String> {
+internal fun safeZipPathSegments(entryName: String): List<String> {
     val normalized = entryName.replace('\\', '/')
     require(!normalized.startsWith("/") && !normalized.matches(Regex("^[A-Za-z]:.*"))) {
         "No se permiten rutas absolutas."
