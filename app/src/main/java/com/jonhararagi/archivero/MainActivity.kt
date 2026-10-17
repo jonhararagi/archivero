@@ -5,6 +5,11 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.pdf.PdfRenderer
+import android.os.ParcelFileDescriptor
+import android.util.LruCache
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
@@ -40,6 +45,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -1571,11 +1577,12 @@ private fun DiskCard(disk: Disk?, location: String, accent: Color = Color(0xFF28
     Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(15.dp)) {
         Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 11.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
             val folder = file.isDirectory
-            Box(Modifier.size(42.dp).background(if (folder) Color(0xFFE2EFE8) else Color(0xFFE9EDF4), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-                Icon(if (folder) Icons.Default.Folder else fileIcon(file), null, tint = if (folder) Color(0xFF285E55) else Color(0xFF52657D))
-            }
+            FileThumbnail(file = file, size = 52)
             Spacer(Modifier.width(11.dp))
-            Column(Modifier.weight(1f)) { Text(file.name ?: "Sin nombre", fontWeight = FontWeight.SemiBold, maxLines = 1); Text(if (folder) "Carpeta" else formatBytes(file.length()), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Column(Modifier.weight(1f)) {
+                Text(file.name ?: "Sin nombre", fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Text(if (folder) "Carpeta" else fileMetadataLabel(file), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            }
             IconButton(onClick = onMore) { Icon(Icons.Default.MoreVert, "Más acciones") }
         }
     }
@@ -1602,9 +1609,7 @@ private fun DiskCard(disk: Disk?, location: String, accent: Color = Color(0xFF28
         verticalAlignment = Alignment.CenterVertically
     ) {
         Checkbox(checked = checked, onCheckedChange = onChecked)
-        Box(Modifier.size(36.dp).background(Color(0xFFE9EDF4), RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
-            Icon(fileIcon(file), null, tint = Color(0xFF52657D))
-        }
+        FileThumbnail(file = file, size = 44)
         Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f).clickable(onClick = onOpen)) {
             Text(file.name ?: "Sin nombre", fontWeight = FontWeight.SemiBold, maxLines = 2)
@@ -1613,6 +1618,129 @@ private fun DiskCard(disk: Disk?, location: String, accent: Color = Color(0xFF28
         IconButton(onClick = onOpen) { Icon(Icons.Default.Visibility, "Revisar archivo") }
     }
 }
+private fun fileMetadataLabel(file: DocumentFile): String {
+    if (file.isDirectory) return "Carpeta"
+    val extension = file.name.orEmpty().substringAfterLast('.', "").uppercase(Locale.ROOT)
+    val size = formatBytes(file.length())
+    return if (extension.isBlank()) size else "$extension · $size"
+}
+
+@Composable
+private fun FileThumbnail(file: DocumentFile, size: Int) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val key = remember(file.uri.toString(), file.name, file.lastModified(), file.length()) {
+        file.uri.toString() + "|" + file.length() + "|" + file.lastModified()
+    }
+    var bitmap by remember(key) { mutableStateOf(ThumbnailCache.getCached(key)) }
+
+    LaunchedEffect(key) {
+        bitmap = withContext(Dispatchers.IO) { ThumbnailCache.load(context, file, key) }
+    }
+
+    val folder = file.isDirectory
+    val extension = file.name.orEmpty().substringAfterLast('.', "").uppercase(Locale.ROOT).take(5)
+    Box(
+        Modifier.size(size.dp).clip(RoundedCornerShape(12.dp))
+            .background(if (folder) Color(0xFFE2EFE8) else Color(0xFFE9EDF4)),
+        contentAlignment = Alignment.Center
+    ) {
+        if (bitmap != null && !folder) {
+            Image(
+                bitmap = bitmap!!.asImageBitmap(),
+                contentDescription = "Miniatura de " + (file.name ?: "archivo"),
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Icon(
+                    if (folder) Icons.Default.Folder else fileIcon(file),
+                    contentDescription = null,
+                    tint = if (folder) Color(0xFF285E55) else Color(0xFF52657D),
+                    modifier = Modifier.size((size * 0.48f).dp)
+                )
+                if (!folder && extension.isNotBlank()) {
+                    Text(extension, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                }
+            }
+        }
+    }
+}
+
+private object ThumbnailCache : LruCache<String, Bitmap>(8 * 1024 * 1024) {
+    override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount.coerceAtLeast(1)
+
+    fun getCached(key: String): Bitmap? = get(key)
+
+    fun load(context: Context, file: DocumentFile, key: String): Bitmap? {
+        get(key)?.let { return it }
+        if (file.isDirectory) return null
+
+        val extension = file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT)
+        val decoded = runCatching {
+            when {
+                extension in setOf("jpg", "jpeg", "jpe", "jfif", "jps", "png", "webp", "gif", "bmp", "heic", "heif", "avif", "tif", "tiff") ->
+                    decodeImageThumbnail(context, file.uri)
+                extension == "pdf" -> decodePdfThumbnail(context, file.uri)
+                else -> null
+            }
+        }.getOrNull()
+        if (decoded != null && !decoded.isRecycled) put(key, decoded)
+        return decoded
+    }
+
+    private fun decodeImageThumbnail(context: Context, uri: Uri): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        if (uri.scheme == "file") BitmapFactory.decodeFile(uri.path, bounds)
+        else context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sample = 1
+        val largest = maxOf(bounds.outWidth, bounds.outHeight)
+        while (largest / sample > 192) sample *= 2
+        val options = BitmapFactory.Options().apply { inSampleSize = sample }
+        val decoded = if (uri.scheme == "file") {
+            BitmapFactory.decodeFile(uri.path, options)
+        } else {
+            context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+        } ?: return null
+
+        val maxDimension = maxOf(decoded.width, decoded.height)
+        if (maxDimension <= 192) return decoded
+        val ratio = 192f / maxDimension
+        val scaled = Bitmap.createScaledBitmap(
+            decoded,
+            (decoded.width * ratio).toInt().coerceAtLeast(1),
+            (decoded.height * ratio).toInt().coerceAtLeast(1),
+            true
+        )
+        if (scaled !== decoded) decoded.recycle()
+        return scaled
+    }
+
+    private fun decodePdfThumbnail(context: Context, uri: Uri): Bitmap? {
+        val descriptor = if (uri.scheme == "file") {
+            ParcelFileDescriptor.open(File(uri.path ?: return null), ParcelFileDescriptor.MODE_READ_ONLY)
+        } else {
+            context.contentResolver.openFileDescriptor(uri, "r")
+        } ?: return null
+        descriptor.use { pfd ->
+            PdfRenderer(pfd).use { renderer ->
+                if (renderer.pageCount < 1) return null
+                renderer.openPage(0).use { page ->
+                    val scale = minOf(192f / page.width.coerceAtLeast(1), 192f / page.height.coerceAtLeast(1)).coerceAtMost(1f)
+                    val width = (page.width * scale).toInt().coerceAtLeast(1)
+                    val height = (page.height * scale).toInt().coerceAtLeast(1)
+                    val thumbnail = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                    Canvas(thumbnail).drawColor(android.graphics.Color.WHITE)
+                    page.render(thumbnail, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                    return thumbnail
+                }
+            }
+        }
+    }
+}
+
 private fun sha256Content(context: Context, file: DocumentFile): String {
     val digest = MessageDigest.getInstance("SHA-256")
     val input = context.contentResolver.openInputStream(file.uri)
