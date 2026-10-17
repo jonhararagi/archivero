@@ -84,6 +84,12 @@ private data class FilteredFileLists(
     val duplicates: List<DuplicateGroup>,
     val cleanup: List<DocumentFile>
 )
+private data class ScanResult(
+    val files: List<DocumentFile>,
+    val visited: Int,
+    val partial: Boolean,
+    val unreadableDirectories: Int
+)
 private enum class Palette(val label: String, val primary: Color, val secondary: Color, val background: Color) {
     VERDE("Verde bosque", Color(0xFF285E55), Color(0xFF547D73), Color(0xFFF4F7F5)),
     VIOLETA("Violeta", Color(0xFF7048A8), Color(0xFF9575CD), Color(0xFFF7F2FC)),
@@ -582,11 +588,19 @@ fun ArchiveroApp() {
                     queue.add(start to 0)
                     var visited = 0
                     var depthLimitHit = false
+                    var unreadableDirectories = 0
                     val maxEntries = 100_000
                     val maxDepth = 20
                     while (queue.isNotEmpty() && visited < maxEntries) {
                         val item = queue.removeFirst()
-                        val children = runCatching { item.first.listFiles().toList() }.getOrElse { emptyList() }
+                        val children = try {
+                            item.first.listFiles().toList()
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            unreadableDirectories++
+                            emptyList()
+                        }
                         for (child in children) {
                             if (visited >= maxEntries) break
                             visited++
@@ -597,16 +611,25 @@ fun ArchiveroApp() {
                             if (visited % 1000 == 0) withContext(Dispatchers.Main) { scanProgress = visited }
                         }
                     }
-                    Triple(found, visited, visited >= maxEntries || queue.isNotEmpty() || depthLimitHit)
+                    ScanResult(
+                        files = found,
+                        visited = visited,
+                        partial = visited >= maxEntries || queue.isNotEmpty() || depthLimitHit || unreadableDirectories > 0,
+                        unreadableDirectories = unreadableDirectories
+                    )
                 }
-                indexed = result.first
+                indexed = result.files
                 hasScanned = true
-                scanProgress = result.second
+                scanProgress = result.visited
                 refresh++
-                scanStatus = if (result.third) {
-                    "Resultados parciales: ${result.first.size} archivos revisados (${result.second} elementos). Para completar, analiza una carpeta más específica."
+                val unreadableDetail = if (result.unreadableDirectories > 0) {
+                    " No se pudieron leer " + result.unreadableDirectories + " carpetas."
+                } else ""
+                scanStatus = if (result.partial) {
+                    "Resultados parciales: " + result.files.size + " archivos revisados (" +
+                        result.visited + " elementos). Para completar, analiza una carpeta más específica." + unreadableDetail
                 } else {
-                    "Búsqueda completa: ${result.first.size} archivos encontrados."
+                    "Búsqueda completa: " + result.files.size + " archivos encontrados."
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
