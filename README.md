@@ -26,6 +26,12 @@ Los archivos se procesan localmente. La aplicación no tiene una función de sub
 - La limpieza no elimina archivos automáticamente. El usuario revisa y marca elementos y confirma la acción. En los grupos de duplicados, se exige conservar al menos una copia.
 - Mensajes de error cuando Android o un proveedor de documentos no permite leer, crear o eliminar un elemento.
 
+## Correcciones de fiabilidad recientes
+
+La revisión encontró y corrigió errores en las operaciones con archivos: ahora copiar/mover/comprimir/extraer se realizan fuera del hilo visual, las copias parciales se limpian cuando es posible, y la extracción ZIP valida rutas, impide sobrescrituras y limita el tamaño descomprimido. Mover un archivo a la carpeta donde ya está se rechaza para evitar duplicados confusos.
+
+El workflow incorpora pruebas unitarias de seguridad para rutas ZIP antes de generar el APK. Consulta el [registro de cambios](CHANGELOG.md) para conocer los límites y los casos cubiertos.
+
 ## Límites y validación
 
 El workflow de GitHub Actions compila el APK de depuración y lo publica como artefacto descargable. La compilación **no equivale a una prueba funcional en un teléfono**; el workflow actual no ejecuta pruebas unitarias ni instrumentadas.
