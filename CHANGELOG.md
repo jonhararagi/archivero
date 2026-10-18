@@ -1,5 +1,25 @@
 # Registro de cambios de Archivero
 
+## En preparación · 2026-10-18 · actualización de reproducción y fiabilidad
+
+### Dependencias multimedia
+
+- Actualizados conjuntamente `media3-exoplayer`, `media3-session` y `media3-ui` de 1.5.1 a 1.10.0. Mantener los tres módulos en la misma versión evita mezclas de componentes de una misma biblioteca.
+- La actualización se basa en las notas oficiales de Media3 1.10, que anuncian correcciones y mejoras de reproducción, mejoras de compatibilidad con formatos en ExoPlayer y ajustes de eficiencia. Esto no permite afirmar que un fallo concreto del Xiaomi esté solucionado hasta reproducirlo y probarlo en el dispositivo.
+- Fuente del proveedor: https://developer.android.com/blog/posts/media3-1-10-is-out
+- Arquitectura de reproducción en segundo plano: https://developer.android.com/media/media3/session/background-playback
+
+### Almacenamiento, miniaturas y ANR
+
+- Se conserva el acceso mediante Storage Access Framework y permisos persistentes para carpetas/documentos elegidos por el usuario; los URI `content://` no deben tratarse como rutas de archivo ordinarias.
+- Se mantiene la decodificación muestreada y el trabajo de lectura/renderizado fuera del hilo principal. Android advierte que bitmaps grandes pueden causar jank, ANR y cierres por falta de memoria.
+- Fuentes oficiales: https://developer.android.com/training/data-storage/shared/documents-files · https://developer.android.com/topic/performance/issues/bitmap-memory-usage · https://developer.android.com/topic/performance/issues/anr
+
+### Verificación requerida
+
+- La actualización de dependencias debe pasar pruebas unitarias y compilación CI antes de distribuir el APK.
+- Después de CI, probar en el Xiaomi: reproducción y salto de pistas, música con pantalla bloqueada/cambio de aplicación, vídeo al salir, imágenes grandes, PDF multipágina y permisos SAF. El CI no simula todos los proveedores ni sustituye la prueba física.
+
 ## Sin publicar · 2026-10-18
 
 ### Cierre y reproducción de vídeo
