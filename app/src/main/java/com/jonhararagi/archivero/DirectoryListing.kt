@@ -1,6 +1,7 @@
 package com.jonhararagi.archivero
 
 import android.content.Context
+import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.documentfile.provider.DocumentFile
 import java.io.File
@@ -86,7 +87,7 @@ internal fun listDocumentChildrenBounded(
                     }
                     val childId = children.getString(0) ?: continue
                     val childUri = DocumentsContract.buildDocumentUriUsingTree(uri, childId)
-                    DocumentFile.fromTreeUri(context, childUri)?.let(entries::add)
+                    BoundedTreeDocumentFile(directory, context, childUri).let(entries::add)
                 }
             }
         }
@@ -104,4 +105,51 @@ internal fun listDocumentChildrenBounded(
             .thenBy { it.name.orEmpty().lowercase(Locale.ROOT) }
     )
     return BoundedDocumentListing(sorted, truncated)
+}
+
+
+/**
+ * DocumentFile.fromTreeUri() is intended to wrap a tree root, not an arbitrary child URI.
+ * This adapter preserves the actual child URI and parent chain while delegating metadata and
+ * basic file operations to Android's single-document wrapper. Child enumeration stays bounded.
+ */
+private class BoundedTreeDocumentFile(
+    parent: DocumentFile?,
+    private val context: Context,
+    private val uri: Uri
+) : DocumentFile(parent) {
+    private fun single(): DocumentFile? = DocumentFile.fromSingleUri(context, uri)
+
+    override fun createFile(mimeType: String, displayName: String): DocumentFile? {
+        val created = runCatching {
+            DocumentsContract.createDocument(context.contentResolver, uri, mimeType, displayName)
+        }.getOrNull() ?: return null
+        return BoundedTreeDocumentFile(this, context, created)
+    }
+
+    override fun createDirectory(displayName: String): DocumentFile? =
+        createFile(DocumentsContract.Document.MIME_TYPE_DIR, displayName)
+
+    override fun getName(): String? = single()?.name
+    override fun getType(): String? = single()?.type
+    override fun isDirectory(): Boolean = single()?.isDirectory == true
+    override fun isFile(): Boolean = single()?.isFile == true
+    override fun isVirtual(): Boolean = runCatching {
+        DocumentsContract.isVirtualDocument(context.contentResolver, uri)
+    }.getOrDefault(false)
+    override fun lastModified(): Long = single()?.lastModified() ?: 0L
+    override fun length(): Long = single()?.length() ?: 0L
+    override fun canRead(): Boolean = single()?.canRead() == true
+    override fun canWrite(): Boolean = single()?.canWrite() == true
+    override fun delete(): Boolean = single()?.delete() == true
+    override fun exists(): Boolean = single()?.exists() == true
+    override fun getUri(): Uri = uri
+    override fun renameTo(displayName: String): Boolean = single()?.renameTo(displayName) == true
+
+    override fun findFile(displayName: String): DocumentFile? =
+        listFiles().firstOrNull { it.name == displayName }
+
+    override fun listFiles(): Array<DocumentFile> = runCatching {
+        listDocumentChildrenBounded(context, this, MAX_DIRECTORY_ENTRIES).entries.toTypedArray()
+    }.getOrDefault(emptyArray())
 }
