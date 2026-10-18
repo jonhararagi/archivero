@@ -2,6 +2,12 @@
 
 ## Sin publicar · 2026-10-18
 
+### Cierre y reproducción de vídeo
+
+- Al confirmar la salida desde Inicio, Archivero ahora solicita a Android retirar su tarea de Recientes con `finishAndRemoveTask()`. La música puede seguir en el servicio Media3 cuando está reproduciéndose.
+- El reproductor de vídeo pausa al abandonar el primer plano; evita que un vídeo siga sonando si el usuario vuelve al inicio del teléfono o cambia de aplicación. Al destruirse la pantalla, ExoPlayer se libera como antes.
+- Esto refuerza el ciclo de vida, pero no sustituye una prueba en el Xiaomi ni garantiza que cualquier cierre inesperado haya quedado resuelto.
+
 ### Interfaz anime y salida de la aplicación
 
 - Se agregó una ilustración vectorial anime original, dibujada para Archivero y empaquetada localmente; no necesita conexión ni descarga de imágenes externas.
@@ -11,7 +17,7 @@
 
 ### Validación pendiente
 
-- El código se ha enviado a `main`; la compilación y las pruebas del nuevo commit están pendientes de finalizar.
+- Los cambios de cierre/vídeo se han enviado directamente a `main`; verificar el resultado de CI y probar en Android real.
 - El panel anime no demuestra por sí solo que se hayan corregido todos los cierres inesperados. Hace falta instalar la APK resultante y probar navegación, reproducción, permisos, miniaturas y operaciones largas en Android real.
 - La confirmación de salida es navegación controlada; no fuerza la terminación del proceso ni mata servicios de Android.
 
