@@ -1,5 +1,20 @@
 # Registro de cambios de Archivero
 
+## Sin publicar · 2026-10-18
+
+### Interfaz anime y salida de la aplicación
+
+- Se agregó una ilustración vectorial anime original, dibujada para Archivero y empaquetada localmente; no necesita conexión ni descarga de imágenes externas.
+- La pantalla de inicio muestra un panel de bienvenida con la mascota, manteniendo los accesos y las herramientas de archivos existentes.
+- El botón Atrás del sistema ahora vuelve desde las secciones internas a Inicio, cierra primero los paneles de apariencia/reproductor y, desde Inicio, pregunta si se desea salir.
+- La confirmación de salida informa que la reproducción de música puede continuar en segundo plano. La liberación del reproductor sigue siendo responsabilidad del servicio Media3.
+
+### Validación pendiente
+
+- El código se ha enviado a `main`; la compilación y las pruebas del nuevo commit están pendientes de finalizar.
+- El panel anime no demuestra por sí solo que se hayan corregido todos los cierres inesperados. Hace falta instalar la APK resultante y probar navegación, reproducción, permisos, miniaturas y operaciones largas en Android real.
+- La confirmación de salida es navegación controlada; no fuerza la terminación del proceso ni mata servicios de Android.
+
 ## Sin publicar · 2026-10-17
 
 Esta tanda nació de revisar el código y reforzar operaciones que podían fallar en archivos grandes o en ZIP creados por terceros.
