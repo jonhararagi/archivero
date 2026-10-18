@@ -1,0 +1,24 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="160dp"
+    android:height="160dp"
+    android:viewportWidth="160"
+    android:viewportHeight="160">
+    <path android:fillColor="#FFFFE7F0" android:pathData="M80,8A72,72 0,1 0,80 152A72,72 0,1 0,80 8Z"/>
+    <path android:fillColor="#FFB8A3E8" android:pathData="M35,67L25,28L58,43Z"/>
+    <path android:fillColor="#FFB8A3E8" android:pathData="M125,67L135,28L102,43Z"/>
+    <path android:fillColor="#FFFFD8E8" android:pathData="M42,66L35,39L55,49Z"/>
+    <path android:fillColor="#FFFFD8E8" android:pathData="M118,66L125,39L105,49Z"/>
+    <path android:fillColor="#FFFFF9FC" android:pathData="M35,70C35,43 54,31 80,31C106,31 125,43 125,70L121,104C118,125 102,139 80,139C58,139 42,125 39,104Z"/>
+    <path android:fillColor="#FF42345E" android:pathData="M36,75C31,45 53,23 80,23C107,23 129,45 124,75L112,59L101,43L88,60L70,42L53,61Z"/>
+    <path android:fillColor="#FF42345E" android:pathData="M42,67L32,93L44,103Z"/>
+    <path android:fillColor="#FF42345E" android:pathData="M118,67L128,93L116,103Z"/>
+    <path android:fillColor="#FF6D58A6" android:pathData="M56,83A8,11 0,1 0,72 83A8,11 0,1 0,56 83Z"/>
+    <path android:fillColor="#FF6D58A6" android:pathData="M88,83A8,11 0,1 0,104 83A8,11 0,1 0,88 83Z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M60,77A3,4 0,1 0,66 77A3,4 0,1 0,60 77Z"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M92,77A3,4 0,1 0,98 77A3,4 0,1 0,92 77Z"/>
+    <path android:fillColor="#FFFFB7C9" android:pathData="M43,93A7,4 0,1 0,57 93A7,4 0,1 0,43 93Z"/>
+    <path android:fillColor="#FFFFB7C9" android:pathData="M103,93A7,4 0,1 0,117 93A7,4 0,1 0,103 93Z"/>
+    <path android:fillColor="#FFB85D8C" android:pathData="M73,99Q80,107 87,99Q81,115 73,99Z"/>
+    <path android:fillColor="#FFFFC857" android:pathData="M118,22L121,31L130,34L121,37L118,46L115,37L106,34L115,31Z"/>
+    <path android:fillColor="#FF9C7DE0" android:pathData="M28,108L30,114L36,116L30,118L28,124L26,118L20,116L26,114Z"/>
+</vector>
