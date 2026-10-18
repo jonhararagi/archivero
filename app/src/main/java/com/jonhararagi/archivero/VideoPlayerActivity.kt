@@ -92,6 +92,13 @@ class VideoPlayerActivity : ComponentActivity() {
         }
     }
 
+    override fun onStop() {
+        // A video must not keep playing audibly after the user leaves the player
+        // or sends Archivero to the background. Music has its own MediaSessionService.
+        videoPlayer?.pause()
+        super.onStop()
+    }
+
     override fun onDestroy() {
         videoPlayer?.release()
         videoPlayer = null
