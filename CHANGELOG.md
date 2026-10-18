@@ -1,5 +1,27 @@
 # Registro de cambios de Archivero
 
+## Actualización de navegación y tema Ciberpunk · 2026-10-18
+
+### Navegación por tipo sin pantallas superpuestas
+
+- La pestaña «Tipos» abre un selector de categorías; al elegir una categoría, la vista cambia a la lista de resultados de ese tipo. El selector y los resultados ya no compiten por espacio en la misma pantalla.
+- Los accesos de categoría del inicio llevan directamente a los archivos de ese tipo.
+- Elegir «Música» muestra los archivos de audio encontrados. Ya no abre automáticamente el reproductor completo sobre la lista de resultados; el reproductor se abre cuando el usuario elige una pista, y el mini reproductor queda disponible mientras sigue navegando.
+- La navegación por carpetas conserva la ruta de carpetas visitadas para que el botón Atrás del sistema o «Volver» regresen a la carpeta anterior sin saltar inmediatamente a Inicio.
+- El acceso a la pestaña «Carpetas» comienza en la ubicación raíz autorizada.
+
+### Contraste visual e identidad anime
+
+- El tema Ciberpunk pasa a utilizar un fondo azul noche sólido, paneles azul profundo, texto de alto contraste y acentos cian/magenta moderados. Se elimina la retícula decorativa de pantalla completa para reducir ruido visual.
+- La mascota vectorial local fue rediseñada con rostro anime, cabello oscuro, reflejos cian/magenta y accesorios inspirados en tecnología futurista. Se mantiene integrada en la tarjeta de bienvenida; no requiere red ni descarga de imágenes.
+- La apariencia de tarjetas, navegación y mini reproductor respeta ahora las superficies y el contraste de la paleta activa.
+
+### Verificación
+
+- El workflow de Android ejecuta `testDebugUnitTest` y `assembleDebug`; el resultado del commit final y la disponibilidad de la APK deben confirmarse en [GitHub Actions](https://github.com/jonhararagi/archivero/actions/workflows/android.yml).
+- La prueba física en el teléfono sigue siendo necesaria para validar navegación, bibliotecas grandes y reproducción en el dispositivo real.
+
+
 ## En preparación · 2026-10-18 · bibliotecas grandes, tema Ciberpunk y apertura de APK
 
 ### Problema: cierres al abrir o recorrer muchos archivos
