@@ -101,7 +101,7 @@ private data class ScanResult(
     val directoryLimitHit: Boolean
 )
 private enum class Palette(val label: String, val primary: Color, val secondary: Color, val background: Color) {
-    CIBERPUNK("Ciberpunk", Color(0xFFFF3BCE), Color(0xFF39E8FF), Color(0xFF090B1A)),
+    CIBERPUNK("Ciberpunk", Color(0xFF39D5F2), Color(0xFFE35AC8), Color(0xFF10172A)),
     VERDE("Verde bosque", Color(0xFF285E55), Color(0xFF547D73), Color(0xFFF4F7F5)),
     VIOLETA("Violeta", Color(0xFF7048A8), Color(0xFF9575CD), Color(0xFFF7F2FC)),
     ROSA("Rosa", Color(0xFFAD476C), Color(0xFFD981A0), Color(0xFFFFF4F7)),
@@ -165,10 +165,12 @@ fun ArchiveroApp() {
     var permissionRefresh by remember { mutableIntStateOf(0) }
     var hasAllFilesAccess by remember { mutableStateOf(Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager()) }
     var currentUri by remember { mutableStateOf<Uri?>(null) }
+    var folderHistory by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
     var root by remember { mutableStateOf<DocumentFile?>(null) }
     var current by remember { mutableStateOf<DocumentFile?>(null) }
     var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
     var selectedKind by rememberSaveable { mutableStateOf(Kind.IMAGES.name) }
+    var choosingKind by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     var refresh by remember { mutableIntStateOf(0) }
     var indexed by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
@@ -394,6 +396,7 @@ fun ArchiveroApp() {
             try { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) } catch (_: SecurityException) { }
             rootUri = uri
             currentUri = uri
+            folderHistory = emptyList()
             root = DocumentFile.fromTreeUri(context, uri)
             current = root
             indexed = emptyList()
@@ -477,6 +480,7 @@ fun ArchiveroApp() {
             val storage = DocumentFile.fromFile(Environment.getExternalStorageDirectory())
             root = storage
             current = storage
+            folderHistory = emptyList()
             rootUri = storage.uri
             currentUri = storage.uri
             indexed = emptyList()
@@ -782,19 +786,38 @@ fun ArchiveroApp() {
             showExitDialog -> showExitDialog = false
             showAppearance -> showAppearance = false
             showPlayerPanel -> showPlayerPanel = false
-            screen != Screen.HOME -> { screen = Screen.HOME; query = "" }
+            screen == Screen.FOLDERS && folderHistory.isNotEmpty() -> {
+                val parent = folderHistory.last()
+                folderHistory = folderHistory.dropLast(1)
+                current = parent
+                currentUri = parent.uri
+                refresh++
+            }
+            screen != Screen.HOME -> { screen = Screen.HOME; choosingKind = false; query = "" }
             else -> showExitDialog = true
         }
     }
 
     val isCyberpunk = activePalette == Palette.CIBERPUNK
-    MaterialTheme(colorScheme = lightColorScheme(
+    MaterialTheme(colorScheme = if (isCyberpunk) androidx.compose.material3.darkColorScheme(
         primary = activePalette.primary,
-        onPrimary = if (isCyberpunk) Color(0xFF10081A) else Color.White,
+        onPrimary = Color(0xFF07131C),
         secondary = activePalette.secondary,
-        onSecondary = if (isCyberpunk) Color(0xFF07131C) else Color.White,
+        onSecondary = Color(0xFF1A1020),
         background = activePalette.background,
-        onBackground = if (isCyberpunk) Color(0xFFF3F4FF) else Color(0xFF1B1B1F),
+        onBackground = Color(0xFFF1F5FF),
+        surface = Color(0xFF192238),
+        onSurface = Color(0xFFF1F5FF),
+        surfaceVariant = Color(0xFF242F49),
+        onSurfaceVariant = Color(0xFFBAC6DE),
+        primaryContainer = Color(0xFF153B4B),
+        onPrimaryContainer = Color(0xFFD9F8FF),
+        secondaryContainer = Color(0xFF422642),
+        onSecondaryContainer = Color(0xFFFFDDF6)
+    ) else lightColorScheme(
+        primary = activePalette.primary,
+        secondary = activePalette.secondary,
+        background = activePalette.background,
         surface = Color.White,
         onSurface = Color(0xFF17182B),
         surfaceVariant = activePalette.secondary.copy(alpha = 0.12f),
@@ -804,43 +827,6 @@ fun ArchiveroApp() {
             wallpaperBitmap?.let { image ->
                 Image(bitmap = image, contentDescription = "Fondo personalizado de Archivero",
                     modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alpha = 0.28f)
-            }
-            if (isCyberpunk && wallpaperBitmap == null) {
-                androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
-                    val spacing = 44.dp.toPx()
-                    val stroke = 1.dp.toPx()
-                    val grid = Color(0xFF39E8FF).copy(alpha = 0.075f)
-                    var x = 0f
-                    while (x <= size.width) {
-                        drawLine(
-                            color = grid,
-                            start = androidx.compose.ui.geometry.Offset(x, 0f),
-                            end = androidx.compose.ui.geometry.Offset(x, size.height),
-                            strokeWidth = stroke
-                        )
-                        x += spacing
-                    }
-                    var y = 0f
-                    while (y <= size.height) {
-                        drawLine(
-                            color = grid,
-                            start = androidx.compose.ui.geometry.Offset(0f, y),
-                            end = androidx.compose.ui.geometry.Offset(size.width, y),
-                            strokeWidth = stroke
-                        )
-                        y += spacing
-                    }
-                    drawCircle(
-                        color = Color(0xFFFF3BCE).copy(alpha = 0.09f),
-                        radius = size.minDimension * 0.34f,
-                        center = androidx.compose.ui.geometry.Offset(size.width * 0.91f, size.height * 0.12f)
-                    )
-                    drawCircle(
-                        color = Color(0xFF39E8FF).copy(alpha = 0.055f),
-                        radius = size.minDimension * 0.29f,
-                        center = androidx.compose.ui.geometry.Offset(size.width * 0.12f, size.height * 0.84f)
-                    )
-                }
             }
             Scaffold(
             containerColor = when {
@@ -860,7 +846,7 @@ fun ArchiveroApp() {
                                 Text("Archivero", fontWeight = FontWeight.ExtraBold)
                                 Text(when (screen) {
                                     Screen.HOME -> "Tu espacio, bajo control"
-                                    Screen.TYPES -> "Buscar por tipo"
+                                    Screen.TYPES -> if (choosingKind) "Buscar por tipo" else activeKind.title
                                     Screen.FOLDERS -> "Carpetas y ubicaciones"
                                     Screen.CLEAN -> "Recupera espacio"
                                 }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -883,7 +869,7 @@ fun ArchiveroApp() {
                 Column {
                     if (playerUri != null && !showPlayerPanel && !playerVideo) {
                         Surface(
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.surface,
                             tonalElevation = 4.dp,
                             shadowElevation = 3.dp,
                             modifier = Modifier.fillMaxWidth()
@@ -910,10 +896,10 @@ fun ArchiveroApp() {
                             }
                         }
                     }
-                    NavigationBar(containerColor = Color.White) {
-                        NavigationBarItem(screen == Screen.HOME, { screen = Screen.HOME; query = "" }, { Icon(Icons.Default.Home, null) }, label = { Text("Inicio") })
-                        NavigationBarItem(screen == Screen.TYPES, { screen = Screen.TYPES; query = "" }, { Icon(Icons.Default.Category, null) }, label = { Text("Tipos") })
-                        NavigationBarItem(screen == Screen.FOLDERS, { screen = Screen.FOLDERS; query = "" }, { Icon(Icons.Default.FolderOpen, null) }, label = { Text("Carpetas") })
+                    NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                        NavigationBarItem(screen == Screen.HOME, { screen = Screen.HOME; choosingKind = false; query = "" }, { Icon(Icons.Default.Home, null) }, label = { Text("Inicio") })
+                        NavigationBarItem(screen == Screen.TYPES, { screen = Screen.TYPES; choosingKind = true; query = "" }, { Icon(Icons.Default.Category, null) }, label = { Text("Tipos") })
+                        NavigationBarItem(screen == Screen.FOLDERS, { screen = Screen.FOLDERS; choosingKind = false; folderHistory = emptyList(); current = root; currentUri = rootUri; query = ""; refresh++ }, { Icon(Icons.Default.FolderOpen, null) }, label = { Text("Carpetas") })
                         NavigationBarItem(screen == Screen.CLEAN, { screen = Screen.CLEAN; query = ""; cleanupSelectedUris = emptySet() }, { Icon(Icons.Default.CleaningServices, null) }, label = { Text("Limpiar") })
                     }
                 }
@@ -948,16 +934,16 @@ fun ArchiveroApp() {
                         Card(
                             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                             shape = RoundedCornerShape(24.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEAF3))
+                            colors = CardDefaults.cardColors(containerColor = if (isCyberpunk) MaterialTheme.colorScheme.surface else Color(0xFFFFEAF3))
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(start = 18.dp, top = 12.dp, bottom = 12.dp, end = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text("¡Hola, explorador!", color = Color(0xFF51365F), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
-                                    Text("Tus archivos, ordenados con cariño.", color = Color(0xFF684B70), style = MaterialTheme.typography.bodyMedium)
-                                    Text("✦ MODO KAWAII ✦", color = Color(0xFF9B4E83), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                    Text("¡Hola, explorador!", color = if (isCyberpunk) MaterialTheme.colorScheme.onSurface else Color(0xFF51365F), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+                                    Text("Tus archivos, ordenados con cariño.", color = if (isCyberpunk) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xFF684B70), style = MaterialTheme.typography.bodyMedium)
+                                    Text(if (isCyberpunk) "ARCHIVERO · MODO CIBERPUNK" else "✦ MODO KAWAII ✦", color = activePalette.primary, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                                 }
                                 Image(
                                     painter = painterResource(id = R.drawable.anime_mascot),
@@ -966,28 +952,28 @@ fun ArchiveroApp() {
                                 )
                             }
                         }
-                        DiskCard(disk, root?.name ?: "Ubicación elegida", activePalette.primary) { pickFolder.launch(null) }
+                        DiskCard(disk, root?.name ?: "Ubicación elegida", if (isCyberpunk) Color(0xFF124155) else activePalette.primary) { pickFolder.launch(null) }
                         Spacer(Modifier.height(18.dp))
                         Header("¿Qué estás buscando?", "Accesos directos a tus archivos")
                         Spacer(Modifier.height(10.dp))
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                CategoryTile(Kind.IMAGES, Modifier.weight(1f)) { selectedKind = Kind.IMAGES.name; screen = Screen.TYPES; if (!hasScanned) scan() }
-                                CategoryTile(Kind.VIDEOS, Modifier.weight(1f)) { selectedKind = Kind.VIDEOS.name; screen = Screen.TYPES; if (indexed.isEmpty()) scan() }
+                                CategoryTile(Kind.IMAGES, Modifier.weight(1f)) { selectedKind = Kind.IMAGES.name; screen = Screen.TYPES; choosingKind = false; query = ""; if (!hasScanned && !scanning) scan() }
+                                CategoryTile(Kind.VIDEOS, Modifier.weight(1f)) { selectedKind = Kind.VIDEOS.name; screen = Screen.TYPES; choosingKind = false; query = ""; if (indexed.isEmpty() && !scanning) scan() }
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 CategoryTile(Kind.MUSIC, Modifier.weight(1f)) {
-                        selectedKind = Kind.MUSIC.name
-                        screen = Screen.TYPES
-                        playerVideo = false
-                        showPlayerPanel = true
-                        if (indexed.isEmpty()) scan()
-                    }
-                                CategoryTile(Kind.DOCS, Modifier.weight(1f)) { selectedKind = Kind.DOCS.name; screen = Screen.TYPES; if (indexed.isEmpty()) scan() }
+                                    selectedKind = Kind.MUSIC.name
+                                    screen = Screen.TYPES
+                                    choosingKind = false
+                                    query = ""
+                                    if (indexed.isEmpty() && !scanning) scan()
+                                }
+                                CategoryTile(Kind.DOCS, Modifier.weight(1f)) { selectedKind = Kind.DOCS.name; screen = Screen.TYPES; choosingKind = false; query = ""; if (indexed.isEmpty() && !scanning) scan() }
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                CategoryTile(Kind.APK, Modifier.weight(1f)) { selectedKind = Kind.APK.name; screen = Screen.TYPES; if (indexed.isEmpty()) scan() }
-                                CategoryTile(Kind.ZIP, Modifier.weight(1f)) { selectedKind = Kind.ZIP.name; screen = Screen.TYPES; if (indexed.isEmpty()) scan() }
+                                CategoryTile(Kind.APK, Modifier.weight(1f)) { selectedKind = Kind.APK.name; screen = Screen.TYPES; choosingKind = false; query = ""; if (indexed.isEmpty() && !scanning) scan() }
+                                CategoryTile(Kind.ZIP, Modifier.weight(1f)) { selectedKind = Kind.ZIP.name; screen = Screen.TYPES; choosingKind = false; query = ""; if (indexed.isEmpty() && !scanning) scan() }
                             }
                         }
                         Spacer(Modifier.height(14.dp))
@@ -1004,35 +990,63 @@ fun ArchiveroApp() {
                         if (scanStatus.isNotBlank()) Text(scanStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 6.dp))
                     }
                     Screen.TYPES -> {
-                        Header("Buscar por tipo", "Elige una categoría, luego filtra por nombre")
-                        Spacer(Modifier.height(10.dp))
-                        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                            items(Kind.values().toList()) { kind ->
-                                Card(onClick = {
-                                    selectedKind = kind.name
-                                    if (kind == Kind.MUSIC) {
-                                        playerVideo = false
-                                        showPlayerPanel = true
-                                    }
-                                }, colors = CardDefaults.cardColors(containerColor = if (activeKind == kind) MaterialTheme.colorScheme.secondaryContainer else Color.White)) {
-                                    Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        KindIcon(kind, 42); Spacer(Modifier.width(12.dp))
-                                        Column(Modifier.weight(1f)) {
-                                            Text(kind.title, fontWeight = FontWeight.Bold)
-                                            Text(kind.extensions.take(5).joinToString(" · ").ifBlank { "Otros formatos" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (choosingKind) {
+                            Header("Buscar por tipo", "Elige una categoría para abrir directamente sus archivos")
+                            Spacer(Modifier.height(10.dp))
+                            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                items(Kind.values().toList()) { kind ->
+                                    Card(
+                                        onClick = {
+                                            selectedKind = kind.name
+                                            choosingKind = false
+                                            query = ""
+                                            if (indexed.isEmpty() && !scanning) scan()
+                                        },
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (activeKind == kind) MaterialTheme.colorScheme.secondaryContainer
+                                            else MaterialTheme.colorScheme.surface
+                                        )
+                                    ) {
+                                        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            KindIcon(kind, 42)
+                                            Spacer(Modifier.width(12.dp))
+                                            Column(Modifier.weight(1f)) {
+                                                Text(kind.title, fontWeight = FontWeight.Bold)
+                                                Text(
+                                                    kind.extensions.take(5).joinToString(" · ").ifBlank { "Otros formatos" },
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            if (activeKind == kind) Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
+                                            else Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }
-                                        if (activeKind == kind) Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary) else Icon(Icons.Default.ChevronRight, null)
                                     }
                                 }
                             }
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Header(activeKind.title, "Archivos de este tipo en la ubicación seleccionada")
+                                }
+                                TextButton(onClick = { choosingKind = true; query = "" }) {
+                                    Icon(Icons.Default.Category, null)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Cambiar tipo")
+                                }
+                            }
+                            SearchBox(query) { query = it }
+                            if (scanning) Text("Buscando... $scanProgress elementos revisados", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (filteringFiles) Text("Filtrando archivos en segundo plano…", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (scanStatus.isNotBlank()) Text(scanStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
+                            Text("${matchingFiles.size} archivos encontrados", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(vertical = 6.dp))
+                            FileList(matchingFiles, { requestOpen(it, sourceFiles) }, { actionFile=it; actionMenu=true }, Modifier.weight(1f))
+                            if (!hasScanned || scanStatus.startsWith("Resultados parciales")) {
+                                TextButton(onClick = { scan() }, enabled = !scanning) {
+                                    Text(if (scanning) "Analizando..." else "Volver a analizar ubicación")
+                                }
+                            }
                         }
-                        SearchBox(query) { query = it }
-                        if (scanning) Text("Buscando... $scanProgress elementos revisados", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (filteringFiles) Text("Filtrando archivos en segundo plano…", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (scanStatus.isNotBlank()) Text(scanStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
-                        Text(matchingFiles.size.toString() + " archivos encontrados", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(vertical = 6.dp))
-                        FileList(matchingFiles, { requestOpen(it, sourceFiles) }, { actionFile=it; actionMenu=true }, Modifier.weight(1f))
-                        if (!hasScanned || scanStatus.startsWith("Resultados parciales")) TextButton(onClick = { scan() }, enabled = !scanning) { Text(if (scanning) "Analizando..." else "Volver a analizar ubicación") }
                     }
                     Screen.FOLDERS -> {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1041,8 +1055,15 @@ fun ArchiveroApp() {
                         }
                         if (currentUri != null && currentUri != rootUri) {
                             TextButton(onClick = {
-                                val parent = current?.parentFile
-                                if (parent != null) { current = parent; currentUri = parent.uri } else { current = root; currentUri = rootUri }
+                                if (folderHistory.isNotEmpty()) {
+                                    val parent = folderHistory.last()
+                                    folderHistory = folderHistory.dropLast(1)
+                                    current = parent
+                                    currentUri = parent.uri
+                                } else {
+                                    current = root
+                                    currentUri = rootUri
+                                }
                                 refresh++
                             }) { Icon(Icons.Default.ArrowBack, null); Text("Volver") }
                         }
@@ -1059,8 +1080,12 @@ fun ArchiveroApp() {
                         else LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             items(folderEntries, key = { it.uri.toString() }) { file ->
                                 DocumentRow(file, {
-                                    if (file.isDirectory) { current = file; currentUri = file.uri; refresh++ }
-                                    else requestOpen(file, entries)
+                                    if (file.isDirectory) {
+                                        current?.let { folderHistory = folderHistory + it }
+                                        current = file
+                                        currentUri = file.uri
+                                        refresh++
+                                    } else requestOpen(file, entries)
                                 }, { actionFile=file; deleteDialog=true })
                             }
                         }
@@ -1160,7 +1185,7 @@ fun ArchiveroApp() {
                         LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                             if (activeCleanupMode == CleanupMode.DUPLICATES) {
                                 items(duplicateDisplayGroups, key = { it.hash }) { group ->
-                                    Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(16.dp)) {
+                                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), shape = RoundedCornerShape(16.dp)) {
                                         Column(Modifier.fillMaxWidth().padding(10.dp)) {
                                             Text("${group.files.size} copias con contenido idéntico", fontWeight = FontWeight.Bold)
                                             Text("SHA-256: ${group.hash.take(20)}… · ${formatBytes(group.files.firstOrNull()?.length() ?: 0L)} cada una",
@@ -1673,7 +1698,7 @@ private fun DiskCard(disk: Disk?, location: String, accent: Color = Color(0xFF28
     Column { Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold); Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
 }
 @Composable private fun CategoryTile(kind: Kind, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Card(modifier.clickable(onClick = onClick), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(17.dp)) {
+    Card(modifier.clickable(onClick = onClick), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), shape = RoundedCornerShape(17.dp)) {
         Row(Modifier.fillMaxWidth().padding(11.dp), verticalAlignment = Alignment.CenterVertically) {
             KindIcon(kind, 40); Spacer(Modifier.width(9.dp))
             Column { Text(kind.title, fontWeight = FontWeight.Bold); Text("Explorar", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
