@@ -1143,7 +1143,7 @@ fun ArchiveroApp() {
                 confirmButton = {
                     TextButton(onClick = {
                         showExitDialog = false
-                        (context as? ComponentActivity)?.finish()
+                        (context as? ComponentActivity)?.finishAndRemoveTask()
                     }) { Text("Salir") }
                 },
                 dismissButton = { TextButton(onClick = { showExitDialog = false }) { Text("Seguir aquí") } }
