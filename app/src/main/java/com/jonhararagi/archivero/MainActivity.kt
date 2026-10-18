@@ -21,6 +21,7 @@ import android.provider.OpenableColumns
 import android.os.StatFs
 import android.webkit.MimeTypeMap
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.core.content.FileProvider
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -51,6 +52,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -138,6 +140,7 @@ fun ArchiveroApp() {
     }
     val activePalette = runCatching { Palette.valueOf(selectedPaletteName) }.getOrDefault(Palette.VERDE)
     var showAppearance by remember { mutableStateOf(false) }
+    var showExitDialog by remember { mutableStateOf(false) }
     var wallpaperUri by rememberSaveable {
         mutableStateOf(context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).getString("wallpaper", null))
     }
@@ -763,6 +766,16 @@ fun ArchiveroApp() {
         if (screen == Screen.CLEAN && root != null && !hasScanned && !scanning) scan()
     }
 
+    BackHandler {
+        when {
+            showExitDialog -> showExitDialog = false
+            showAppearance -> showAppearance = false
+            showPlayerPanel -> showPlayerPanel = false
+            screen != Screen.HOME -> { screen = Screen.HOME; query = "" }
+            else -> showExitDialog = true
+        }
+    }
+
     MaterialTheme(colorScheme = lightColorScheme(
         primary = activePalette.primary, secondary = activePalette.secondary,
         background = activePalette.background, surface = Color.White,
@@ -866,6 +879,27 @@ fun ArchiveroApp() {
                     }
                 } else when (screen) {
                     Screen.HOME -> {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                            shape = RoundedCornerShape(24.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEAF3))
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(start = 18.dp, top = 12.dp, bottom = 12.dp, end = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text("¡Hola, explorador!", color = Color(0xFF51365F), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+                                    Text("Tus archivos, ordenados con cariño.", color = Color(0xFF684B70), style = MaterialTheme.typography.bodyMedium)
+                                    Text("✦ MODO KAWAII ✦", color = Color(0xFF9B4E83), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                }
+                                Image(
+                                    painter = painterResource(id = R.drawable.anime_mascot),
+                                    contentDescription = "Mascota anime original de Archivero",
+                                    modifier = Modifier.size(88.dp)
+                                )
+                            }
+                        }
                         DiskCard(disk, root?.name ?: "Ubicación elegida", activePalette.primary) { pickFolder.launch(null) }
                         Spacer(Modifier.height(18.dp))
                         Header("¿Qué estás buscando?", "Accesos directos a tus archivos")
@@ -1102,6 +1136,18 @@ fun ArchiveroApp() {
                     }
                 }
             }
+            if (showExitDialog) AlertDialog(
+                onDismissRequest = { showExitDialog = false },
+                title = { Text("¿Salir de Archivero?") },
+                text = { Text(if (playbackIsPlaying) "La música puede continuar en segundo plano. ¿Quieres cerrar la ventana de Archivero?" else "Se cerrará la ventana de Archivero. Tus archivos no se modificarán.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showExitDialog = false
+                        (context as? ComponentActivity)?.finish()
+                    }) { Text("Salir") }
+                },
+                dismissButton = { TextButton(onClick = { showExitDialog = false }) { Text("Seguir aquí") } }
+            )
             if (showAppearance) AlertDialog(
                 onDismissRequest = { showAppearance = false },
                 title = { Text("Personalizar Archivero") },
