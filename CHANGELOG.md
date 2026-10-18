@@ -1,5 +1,39 @@
 # Registro de cambios de Archivero
 
+## En preparación · 2026-10-18 · bibliotecas grandes, tema Ciberpunk y apertura de APK
+
+### Problema: cierres al abrir o recorrer muchos archivos
+
+- Se identificó un disparador concreto: la pantalla de limpieza podía iniciar un escaneo recursivo al restaurarse, aunque el usuario solo quisiera abrir la app. El escaneo ahora comienza únicamente cuando se pulsa «Analizar ubicación» o se solicita una acción que necesita el índice.
+- La navegación y el escáner ya no dependen de `File.listFiles()` para enumerar carpetas del almacenamiento local. Se usa un iterador de directorio y, para árboles SAF, un cursor del proveedor; cada enumeración se limita a 5.000 elementos. Cuando se alcanza el límite, se muestra un aviso y la búsqueda recursiva comunica que el resultado es parcial.
+- El límite global de escaneo continúa siendo 100.000 elementos y la profundidad máxima 20. Los elementos posteriores a un límite no se consideran analizados; no se presenta la lista parcial como un inventario completo.
+- Se añadieron pruebas unitarias de directorios que superan el límite y de directorios que tienen exactamente el tamaño máximo.
+
+### Apertura de APK
+
+- Los archivos `.apk` se envían al selector/instalador de Android con `application/vnd.android.package-archive`, incluso cuando el proveedor devuelve un MIME genérico.
+- Se declara `REQUEST_INSTALL_PACKAGES` para permitir que el sistema presente su flujo de instalación. Archivero no instala APK en silencio; Android conserva el consentimiento y puede requerir habilitar «Instalar apps desconocidas» para Archivero. Los formatos `.xapk` y `.apks` pueden requerir una aplicación instaladora compatible.
+
+### Apariencia
+
+- El tema Ciberpunk pasa a ser el predeterminado para instalaciones nuevas: fondo azul noche, retícula discreta cian y acentos magenta/cian. Se conservan las paletas anteriores y el fondo personalizado.
+
+### Referencias técnicas públicas
+
+- Android Developers · problemas de ANR y bloqueos de interfaz: https://developer.android.com/topic/performance/issues/anr
+- Android Developers · consumo de memoria de bitmaps: https://developer.android.com/topic/performance/issues/bitmap-memory-usage
+- Android Developers · archivos compartidos y Storage Access Framework: https://developer.android.com/training/data-storage/shared/documents-files
+- Android API · permiso para solicitar instalación de paquetes: https://developer.android.com/reference/android/Manifest.permission#REQUEST_INSTALL_PACKAGES
+
+### Validación pendiente
+
+- GitHub Actions debe pasar pruebas unitarias y compilar la APK sobre el commit resultante antes de distribuirla.
+- El límite de enumeración protege frente a carpetas con muchísimos hijos, pero una prueba en el Xiaomi con la biblioteca real y una captura de Logcat siguen siendo necesarias para atribuir cualquier cierre residual.
+- No se afirma que los límites cubran absolutamente todos los proveedores de documentos; el fallback de proveedores no SAF sigue usando su propia implementación de `DocumentFile.listFiles()`.
+
+## En preparación · 2026-10-18 · actualización de reproducción y fiabilidad
+
+
 ## En preparación · 2026-10-18 · actualización de reproducción y fiabilidad
 
 ### Dependencias multimedia

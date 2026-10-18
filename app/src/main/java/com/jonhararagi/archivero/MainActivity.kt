@@ -17,6 +17,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.os.StatFs
 import android.webkit.MimeTypeMap
@@ -96,9 +97,11 @@ private data class ScanResult(
     val files: List<DocumentFile>,
     val visited: Int,
     val partial: Boolean,
-    val unreadableDirectories: Int
+    val unreadableDirectories: Int,
+    val directoryLimitHit: Boolean
 )
 private enum class Palette(val label: String, val primary: Color, val secondary: Color, val background: Color) {
+    CIBERPUNK("Ciberpunk", Color(0xFFFF3BCE), Color(0xFF39E8FF), Color(0xFF090B1A)),
     VERDE("Verde bosque", Color(0xFF285E55), Color(0xFF547D73), Color(0xFFF4F7F5)),
     VIOLETA("Violeta", Color(0xFF7048A8), Color(0xFF9575CD), Color(0xFFF7F2FC)),
     ROSA("Rosa", Color(0xFFAD476C), Color(0xFFD981A0), Color(0xFFFFF4F7)),
@@ -136,9 +139,9 @@ class MainActivity : ComponentActivity() {
 fun ArchiveroApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
     var selectedPaletteName by rememberSaveable {
-        mutableStateOf(context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).getString("palette", Palette.VERDE.name) ?: Palette.VERDE.name)
+        mutableStateOf(context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).getString("palette", Palette.CIBERPUNK.name) ?: Palette.CIBERPUNK.name)
     }
-    val activePalette = runCatching { Palette.valueOf(selectedPaletteName) }.getOrDefault(Palette.VERDE)
+    val activePalette = runCatching { Palette.valueOf(selectedPaletteName) }.getOrDefault(Palette.CIBERPUNK)
     var showAppearance by remember { mutableStateOf(false) }
     var showExitDialog by remember { mutableStateOf(false) }
     var wallpaperUri by rememberSaveable {
@@ -171,6 +174,7 @@ fun ArchiveroApp() {
     var indexed by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
     var listedEntries by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
     var listingFailed by remember { mutableStateOf(false) }
+    var listingTruncated by remember { mutableStateOf(false) }
     var hasScanned by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var scanning by remember { mutableStateOf(false) }
@@ -505,14 +509,16 @@ fun ArchiveroApp() {
     LaunchedEffect(currentUri, refresh) {
         val folderToList = current
         listingFailed = false
+        listingTruncated = false
         val result = withContext(Dispatchers.IO) {
             runCatching {
-                folderToList?.listFiles()
-                    ?.sortedWith(compareBy<DocumentFile> { !it.isDirectory }.thenBy { it.name.orEmpty().lowercase(Locale.ROOT) })
-                    ?.toList().orEmpty()
+                folderToList?.let { listDocumentChildrenBounded(context, it, MAX_DIRECTORY_ENTRIES) }
+                    ?: BoundedDocumentListing(emptyList(), false)
             }
         }
-        listedEntries = result.getOrElse { emptyList() }
+        val listing = result.getOrNull()
+        listedEntries = listing?.entries ?: emptyList()
+        listingTruncated = listing?.truncated ?: false
         listingFailed = result.isFailure
     }
     val entries = listedEntries
@@ -598,19 +604,22 @@ fun ArchiveroApp() {
                     var visited = 0
                     var depthLimitHit = false
                     var unreadableDirectories = 0
-                    val maxEntries = 100_000
+                    val maxEntries = MAX_SCAN_ENTRIES
                     val maxDepth = 20
+                    var directoryLimitHit = false
                     while (queue.isNotEmpty() && visited < maxEntries) {
                         val item = queue.removeFirst()
-                        val children = try {
-                            item.first.listFiles().toList()
+                        val childListing = try {
+                            listDocumentChildrenBounded(context, item.first, MAX_DIRECTORY_ENTRIES)
                         } catch (cancelled: CancellationException) {
                             throw cancelled
                         } catch (_: Exception) {
                             unreadableDirectories++
-                            emptyList()
+                            null
                         }
-                        for (child in children) {
+                        if (childListing == null) continue
+                        if (childListing.truncated) directoryLimitHit = true
+                        for (child in childListing.entries) {
                             if (visited >= maxEntries) break
                             visited++
                             if (child.isDirectory) {
@@ -623,8 +632,10 @@ fun ArchiveroApp() {
                     ScanResult(
                         files = found,
                         visited = visited,
-                        partial = visited >= maxEntries || queue.isNotEmpty() || depthLimitHit || unreadableDirectories > 0,
-                        unreadableDirectories = unreadableDirectories
+                        partial = visited >= maxEntries || queue.isNotEmpty() || depthLimitHit ||
+                            unreadableDirectories > 0 || directoryLimitHit,
+                        unreadableDirectories = unreadableDirectories,
+                        directoryLimitHit = directoryLimitHit
                     )
                 }
                 indexed = result.files
@@ -634,9 +645,13 @@ fun ArchiveroApp() {
                 val unreadableDetail = if (result.unreadableDirectories > 0) {
                     " No se pudieron leer " + result.unreadableDirectories + " carpetas."
                 } else ""
+                val directoryLimitDetail = if (result.directoryLimitHit) {
+                    " Algunas carpetas superaron ${MAX_DIRECTORY_ENTRIES} elementos y se limitaron para proteger memoria."
+                } else ""
                 scanStatus = if (result.partial) {
                     "Resultados parciales: " + result.files.size + " archivos revisados (" +
-                        result.visited + " elementos). Para completar, analiza una carpeta más específica." + unreadableDetail
+                        result.visited + " elementos). Para completar, analiza una carpeta más específica." +
+                        unreadableDetail + directoryLimitDetail
                 } else {
                     "Búsqueda completa: " + result.files.size + " archivos encontrados."
                 }
@@ -762,10 +777,6 @@ fun ArchiveroApp() {
             analyzeDuplicates()
         }
     }
-    LaunchedEffect(screen, rootUri, hasScanned, scanning) {
-        if (screen == Screen.CLEAN && root != null && !hasScanned && !scanning) scan()
-    }
-
     BackHandler {
         when {
             showExitDialog -> showExitDialog = false
@@ -776,18 +787,68 @@ fun ArchiveroApp() {
         }
     }
 
+    val isCyberpunk = activePalette == Palette.CIBERPUNK
     MaterialTheme(colorScheme = lightColorScheme(
-        primary = activePalette.primary, secondary = activePalette.secondary,
-        background = activePalette.background, surface = Color.White,
-        surfaceVariant = activePalette.secondary.copy(alpha = 0.12f)
+        primary = activePalette.primary,
+        onPrimary = if (isCyberpunk) Color(0xFF10081A) else Color.White,
+        secondary = activePalette.secondary,
+        onSecondary = if (isCyberpunk) Color(0xFF07131C) else Color.White,
+        background = activePalette.background,
+        onBackground = if (isCyberpunk) Color(0xFFF3F4FF) else Color(0xFF1B1B1F),
+        surface = Color.White,
+        onSurface = Color(0xFF17182B),
+        surfaceVariant = activePalette.secondary.copy(alpha = 0.12f),
+        onSurfaceVariant = Color(0xFF292A40)
     )) {
-        Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().background(activePalette.background)) {
             wallpaperBitmap?.let { image ->
                 Image(bitmap = image, contentDescription = "Fondo personalizado de Archivero",
                     modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alpha = 0.28f)
             }
+            if (isCyberpunk && wallpaperBitmap == null) {
+                androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                    val spacing = 44.dp.toPx()
+                    val stroke = 1.dp.toPx()
+                    val grid = Color(0xFF39E8FF).copy(alpha = 0.075f)
+                    var x = 0f
+                    while (x <= size.width) {
+                        drawLine(
+                            color = grid,
+                            start = androidx.compose.ui.geometry.Offset(x, 0f),
+                            end = androidx.compose.ui.geometry.Offset(x, size.height),
+                            strokeWidth = stroke
+                        )
+                        x += spacing
+                    }
+                    var y = 0f
+                    while (y <= size.height) {
+                        drawLine(
+                            color = grid,
+                            start = androidx.compose.ui.geometry.Offset(0f, y),
+                            end = androidx.compose.ui.geometry.Offset(size.width, y),
+                            strokeWidth = stroke
+                        )
+                        y += spacing
+                    }
+                    drawCircle(
+                        color = Color(0xFFFF3BCE).copy(alpha = 0.09f),
+                        radius = size.minDimension * 0.34f,
+                        center = androidx.compose.ui.geometry.Offset(size.width * 0.91f, size.height * 0.12f)
+                    )
+                    drawCircle(
+                        color = Color(0xFF39E8FF).copy(alpha = 0.055f),
+                        radius = size.minDimension * 0.29f,
+                        center = androidx.compose.ui.geometry.Offset(size.width * 0.12f, size.height * 0.84f)
+                    )
+                }
+            }
             Scaffold(
-            containerColor = activePalette.background.copy(alpha = if (wallpaperBitmap != null) 0.78f else 1f),
+            containerColor = when {
+                wallpaperBitmap != null -> activePalette.background.copy(alpha = 0.78f)
+                isCyberpunk -> Color.Transparent
+                else -> activePalette.background
+            },
+            contentColor = if (isCyberpunk) Color(0xFFF3F4FF) else MaterialTheme.colorScheme.onBackground,
             topBar = {
                 TopAppBar(
                     title = {
@@ -810,7 +871,12 @@ fun ArchiveroApp() {
                         IconButton(onClick = { showAppearance = true }) { Icon(Icons.Default.Palette, "Personalizar apariencia") }
                         IconButton(onClick = { if (rootUri == null) pickFolder.launch(null) else refresh++ }) { Icon(Icons.Default.Refresh, "Actualizar") }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = activePalette.background.copy(alpha = 0.88f))
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = activePalette.background.copy(alpha = 0.88f),
+                        titleContentColor = if (isCyberpunk) Color(0xFFF3F4FF) else MaterialTheme.colorScheme.onSurface,
+                        navigationIconContentColor = if (isCyberpunk) Color(0xFFF3F4FF) else MaterialTheme.colorScheme.onSurface,
+                        actionIconContentColor = if (isCyberpunk) activePalette.secondary else activePalette.primary
+                    )
                 )
             },
             bottomBar = {
@@ -982,6 +1048,13 @@ fun ArchiveroApp() {
                         }
                         SearchBox(query) { query = it }
                         Text(entries.size.toString() + " elementos" + if (filteringFiles) " · filtrando…" else "", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(vertical = 6.dp))
+                        if (listingTruncated) {
+                            Text(
+                                "Carpeta grande: se muestran hasta ${MAX_DIRECTORY_ENTRIES} elementos para proteger memoria. La lista puede ser parcial.",
+                                color = if (isCyberpunk) activePalette.secondary else MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
                         if (listingFailed) EmptyNotice("No se pudo leer esta carpeta", "Comprueba los permisos de Android.", Icons.Default.FolderOff)
                         else LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             items(folderEntries, key = { it.uri.toString() }) { file ->
@@ -999,7 +1072,12 @@ fun ArchiveroApp() {
                         Spacer(Modifier.height(8.dp))
                         OutlinedButton(onClick = { scan() }, modifier = Modifier.fillMaxWidth(), enabled = !scanning) {
                             if (scanning) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Icon(Icons.Default.ManageSearch, null)
-                            Spacer(Modifier.width(8.dp)); Text(if (scanning) "Analizando ubicación..." else "Volver a analizar ubicación")
+                            Spacer(Modifier.width(8.dp))
+                            Text(when {
+                                scanning -> "Analizando ubicación..."
+                                hasScanned -> "Volver a analizar ubicación"
+                                else -> "Analizar ubicación"
+                            })
                         }
                         Spacer(Modifier.height(6.dp))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1852,7 +1930,13 @@ private fun openDocument(file: DocumentFile, context: Context, useNative: Boolea
     val extension = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
     val extensionMime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension).orEmpty()
     val providedMime = runCatching { context.contentResolver.getType(file.uri) }.getOrNull().orEmpty()
-    val mime = providedMime.ifBlank { extensionMime }
+    val mime = when (extension) {
+        "apk" -> "application/vnd.android.package-archive"
+        "xapk" -> "application/xapk-package-archive"
+        "apks" -> "application/vnd.android.package-archive"
+        else -> providedMime.takeIf { it.isNotBlank() && it != "application/octet-stream" }
+            ?: extensionMime.ifBlank { providedMime }
+    }
     val isAudio = extension in Kind.MUSIC.extensions || mime.startsWith("audio/")
     val isVideo = extension in Kind.VIDEOS.extensions || mime.startsWith("video/")
 
@@ -1889,8 +1973,12 @@ private fun openDocument(file: DocumentFile, context: Context, useNative: Boolea
         context.startActivity(viewIntent)
     }.onFailure { error ->
         onError(when (error) {
-            is SecurityException -> "Android negó el permiso para abrir «" + name + "». Vuelve a elegir su carpeta."
-            else -> "No hay una aplicación compatible para abrir «" + name + "» (" + mime + "). La vista previa integrada cubre imágenes, PDF y documentos de texto comunes."
+            is SecurityException -> if (extension == "apk") {
+                "Android bloqueó el instalador. Revisa Ajustes > Instalar apps desconocidas para Archivero y vuelve a intentarlo."
+            } else "Android negó el permiso para abrir «" + name + "». Vuelve a elegir su carpeta."
+            else -> if (extension == "apk") {
+                "No se encontró un instalador compatible para este APK. Archivero no instala nada sin la confirmación de Android."
+            } else "No hay una aplicación compatible para abrir «" + name + "» (" + mime + "). La vista previa integrada cubre imágenes, PDF y documentos de texto comunes."
         })
     }
 }

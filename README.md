@@ -15,14 +15,16 @@ Los archivos se procesan localmente. La aplicación no tiene una función de sub
 
 - Inicio visual con información de almacenamiento y accesos por categoría.
 - Categorías de imágenes, vídeos, música, documentos, APK, ZIP y otros formatos; búsqueda por nombre y navegación de carpetas.
+- Tema Ciberpunk con fondo oscuro, retícula neón cian/magenta y seis paletas; el fondo propio puede reemplazar la retícula.
+- Apertura de `.apk` con el instalador externo de Android y MIME de paquete explícito. Archivero no instala automáticamente: el sistema puede pedir habilitar «Instalar apps desconocidas» y siempre muestra su propia confirmación.
 - Selección de varios archivos de audio para crear una cola de reproducción.
 - Reproductor Media3 con reproducción en segundo plano, notificación de controles, anterior/siguiente, posición, aleatorio, repetición, favoritos y temporizador.
 - Mini reproductor inferior que permite volver al reproductor completo sin detener la música.
 - Miniaturas reales para imágenes compatibles y la primera página de PDF en las listas de archivos y limpieza; otros formatos muestran iconos por tipo y extensión.
 - Las miniaturas se decodifican fuera del hilo principal, se reducen a un tamaño pequeño y usan una caché en memoria limitada para controlar el uso de RAM.
 - Vista previa integrada para formatos compatibles, además de la opción de abrir un archivo con otra aplicación.
-- Cinco paletas visuales y fondo local persistente.
-- Búsqueda recursiva con progreso, límite de 100.000 elementos y profundidad máxima 20. Si se alcanza un límite, se indica que los resultados son parciales.
+- Seis paletas visuales, incluido Ciberpunk, y fondo local persistente.
+- Búsqueda recursiva con progreso, límite de 100.000 elementos y profundidad máxima 20. Entrar a Limpieza no inicia un escaneo automático; debe tocarse «Analizar ubicación». Cada carpeta se enumera con un máximo de 5.000 elementos para contener uso de memoria y se indica cuando los resultados son parciales.
 - Limpieza revisable de capturas identificables de más de 90 días, vídeos de 100 MB o más y duplicados idénticos.
 - La detección de duplicados agrupa primero por tamaño y confirma el contenido mediante SHA-256; no usa el nombre como prueba.
 - La limpieza no elimina archivos automáticamente. El usuario revisa y marca elementos y confirma la acción. En los grupos de duplicados, se exige conservar al menos una copia.
