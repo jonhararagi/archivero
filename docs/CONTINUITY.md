@@ -7,8 +7,12 @@
 - Cancelación cooperativa del hash SHA-256, manejo seguro de errores y MIME con `Locale.ROOT`.
 - Se conserva el fix SAF de 0.3.8 para URI de hijos y operaciones de archivo en carpetas anidadas.
 - Versión destino `0.3.9` / `versionCode 12`.
-- Validación de este SHA: pendiente, ejecutar pruebas/build/firma y comprobar el artefacto.
+- CI del código exacto `8fe854e4ee2219a75fc4cb577b399a700dcdc36e`: **PASS** en [39336417301](https://github.com/jonhararagi/archivero/actions/runs/39336417301).
+- Unit tests, `assembleDebug`, verificación de firma y publicación de `archivero-debug-apk`: PASS.
+- Artefacto ID `12226344665`; APK 21.216.551 bytes, SHA-256 `68cd23ae3c7f3721e7c081c0d9b760918e8d32821cfc3a2d8d873665b8bb99c8`.
+- Certificado de APK y keystore CI coinciden: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
 - Pruebas físicas pendientes en Xiaomi para SAF, imagen/PDF, vídeo, reproducción al minimizar/avanzar y volumen real (~200 GB).
+- Esta actualización solo documenta resultados ya observados; la CI para el SHA final de `main` se ejecuta de nuevo.
 
 ## Historial anterior · identidad visual Capibara Kawaii · 2026-10-19
 

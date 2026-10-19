@@ -13,10 +13,16 @@
 - Se conserva el arreglo de SAF anidado de la versión 0.3.8: los hijos mantienen URI `tree/document` y las operaciones consultan/crean a través de `DocumentsContract`.
 - Versión Android: `0.3.9` / `versionCode 12`.
 
-### Validación
-- El cambio SAF base [5e3cd6c](https://github.com/jonhararagi/archivero/commit/5e3cd6cfdcd0f84399938820a12b4c389e12ebf3) pasó unit tests, compilación, firma y publicación en [CI 39335630718](https://github.com/jonhararagi/archivero/actions/runs/39335630718).
-- La CI de este SHA todavía debe completar todas sus fases antes de declarar PASS.
-- Aún faltan pruebas físicas en Xiaomi para navegar carpetas SAF anidadas, abrir imagen/PDF grandes, minimizar/avanzar música y recorrer una biblioteca real de unos 200 GB.
+### Validación automatizada PASS
+- Commit de código: [8fe854e4](https://github.com/jonhararagi/archivero/commit/8fe854e4ee2219a75fc4cb577b399a700dcdc36e).
+- CI del commit exacto: **PASS** [39336417301](https://github.com/jonhararagi/archivero/actions/runs/39336417301).
+- `testDebugUnitTest`, `assembleDebug`, comprobación del firmante y subida del artefacto: PASS.
+- Artefacto `archivero-debug-apk`, ID `12226344665`, tamaño ZIP 20.355.903 bytes; SHA-256 ZIP `2ac88aed6bc9e37f209846665b68c992962a35c60e56219659a74e22fade1ed8`.
+- APK debug: 21.216.551 bytes; SHA-256 `68cd23ae3c7f3721e7c081c0d9b760918e8d32821cfc3a2d8d873665b8bb99c8`.
+- SHA-256 del certificado de APK y del keystore de CI coincidentes: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+- Se confirmó en la APK la presencia de `mascota_chibi_fiel.webp` y `mascota_chibi_fiel_launcher.webp`.
+- APK debug, no release. Aún faltan pruebas físicas en Xiaomi para navegación SAF anidada, imagen/PDF grandes, vídeo, música minimizada y biblioteca real de unos 200 GB.
+- Este registro documental no cambia el código Android; la CI del `main` resultante se vuelve a ejecutar para verificar la referencia final.
 
 ---
 
