@@ -10,24 +10,11 @@
 
 ### Versión y verificación
 - Versión Android: `0.3.5`, `versionCode 8`.
-- El resultado automático debe comprobarse en [GitHub Actions](https://github.com/jonhararagi/archivero/actions/workflows/android.yml) para el SHA exacto que contiene los cambios.
-- Las pruebas automatizadas y la compilación no sustituyen la revisión visual en un Android real. Pendiente comprobar encuadre/tamaño de la mascota en el Xiaomi, contraste en las siete paletas y recorte en distintas densidades.
-
-## Versión 0.3.4 · vista previa cancelable y manejo seguro de recursos · 2026-10-19
-
-### Correcciones
-- La vista previa de imágenes y documentos ya no absorbe `CancellationException`: al cambiar de archivo o página, el trabajo anterior se cancela correctamente en vez de informar falsamente un error.
-- La vista previa de PDF solo actualiza el indicador de carga si la tarea sigue activa, evitando que un render anterior apague el indicador del render nuevo.
-- La lectura de texto cierra el flujo incluso si se produce un error de E/S.
-- Añadidas pruebas de paginación para un desplazamiento más allá del final y para rechazar límites no positivos.
-- Incrementada la versión a `0.3.4` (`versionCode 7`) para distinguir esta APK de la 0.3.3.
-
-### Verificación
-- Workflow de Android para el SHA `dfbacb552ffee594f07b6bd6b9bbe6e51f94606f`: [ejecución 39285504320](https://github.com/jonhararagi/archivero/actions/runs/39285504320). Los registros de pasos muestran `testDebugUnitTest` y `assembleDebug` con `BUILD SUCCESSFUL`, verificación de firma coincidente y publicación del artefacto.
-- SHA-256 de la APK producida: `1ee77ad22c93fcc55c6c805b53df60c154968ea385e579db48b4bf5a87cc6ff0`. Huella SHA-256 del certificado firmante y del keystore de CI: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
-- Artefacto `archivero-debug-apk`, ID `12203445585`, digest del ZIP `sha256:be5c0bae701248872df8a7420456e8654ec6a953069d59684ce1f0d0ab03f53f`. El hash SHA-256 de la APK se volvió a calcular después de descargar el ZIP y coincidió con el fichero `.sha256`.
-- Nota de estado: la API de GitHub todavía devuelve `queued` para el estado agregado del run aunque el log incluye pasos completos y el artefacto está publicado. La evidencia por paso es PASS para pruebas, compilación, firma y artefacto; la conclusión agregada del run no quedó expuesta y se registra como PARTIAL.
-- Estas pruebas no sustituyen la validación física. Continúan pendientes la navegación SAF en el Xiaomi, la biblioteca real de aproximadamente 200 GB y los casos de archivos dañados/proveedores variados.
+- **CI PASS** para el SHA de código `ae1366b56711182f33f7562e3b78b2809f70c5a1`: [GitHub Actions 39287800185](https://github.com/jonhararagi/archivero/actions/runs/39287800185). El run terminó con `success`; `testDebugUnitTest` y `assembleDebug` registraron `BUILD SUCCESSFUL`.
+- APK debug: `21,181,924` bytes. SHA-256 verificado también tras descargar y extraer el artefacto: `35fe976561903a024ae17347afda59f9752c7e54370f8159662032aee338adb0`.
+- La huella SHA-256 del certificado de la APK y del keystore de CI coincide: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+- Artefacto `archivero-debug-apk`, ID `12202864682`, digest del ZIP `sha256:893b69759c05ffcf270283c8f8cd550f2b9c7eae8a38fd8cc92fec750150f9cc`. [Descargar desde GitHub Actions](https://github.com/jonhararagi/archivero/actions/runs/39287800185).
+- Esta APK es de depuración, no una release comercial. Las pruebas físicas de la apariencia en el Xiaomi, navegación SAF y bibliotecas grandes siguen pendientes.
 
 ## Versión 0.3.3 · navegación SAF de subcarpetas · 2026-10-19
 

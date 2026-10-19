@@ -1,11 +1,12 @@
 ## Estado de la rama
 
-- Incremento visual previsto en la versión `0.3.5` / `versionCode 8`. El commit y la CI definitivos deben registrarse una vez que se publique la revisión.
-- Se identifica como fuente visual de verdad `pngtuber-capibara.png`, añadida a la raíz de `main`. Se incorpora como `app/src/main/res/drawable-nodpi/mascota_capibara.png` y se muestra en bienvenida, Inicio y estados vacíos.
-- La paleta `CAPIBARA` (cacao, crema, beige y coral) pasa a ser predeterminada; una instalación que guardaba el antiguo valor predeterminado `CIBERPUNK` se migra a `CAPIBARA`. Las otras paletas elegidas se conservan y Ciberpunk permanece disponible.
-- Iconos de categorías, miniaturas, tarjeta de almacenamiento, icono adaptable y superficies visuales se armonizan con la mascota. Se busca una interfaz cute, cálida y legible, no neón en cada control.
-- Estado de compilación de esta revisión: pendiente hasta vincular la ejecución de GitHub Actions al SHA de código y verificar pruebas, APK, hash y certificado.
-- La revisión visual en el Xiaomi y las comprobaciones físicas de bibliotecas grandes/SAF siguen pendientes.
+- Versión Android: `0.3.5` / `versionCode 8`. El commit de código que introduce la identidad visual Capibara Kawaii es `ae1366b56711182f33f7562e3b78b2809f70c5a1`: [ver commit](https://github.com/jonhararagi/archivero/commit/ae1366b56711182f33f7562e3b78b2809f70c5a1).
+- **CI PASS** para ese SHA en [GitHub Actions 39287800185](https://github.com/jonhararagi/archivero/actions/runs/39287800185). El run está completado con `success`; los logs muestran `testDebugUnitTest` y `assembleDebug` exitosos.
+- APK debug generada: `21,181,924` bytes. SHA-256: `35fe976561903a024ae17347afda59f9752c7e54370f8159662032aee338adb0`. El hash volvió a comprobarse tras descargar el artefacto y coincide con el archivo `.sha256` empaquetado.
+- Certificado firmante y keystore de CI: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`; ambos coinciden.
+- Artefacto `archivero-debug-apk`, ID `12202864682`, digest ZIP `sha256:893b69759c05ffcf270283c8f8cd550f2b9c7eae8a38fd8cc92fec750150f9cc`. Es una APK debug, no una release.
+- La imagen original subida como `pngtuber-capibara.png` se incluye también como recurso local `app/src/main/res/drawable-nodpi/mascota_capibara.png`. La paleta cacao/crema/coral es predeterminada, y Ciberpunk sigue disponible como alternativa.
+- La CI y los hashes no sustituyen la prueba física. Continúan pendientes el recorte visual en el Xiaomi, navegación SAF y prueba con bibliotecas grandes/archivos reales.
 
 ## Cambios recientes en código
 
@@ -14,7 +15,7 @@
 - `MainActivity.kt`: «Cargar siguientes 5.000» agrega el lote solicitado sin reiniciar la pantalla. La carga se cancela al cambiar de ubicación y propaga `CancellationException` para no aplicar respuestas obsoletas.
 - `FilePreviewActivity.kt`: los renders cancelados de imagen/PDF se repropagan sin modificar el estado de carga de una vista nueva; la lectura de texto cierra el flujo ante error. Incluye dos pruebas nuevas de límites de paginación.
 - `FileOperationsTest.kt`: prueba páginas consecutivas, ausencia de elementos repetidos y rechazo de desplazamientos negativos.
-- `app/build.gradle.kts`: versión `0.3.5`, código 8. Verificar la CI asociada al SHA más reciente antes de declarar PASS; la prueba física con Android/SAF sigue pendiente.
+- `app/build.gradle.kts`: versión `0.3.5`, código 8. Los pasos automáticos y la firma han pasado para el commit de código indicado arriba; la prueba física con Android/SAF sigue pendiente.
 - Identidad visual: desde 0.3.5, la imagen capibara kawaii subida por el usuario aparece en bienvenida, Inicio y estados vacíos; el icono adaptativo vectorial está recoloreado para armonizar. El recurso PNG original se conserva sin editar.
 - El reproductor de música se abre como una vista completa y vuelve a la lista con Atrás; carpetas y tipos usan vistas navegables separadas.
 
