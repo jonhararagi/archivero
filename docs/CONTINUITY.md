@@ -7,7 +7,11 @@
 - Limpiador: Capturas, Copias exactas, Fotos parecidas y Vídeos grandes. Copias exactas siguen usando SHA-256; fotos parecidas usan dHash de 64 bits y un límite de 2.500 imágenes por análisis.
 - Seguridad: la app no elimina candidatos automáticamente; requiere selección y confirmación y evita marcar todos los elementos de un grupo.
 - Capturas: sugerencia por nombre/ruta y antigüedad; la app no puede inferir si son innecesarias.
-- CI de `0.4.0` pendiente; prueba física de scroll/zoom y rendimiento en Xiaomi pendiente.
+- CI del código `330ae222476e8627bfa748bc44f37b745ab52fd3`: **PASS** [39342202993](https://github.com/jonhararagi/archivero/actions/runs/39342202993).
+- Unit tests, `assembleDebug`, verificación de firma y artefacto: PASS.
+- Artefacto ID `12228822978`; ZIP SHA-256 `411a4b189a53da66e195554258b676cf1fb300d73d44f5c04b5b48c41197c0e9`; APK 21.265.703 bytes y SHA-256 `bf58b2dbfce0abae12b4a39bc1e7b5129b652d01e2a402ea0710c39e3761fc03`.
+- Certificado APK = keystore CI: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+- Prueba física de scroll/zoom y rendimiento en Xiaomi pendiente.
 
 ## Historial anterior · identidad visual Capibara Kawaii · 2026-10-19
 

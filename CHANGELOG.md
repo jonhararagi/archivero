@@ -12,8 +12,13 @@
 - Las capturas antiguas se sugieren para revisión. Archivero no puede saber si son inútiles y no las elimina automáticamente.
 - Se exige selección y confirmación manual para borrar; el limpiador bloquea la selección de todos los miembros de un mismo grupo para evitar borrar todas las copias/fotos agrupadas.
 
-### Validación
-- CI de la versión `0.4.0`: pendiente. No declarar PASS hasta completar tests, compilación Android, firma y publicación del artefacto.
+### Validación automatizada PASS
+- Código verificado: [commit 330ae222](https://github.com/jonhararagi/archivero/commit/330ae222476e8627bfa748bc44f37b745ab52fd3).
+- CI: **PASS** [39342202993](https://github.com/jonhararagi/archivero/actions/runs/39342202993): pruebas unitarias, compilación Android, firma y publicación de artefacto.
+- Artefacto `archivero-debug-apk`, ID `12228822978`, ZIP 20.392.711 bytes; SHA-256 ZIP `411a4b189a53da66e195554258b676cf1fb300d73d44f5c04b5b48c41197c0e9`.
+- APK debug extraída: 21.265.703 bytes; SHA-256 `bf58b2dbfce0abae12b4a39bc1e7b5129b652d01e2a402ea0710c39e3761fc03`.
+- SHA-256 de certificado APK y keystore CI coinciden: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+- Inspección del APK confirma las clases `ImageGalleryGrid`, `findSimilarImages` y recursos de la interfaz de limpieza.
 - Pruebas físicas pendientes en Xiaomi: desplazamiento por galería grande, zoom, navegación entre fotos, limpieza segura y tiempos de análisis.
 
 ---
