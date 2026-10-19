@@ -3,7 +3,7 @@
 ### Corrección y paquete
 - Corrige la identificación de la carpeta actual al enumerar un árbol SAF y conserva la URI del árbol original al crear URI para subcarpetas. Así, navegar a un directorio hijo no depende de una concesión de acceso artificial para ese hijo.
 - Incrementa `versionCode` a `6` y `versionName` a `0.3.3` para distinguir esta actualización de la APK anterior.
-- El cambio de código está validado en CI para el commit `16e979dc96d91c3812a0e0ed6f161a354c420484`: pruebas unitarias, compilación, verificación del certificado de firma y publicación del artefacto pasaron en [la ejecución 39259716006](https://github.com/jonhararagi/archivero/actions/runs/39259716006). Ese artefacto corresponde todavía a versionCode 5; esta nueva versión necesita su propia ejecución CI.
+- CI de la versión `0.3.3`/`versionCode 6`: PASS para el commit `c6962787184514ee611cb372cd3d96a78f516f53` en [la ejecución 39260226420](https://github.com/jonhararagi/archivero/actions/runs/39260226420). Pasaron `testDebugUnitTest`, `assembleDebug`, verificación de certificado, cálculo SHA-256 y publicación del artefacto. SHA-256 de la APK: `609b072552b41f6a7c8ec5e5958d6fcf9c31da8e3ea62c3b865b9c09928b1191`; certificado firmante: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`. El artefacto descargable es `archivero-debug-apk` (ID `12189856826`); es una APK debug, no release.
 - Pendiente de prueba física: seleccionar una carpeta mediante el selector Android, entrar en subcarpetas, cargar varias páginas y repetirlo con almacenamiento externo. No se declara validado con una biblioteca real de 200 GB.
 
 ## Versión 0.3.2 · paginación progresiva y fiabilidad · 2026-10-19

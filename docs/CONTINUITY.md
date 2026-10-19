@@ -7,10 +7,10 @@ Versión Android: `versionName 0.3.3`, `versionCode 6`
 
 ## Estado verificado
 
-- Última APK de código verificada antes del incremento de versión: commit `16e979dc96d91c3812a0e0ed6f161a354c420484`, [CI 39259716006](https://github.com/jonhararagi/archivero/actions/runs/39259716006), PASS en pruebas unitarias, `assembleDebug`, verificación de firma y publicación.
-- SHA-256 de la APK de esa ejecución (versionCode 5): `aba33a369574d3698ecf64beec237f9f8a4844837082ede89e2612cdf2e245d5`.
-- El certificado del APK coincide con el keystore de CI: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
-- La versión `0.3.3`/`versionCode 6` de esta revisión necesita su propia ejecución CI, que debe comprobar también firma y SHA-256 antes de entregar la APK. Es una APK `debug`, no una release comercial firmada.
+- Código `0.3.3`/`versionCode 6`, commit `c6962787184514ee611cb372cd3d96a78f516f53`: [GitHub Actions 39260226420](https://github.com/jonhararagi/archivero/actions/runs/39260226420), PASS en pruebas unitarias, `assembleDebug`, verificación de firma, SHA-256 y publicación de artefacto.
+- SHA-256 de la APK: `609b072552b41f6a7c8ec5e5958d6fcf9c31da8e3ea62c3b865b9c09928b1191`.
+- El certificado de la APK coincide con el keystore de CI: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+- Artefacto `archivero-debug-apk`, ID `12189856826`, digest ZIP `sha256:9d9c56710523cbb77e4873b1319171447e0cd6907f16c73782959aab68a14f6d`. Es una APK de depuración, no una release comercial firmada; el enlace de Actions permite descargar el ZIP que incluye la APK y su fichero SHA-256.
 
 ## Cambios recientes en código
 
@@ -18,7 +18,7 @@ Versión Android: `versionName 0.3.3`, `versionCode 6`
 - La corrección del recorrido SAF necesita CI sobre el SHA resultante y prueba funcional con el selector real de Android. No declarar validada la navegación física ni una biblioteca de 200 GB sin esa prueba.
 - `MainActivity.kt`: «Cargar siguientes 5.000» agrega el lote solicitado sin reiniciar la pantalla. La carga se cancela al cambiar de ubicación y propaga `CancellationException` para no aplicar respuestas obsoletas.
 - `FileOperationsTest.kt`: prueba páginas consecutivas, ausencia de elementos repetidos y rechazo de desplazamientos negativos.
-- `app/build.gradle.kts`: versión 0.3.3, código 6. La validación CI de esta versión está pendiente en el nuevo SHA.
+- `app/build.gradle.kts`: versión 0.3.3, código 6. CI de la versión pasa en el commit y ejecución registrados arriba; la prueba física con Android/SAF sigue pendiente.
 - Identidad visual: el recurso anime vectorial aparece en la bienvenida antes de los permisos y en Inicio; el icono Android es adaptable con fondo azul noche y primer plano de la mascota. No se generó una nueva ilustración rasterizada.
 - El reproductor de música se abre como una vista completa y vuelve a la lista con Atrás; carpetas y tipos usan vistas navegables separadas.
 
@@ -33,8 +33,7 @@ Versión Android: `versionName 0.3.3`, `versionCode 6`
 
 ## Próximo ciclo sugerido · TIMER 30–60 min
 
-1. Confirmar que el siguiente workflow documental restaura la caché y produce la misma huella de firma `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
-2. Probar en Android real: entrar/salir de carpetas grandes, cargar varios lotes, búsqueda por tipo, revocar permisos, abrir APK externa y previsualizar imágenes/PDF; reproducir música/vídeo y verificar Atrás.
+1. Probar en Android real: entrar/salir de carpetas grandes, cargar varios lotes, búsqueda por tipo, revocar permisos, abrir APK externa y previsualizar imágenes/PDF; reproducir música/vídeo y verificar Atrás.
 3. Recoger Logcat si se reproduce un cierre inesperado y atribuirlo al caso real antes de cambiar otras dependencias.
 4. Seguir con la identidad visual; distinguir recursos vectoriales ya integrados de cualquier futura ilustración raster original.
 
