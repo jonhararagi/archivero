@@ -3,7 +3,28 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
+// CI passes the keystore path explicitly to make debug APK signatures stable across runners.
+// Local builds leave this unset and continue using Android's normal debug-signing behavior.
+val ciDebugKeystorePath = System.getenv("ARCHIVERO_CI_DEBUG_KEYSTORE")
 android {
+    signingConfigs {
+        create("ciDebug") {
+            if (!ciDebugKeystorePath.isNullOrBlank()) {
+                storeFile = file(ciDebugKeystorePath)
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+    }
+    buildTypes {
+        getByName("debug") {
+            if (!ciDebugKeystorePath.isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("ciDebug")
+            }
+        }
+    }
     namespace = "com.jonhararagi.archivero"
     compileSdk = 36
     defaultConfig {

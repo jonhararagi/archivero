@@ -10,6 +10,8 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      ARCHIVERO_CI_DEBUG_KEYSTORE: /home/runner/.android/debug.keystore
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -46,10 +48,18 @@ jobs:
         run: gradle --no-daemon testDebugUnitTest
       - name: Build debug APK
         run: gradle --no-daemon assembleDebug
-      - name: Verify APK and create SHA-256
+      - name: Verify APK signature and create SHA-256
         run: |
           apk="app/build/outputs/apk/debug/app-debug.apk"
+          key="$ARCHIVERO_CI_DEBUG_KEYSTORE"
           test -s "$apk"
+          test -s "$key"
+          key_cert="$(keytool -exportcert -keystore "$key" -storepass android -alias androiddebugkey | sha256sum | cut -d' ' -f1)"
+          apk_cert="$("$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+          echo "Keystore certificate SHA-256: $key_cert"
+          echo "APK signer SHA-256: $apk_cert"
+          test -n "$apk_cert"
+          test "$key_cert" = "$apk_cert"
           sha256sum "$apk" > "$apk.sha256"
           cat "$apk.sha256"
       - name: Upload APK
