@@ -1,14 +1,14 @@
-## Estado en curso · corrección de la mascota sin bultos de capucha · 2026-10-19
+## Estado actual · mascota chibi integrada en los recursos Android · 2026-10-19
 
-### Implementación enviada a main
-- Se mantiene intacta la imagen fuente `pngtuber-capibara.png` y su copia original `app/src/main/res/drawable-nodpi/mascota_capibara.png`.
-- Una tarea de Gradle reproducible genera `mascota_capibara_clean.png` desde la ilustración original, conservando el personaje y suavizando la parte alta de la capucha para eliminar los bultos redondos que parecían orejas.
-- Inicio, bienvenida y estados vacíos usan la variante generada; el icono adaptable usa un recorte cuadrado de esa misma variante y deja de usar el vector separado `anime_mascot_foreground.xml`.
-- Versión objetivo: `0.3.7` / `versionCode 10`, superior a la 0.3.6.
-- La primera CI de `8a9360ae4812f0326264495c2131925a693addcc` falló en la configuración del script Gradle: `java.awt.GradientPaint` no se resolvió. El primer cambio no añadía la importación, así que se agregó `import java.awt.GradientPaint` explícitamente. Esperar CI nueva antes de validar el incremento.
-- **Validación final: pendiente**. La variante generada debe inspeccionarse dentro de la APK extraída; las pruebas en el teléfono siguen pendientes.
-
----
+- Commit de código: `f20f540721999767d7dfe5ec910938bdf836cde6`.
+- Nuevos recursos WebP: `app/src/main/res/drawable-nodpi/mascota_chibi.webp` (512×686) y `mascota_chibi_launcher.webp` (256×256), ambos con transparencia.
+- La mascota chibi mantiene cabello castaño, gafas redondas, sudadera marrón y camiseta crema; la capucha no lleva las formas que parecían orejas.
+- Las tres apariciones de la mascota en `MainActivity.kt` usan el nuevo recurso. Los dos iconos adaptables apuntan al recorte chibi.
+- Se retiró del script Gradle la tarea temporal de dibujo programático. No quedan imports de `java.awt`, `ImageIO` ni dependencia de red para formar la mascota.
+- El original `pngtuber-capibara.png` y la copia `mascota_capibara.png` se conservaron.
+- Versión: `0.3.7` / `versionCode 10`.
+- Validación de CI de este SHA: pendiente hasta que se ejecute Actions y termine con PASS.
+- Pendiente de dispositivo: revisar icono, composición, transparencia y tamaños táctiles en el Xiaomi, y pruebas funcionales con almacenamiento grande.
 
 ## Historial anterior · identidad visual Capibara Kawaii · 2026-10-19
 

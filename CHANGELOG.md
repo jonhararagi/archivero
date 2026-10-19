@@ -1,15 +1,18 @@
-## Versión 0.3.7 · mascota original con capucha lisa · 2026-10-19
+## Versión 0.3.7 · mascota chibi original integrada · 2026-10-19
 
-### Corrección de identidad visual
-- Se confirmó que `pngtuber-capibara.png` es el archivo original subido a `main`; el recurso Android anterior era una copia byte a byte. El icono de lanzamiento usaba un vector independiente, distinto de la ilustración subida.
-- Para respetar el arte original, el PNG fuente se conserva sin modificar. Una tarea reproducible de Gradle genera durante la compilación una variante de la misma imagen: mantiene rostro, lentes, cabello, ropa y pose, y suaviza únicamente la silueta superior de la capucha para quitar los dos bultos redondeados que parecían orejas.
-- Inicio, bienvenida y estados vacíos usan la variante generada. El icono adaptable usa un recorte cuadrado de la misma variante, en vez del personaje vectorial distinto.
-- La tarea crea recursos bajo `build/generated/res/mascot`; no requiere API remota ni añade dependencias de runtime. La imagen original del repositorio permanece intacta.
-- Se incrementó la versión Android a `0.3.7` / `versionCode 10` para distinguir la APK nueva de la 0.3.6.
+### Cambios
+- Se preparó una versión chibi basada en la ilustración original: cabello castaño, gafas redondas, sudadera marrón, camiseta crema y proporciones pequeñas con cabeza más grande.
+- La capucha es lisa, sin los bultos que parecían orejas. No se añadieron orejas animales, cuernos, lazos, símbolos ni accesorios nuevos.
+- Se eliminó el fondo casi blanco de la ilustración generada y se guardó como WebP con canal alfa: `app/src/main/res/drawable-nodpi/mascota_chibi.webp`.
+- Se agregó `app/src/main/res/drawable-nodpi/mascota_chibi_launcher.webp` para el icono adaptable. Inicio, bienvenida, estados vacíos e icono launcher usan ahora la misma identidad chibi.
+- Se mantiene sin cambios el PNG original `pngtuber-capibara.png` y su copia `mascota_capibara.png`.
+- Se retiró el generador temporal de píxeles de Gradle. Los dos recursos finales están versionados, por lo que la compilación ya no depende de regenerar el dibujo ni de descargarlo.
+- Versión Android: `0.3.7` / `versionCode 10`.
 
-### Verificación
-- Primer intento CI del commit `8a9360ae4812f0326264495c2131925a693addcc`: FAIL en compilación del script Gradle por una referencia totalmente cualificada a `java.awt.GradientPaint`. Se corrigió la llamada y, tras una segunda revisión estática, se añadió el import explícito `java.awt.GradientPaint`; la siguiente ejecución CI debe confirmar el resultado. No declarar PASS hasta que finalicen pruebas, compilación, firma y publicación del artefacto.
-- Las pruebas físicas de apariencia y navegación en el Xiaomi siguen pendientes.
+### Validación
+- El código que integra la mascota está en [commit f20f5407](https://github.com/jonhararagi/archivero/commit/f20f540721999767d7dfe5ec910938bdf836cde6).
+- La CI que valida este SHA exacto debe terminar con pruebas, compilación, verificación de firma y artefacto antes de marcar PASS.
+- La apariencia en el Xiaomi real y las pruebas con biblioteca de 200 GB siguen pendientes.
 
 ---
 
