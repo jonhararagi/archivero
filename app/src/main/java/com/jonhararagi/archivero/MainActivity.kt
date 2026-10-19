@@ -177,6 +177,7 @@ fun ArchiveroApp() {
     var listedEntries by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
     var listingFailed by remember { mutableStateOf(false) }
     var listingTruncated by remember { mutableStateOf(false) }
+    var listingLimit by rememberSaveable { mutableIntStateOf(MAX_DIRECTORY_ENTRIES) }
     var hasScanned by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var scanning by remember { mutableStateOf(false) }
@@ -510,7 +511,7 @@ fun ArchiveroApp() {
         }
     }
 
-    LaunchedEffect(currentUri, refresh) {
+    LaunchedEffect(currentUri, refresh, listingLimit) {
         val folderToList = current
         listingFailed = false
         listingTruncated = false
@@ -1072,10 +1073,21 @@ fun ArchiveroApp() {
                         Text(entries.size.toString() + " elementos" + if (filteringFiles) " · filtrando…" else "", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(vertical = 6.dp))
                         if (listingTruncated) {
                             Text(
-                                "Carpeta grande: se muestran hasta ${MAX_DIRECTORY_ENTRIES} elementos para proteger memoria. La lista puede ser parcial.",
+                                "Carpeta extensa: se muestran ${entries.size} elementos. El resto sigue disponible; carga más cuando lo necesites.",
                                 color = if (isCyberpunk) activePalette.secondary else MaterialTheme.colorScheme.primary,
                                 style = MaterialTheme.typography.bodySmall
                             )
+                            OutlinedButton(
+                                onClick = {
+                                    listingLimit = (listingLimit + MAX_DIRECTORY_ENTRIES).coerceAtMost(100_000)
+                                    refresh++
+                                },
+                                enabled = listingLimit < 100_000
+                            ) {
+                                Icon(Icons.Default.ExpandMore, null)
+                                Spacer(Modifier.width(6.dp))
+                                Text(if (listingLimit < 100_000) "Cargar ${MAX_DIRECTORY_ENTRIES} más" else "Límite de seguridad alcanzado")
+                            }
                         }
                         if (listingFailed) EmptyNotice("No se pudo leer esta carpeta", "Comprueba los permisos de Android.", Icons.Default.FolderOff)
                         else LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
