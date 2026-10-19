@@ -20,20 +20,27 @@ internal data class BoundedFileListing(
  * Enumerates a filesystem directory incrementally. Unlike File.listFiles(), this does not
  * allocate an array containing every child of a very large directory.
  */
-internal fun listFilesBounded(directory: File, limit: Int): BoundedFileListing {
+internal fun listFilesBounded(directory: File, limit: Int, offset: Int = 0): BoundedFileListing {
     require(limit > 0) { "El límite debe ser mayor que cero." }
+    require(offset >= 0) { "El desplazamiento no puede ser negativo." }
     if (!directory.isDirectory) throw IOException("La ubicación no es una carpeta legible.")
 
     val files = ArrayList<File>(minOf(limit, 512))
     var truncated = false
     Files.newDirectoryStream(directory.toPath()).use { stream ->
         val iterator = stream.iterator()
+        var skipped = 0
         while (iterator.hasNext()) {
+            val child = iterator.next().toFile()
+            if (skipped < offset) {
+                skipped++
+                continue
+            }
             if (files.size >= limit) {
                 truncated = true
                 break
             }
-            files.add(iterator.next().toFile())
+            files.add(child)
         }
     }
     return BoundedFileListing(files, truncated)
@@ -52,9 +59,11 @@ internal data class BoundedDocumentListing(
 internal fun listDocumentChildrenBounded(
     context: Context,
     directory: DocumentFile,
-    limit: Int
+    limit: Int,
+    offset: Int = 0
 ): BoundedDocumentListing {
     require(limit > 0) { "El límite debe ser mayor que cero." }
+    require(offset >= 0) { "El desplazamiento no puede ser negativo." }
     val uri = directory.uri
     val entries = ArrayList<DocumentFile>(minOf(limit, 512))
     var truncated = false
@@ -62,7 +71,7 @@ internal fun listDocumentChildrenBounded(
     when {
         uri.scheme == "file" -> {
             val path = uri.path ?: throw IOException("La ruta de la carpeta no está disponible.")
-            val bounded = listFilesBounded(File(path), limit)
+            val bounded = listFilesBounded(File(path), limit, offset)
             entries.addAll(bounded.files.map { DocumentFile.fromFile(it) })
             truncated = bounded.truncated
         }
@@ -79,12 +88,17 @@ internal fun listDocumentChildrenBounded(
                 ?: throw IOException("El proveedor de Android no pudo enumerar esta carpeta.")
 
             cursor.use { children ->
+                var skipped = 0
                 while (children.moveToNext()) {
+                    val childId = children.getString(0) ?: continue
+                    if (skipped < offset) {
+                        skipped++
+                        continue
+                    }
                     if (entries.size >= limit) {
                         truncated = true
                         break
                     }
-                    val childId = children.getString(0) ?: continue
                     val authority = uri.authority
                         ?: throw IOException("Android no informó el proveedor de esta carpeta.")
                     // Treat the enumerated child as the root of its own tree URI so listFiles()
@@ -97,9 +111,13 @@ internal fun listDocumentChildrenBounded(
 
         else -> {
             // Compatibility fallback for providers that do not expose a SAF tree URI.
+            // Compatibility fallback: some non-tree providers expose only listFiles(), which
+            // may materialize the provider's full result. Keep pagination streaming where the
+            // filesystem or SAF tree APIs support it; see README for this provider limitation.
             val all = directory.listFiles()
-            truncated = all.size > limit
-            entries.addAll(all.take(limit))
+            val page = all.drop(offset).take(limit)
+            truncated = all.size > offset + page.size
+            entries.addAll(page)
         }
     }
 
