@@ -77,42 +77,11 @@ internal fun listDocumentChildrenBounded(
         }
 
         DocumentsContract.isTreeUri(uri) -> {
-            // DocumentFile.fromTreeUri() exposes a document URI inside the original tree
-            // (/tree/<root>/document/<current>). Use the current document ID when listing a
-            // nested folder; getTreeDocumentId() alone always returns the original tree root.
-            val directoryDocumentId = try {
-                DocumentsContract.getDocumentId(uri)
-            } catch (error: IllegalArgumentException) {
-                // Be defensive for providers that hand us a bare /tree/<id> URI.
-                try {
-                    DocumentsContract.getTreeDocumentId(uri)
-                } catch (_: IllegalArgumentException) {
-                    throw IOException("Android no pudo identificar esta carpeta.", error)
-                }
-            }
-            val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(uri, directoryDocumentId)
-            val projection = arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
-            val cursor = context.contentResolver.query(childrenUri, projection, null, null, null)
-                ?: throw IOException("El proveedor de Android no pudo enumerar esta carpeta.")
-
-            cursor.use { children ->
-                var skipped = 0
-                while (children.moveToNext()) {
-                    val childId = children.getString(0) ?: continue
-                    if (skipped < offset) {
-                        skipped++
-                        continue
-                    }
-                    if (entries.size >= limit) {
-                        truncated = true
-                        break
-                    }
-                    // Keep the original tree ID/grant and only change the current document ID.
-                    // Building a new /tree/<childId> can drop the persisted grant for the picked tree.
-                    val childDocumentUri = DocumentsContract.buildDocumentUriUsingTree(uri, childId)
-                    DocumentFile.fromTreeUri(context, childDocumentUri)?.let(entries::add)
-                }
-            }
+            // Query bounded pages, and wrap each child with its exact document URI.
+            // fromTreeUri() here would reset every child to the selected tree root.
+            val bounded = querySafTreeChildren(context, directory, uri, uri, limit, offset)
+            entries.addAll(bounded.entries)
+            truncated = bounded.truncated
         }
 
         else -> {
