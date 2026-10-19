@@ -12,6 +12,9 @@
 - Versión Android actualizada a `versionCode 5` y `versionName 0.3.2`.
 - El workflow Android ejecuta `testDebugUnitTest`, `assembleDebug`, comprueba el APK y calcula su SHA-256. El estado final de CI debe corresponder al SHA final de `main`.
 - La mascota vectorial anime ciberpunk queda visible también en la pantalla de bienvenida antes de conceder permisos, además de la tarjeta de Inicio. El lanzador usa iconos adaptativos de Android con fondo azul noche y el arte de la mascota como primer plano. No se generó una nueva ilustración rasterizada en esta iteración.
+- Tras comparar los certificados de la APK debug anterior y la actual, se confirmó que los runners habían generado claves de depuración distintas. El workflow ahora conserva `~/.android/debug.keystore` mediante caché de Actions para estabilizar la firma en futuras compilaciones de CI.
+- La primera APK con esta caché es una transición de firma: Android puede exigir desinstalar una APK debug anterior antes de instalarla, lo que borra las preferencias locales de Archivero (no los archivos del usuario). Las compilaciones posteriores deben conservar el certificado mientras la caché permanezca disponible.
+- Esta es una firma de depuración, no una firma de publicación. No se incorporó ninguna clave de release ni se debe reutilizar el keystore debug como clave de distribución comercial.
 - No se probó físicamente contra la biblioteca real de 200 GB ni contra todos los proveedores SAF. Esas validaciones siguen pendientes.
 
 # Registro de cambios de Archivero

@@ -48,6 +48,10 @@ Aún se deben comprobar en Android real:
 
 El análisis de capturas depende de que Android informe una fecha y de que el nombre o la ruta permita reconocerlas. Algunos archivos no son legibles mediante el proveedor elegido; no se deben clasificar como duplicados si no se puede leer su contenido. En dispositivos con muchos archivos, comparar SHA-256 puede consumir tiempo, batería y almacenamiento de E/S.
 
+## Firma de los APK generados por CI
+
+Las compilaciones `debug` de GitHub Actions conservan la clave de depuración mediante la caché del workflow para que futuras APK de CI puedan actualizarse unas sobre otras. La primera versión tras activar esta caché usa una clave nueva con respecto a los artefactos anteriores: Android puede requerir desinstalar la versión debug anterior antes de instalarla, lo que restablece la configuración local de Archivero. Los archivos guardados por el usuario no se borran. Este mecanismo no convierte el APK en una versión release firmada para distribución pública.
+
 ## Compilar
 
 Requiere JDK 17 y Android SDK 35. Abre el proyecto en Android Studio y sincroniza Gradle.
