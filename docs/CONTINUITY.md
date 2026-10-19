@@ -7,10 +7,11 @@ Versión Android: `versionName 0.3.2`, `versionCode 5`
 
 ## Estado verificado
 
-- Revisión funcional: `e0c47e466a8f43a593721723cad5919ddfa0dc2f`.
-- GitHub Actions: [ejecución 39236862168](https://github.com/jonhararagi/archivero/actions/runs/39236862168), PASS para `testDebugUnitTest`, `assembleDebug`, generación SHA-256 y publicación del APK.
-- El workflow preparó el keystore de depuración y confirmó en los logs `Cache saved with key: archivero-ci-debug-keystore-v1`. El siguiente build debe confirmar cache hit y certificado idéntico.
-- La APK de esta revisión se genera en modo `debug`; no es una release comercial firmada.
+- Revisión verificada de la app y firma estable: `c7b2ad22aa76925a6aa587838b1d2cf6cfa0d622`.
+- GitHub Actions: [ejecución 39237724749](https://github.com/jonhararagi/archivero/actions/runs/39237724749), PASS para `testDebugUnitTest`, `assembleDebug`, verificación de firma, SHA-256 y publicación de la APK.
+- La ejecución restauró la caché `archivero-ci-debug-keystore-v1`. El SHA-256 del certificado del firmante de la APK coincide con el del keystore: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+- SHA-256 de la APK verificada: `8d04e66e02af2881a2dcc6007b8e25309aa59ecac4b0f1a01822244bb38424c3`.
+- La siguiente compilación (esta revisión documental) sirve para confirmar que la clave restaurada produce la misma huella de firma. La APK es `debug`, no una release comercial firmada.
 
 ## Cambios recientes en código
 
@@ -28,11 +29,11 @@ Versión Android: `versionName 0.3.2`, `versionCode 5`
 - Las páginas se ordenan dentro de cada lote; el orden global puede variar según el proveedor.
 - El análisis recursivo sigue limitado a 100.000 elementos y profundidad 20. Los resultados incompletos deben indicarse como parciales.
 - No se ha probado físicamente con el Xiaomi del usuario, con una biblioteca real de 200 GB ni con todos los proveedores SAF.
-- La primera APK tras introducir la clave estable puede no instalarse encima de una APK debug anterior firmada con otro certificado. Desinstalar borra preferencias y permisos guardados por Archivero, no los archivos personales. Las compilaciones siguientes deben conservar firma mientras la caché exista.
+- La primera APK con firma de CI explícita puede no instalarse encima de APK debug anteriores con otro certificado. Desinstalar borra preferencias y permisos guardados por Archivero, no los archivos personales. La caché de CI conserva el certificado únicamente mientras esa entrada siga disponible.
 
 ## Próximo ciclo sugerido · TIMER 30–60 min
 
-1. Confirmar que el siguiente workflow restaura la caché y que la huella SHA-256 del certificado de firma coincide con la APK de la revisión anterior.
+1. Confirmar que el siguiente workflow documental restaura la caché y produce la misma huella de firma `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
 2. Probar en Android real: entrar/salir de carpetas grandes, cargar varios lotes, búsqueda por tipo, revocar permisos, abrir APK externa y previsualizar imágenes/PDF; reproducir música/vídeo y verificar Atrás.
 3. Recoger Logcat si se reproduce un cierre inesperado y atribuirlo al caso real antes de cambiar otras dependencias.
 4. Seguir con la identidad visual; distinguir recursos vectoriales ya integrados de cualquier futura ilustración raster original.
