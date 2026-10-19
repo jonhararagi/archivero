@@ -3,15 +3,14 @@
 Última revisión: 2026-10-19  
 Repositorio: `jonhararagi/archivero`  
 Rama autorizada: `main`  
-Versión Android: `versionName 0.3.2`, `versionCode 5`
+Versión Android: `versionName 0.3.3`, `versionCode 6`
 
 ## Estado verificado
 
-- Revisión verificada de la app y firma estable: `c7b2ad22aa76925a6aa587838b1d2cf6cfa0d622`.
-- GitHub Actions: [ejecución 39237724749](https://github.com/jonhararagi/archivero/actions/runs/39237724749), PASS para `testDebugUnitTest`, `assembleDebug`, verificación de firma, SHA-256 y publicación de la APK.
-- La ejecución restauró la caché `archivero-ci-debug-keystore-v1`. El SHA-256 del certificado del firmante de la APK coincide con el del keystore: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
-- SHA-256 de la APK verificada: `8d04e66e02af2881a2dcc6007b8e25309aa59ecac4b0f1a01822244bb38424c3`.
-- La siguiente compilación (esta revisión documental) sirve para confirmar que la clave restaurada produce la misma huella de firma. La APK es `debug`, no una release comercial firmada.
+- Última APK de código verificada antes del incremento de versión: commit `16e979dc96d91c3812a0e0ed6f161a354c420484`, [CI 39259716006](https://github.com/jonhararagi/archivero/actions/runs/39259716006), PASS en pruebas unitarias, `assembleDebug`, verificación de firma y publicación.
+- SHA-256 de la APK de esa ejecución (versionCode 5): `aba33a369574d3698ecf64beec237f9f8a4844837082ede89e2612cdf2e245d5`.
+- El certificado del APK coincide con el keystore de CI: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+- La versión `0.3.3`/`versionCode 6` de esta revisión necesita su propia ejecución CI, que debe comprobar también firma y SHA-256 antes de entregar la APK. Es una APK `debug`, no una release comercial firmada.
 
 ## Cambios recientes en código
 
@@ -19,7 +18,7 @@ Versión Android: `versionName 0.3.2`, `versionCode 5`
 - La corrección del recorrido SAF necesita CI sobre el SHA resultante y prueba funcional con el selector real de Android. No declarar validada la navegación física ni una biblioteca de 200 GB sin esa prueba.
 - `MainActivity.kt`: «Cargar siguientes 5.000» agrega el lote solicitado sin reiniciar la pantalla. La carga se cancela al cambiar de ubicación y propaga `CancellationException` para no aplicar respuestas obsoletas.
 - `FileOperationsTest.kt`: prueba páginas consecutivas, ausencia de elementos repetidos y rechazo de desplazamientos negativos.
-- `app/build.gradle.kts`: versión 0.3.2, código 5.
+- `app/build.gradle.kts`: versión 0.3.3, código 6. La validación CI de esta versión está pendiente en el nuevo SHA.
 - Identidad visual: el recurso anime vectorial aparece en la bienvenida antes de los permisos y en Inicio; el icono Android es adaptable con fondo azul noche y primer plano de la mascota. No se generó una nueva ilustración rasterizada.
 - El reproductor de música se abre como una vista completa y vuelve a la lista con Atrás; carpetas y tipos usan vistas navegables separadas.
 
