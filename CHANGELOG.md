@@ -8,7 +8,7 @@
 - Se incrementó la versión Android a `0.3.7` / `versionCode 10` para distinguir la APK nueva de la 0.3.6.
 
 ### Verificación
-- SHA/CI del código y la APK: pendiente de la ejecución de GitHub Actions tras este cambio. No declarar PASS hasta que finalicen pruebas, compilación, firma y publicación del artefacto.
+- Primer intento CI del commit `8a9360ae4812f0326264495c2131925a693addcc`: FAIL en compilación del script Gradle por una referencia totalmente cualificada a `java.awt.GradientPaint`. Se corrigió la llamada para usar la importación `GradientPaint`; la nueva ejecución CI debe confirmar que la corrección basta. No declarar PASS hasta que finalicen pruebas, compilación, firma y publicación del artefacto.
 - Las pruebas físicas de apariencia y navegación en el Xiaomi siguen pendientes.
 
 ---

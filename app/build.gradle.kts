@@ -163,7 +163,7 @@ val prepareMascotResources by tasks.registering {
         )
         pg.fill(patchShape)
         pg.clip = patchShape
-        pg.paint = java.awt.GradientPaint(
+        pg.paint = GradientPaint(
             0f, 75f, Color(45, 24, 20, 0),
             0f, 165f, Color(45, 24, 20, 30)
         )
