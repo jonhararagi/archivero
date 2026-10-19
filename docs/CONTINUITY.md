@@ -1,3 +1,11 @@
+## Incremento en curso: apertura APK/XAPK/APKS
+
+- Se corrigió la selección MIME en MainActivity.kt: solo .apk usa application/vnd.android.package-archive; .xapk y .apks se presentan como contenedores ZIP para abrirlos con un visor/instalador externo compatible.
+- Se añadió FileOpenSupport.kt y cinco pruebas unitarias para los MIME relevantes.
+- Versión de trabajo: 0.3.6 / versionCode 9.
+- CI pendiente para este cambio. No reemplazar la APK entregable hasta comprobar que la ejecución asociada al SHA nuevo termina correctamente.
+- En un dispositivo real aún debe comprobarse el selector de Android con un APK y el comportamiento al abrir archivos XAPK/APKS; estos últimos no se instalan directamente desde Archivero.
+
 ## Estado de la rama
 
 - Versión Android: `0.3.5` / `versionCode 8`. El commit de código que introduce la identidad visual Capibara Kawaii es `ae1366b56711182f33f7562e3b78b2809f70c5a1`: [ver commit](https://github.com/jonhararagi/archivero/commit/ae1366b56711182f33f7562e3b78b2809f70c5a1).

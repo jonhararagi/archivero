@@ -2047,13 +2047,7 @@ private fun openDocument(file: DocumentFile, context: Context, useNative: Boolea
     val extension = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
     val extensionMime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension).orEmpty()
     val providedMime = runCatching { context.contentResolver.getType(file.uri) }.getOrNull().orEmpty()
-    val mime = when (extension) {
-        "apk" -> "application/vnd.android.package-archive"
-        "xapk" -> "application/xapk-package-archive"
-        "apks" -> "application/vnd.android.package-archive"
-        else -> providedMime.takeIf { it.isNotBlank() && it != "application/octet-stream" }
-            ?: extensionMime.ifBlank { providedMime }
-    }
+    val mime = resolveFileMimeType(name, providedMime, extensionMime)
     val isAudio = extension in Kind.MUSIC.extensions || mime.startsWith("audio/")
     val isVideo = extension in Kind.VIDEOS.extensions || mime.startsWith("video/")
 
@@ -2093,9 +2087,11 @@ private fun openDocument(file: DocumentFile, context: Context, useNative: Boolea
             is SecurityException -> if (extension == "apk") {
                 "Android bloqueó el instalador. Revisa Ajustes > Instalar apps desconocidas para Archivero y vuelve a intentarlo."
             } else "Android negó el permiso para abrir «" + name + "». Vuelve a elegir su carpeta."
-            else -> if (extension == "apk") {
-                "No se encontró un instalador compatible para este APK. Archivero no instala nada sin la confirmación de Android."
-            } else "No hay una aplicación compatible para abrir «" + name + "» (" + mime + "). La vista previa integrada cubre imágenes, PDF y documentos de texto comunes."
+            else -> when (extension) {
+                "apk" -> "No se encontró un instalador compatible para este APK. Archivero no instala nada sin la confirmación de Android."
+                "xapk", "apks" -> "«" + name + "» es un paquete que requiere un instalador compatible con XAPK/APKS. Archivero no lo instala directamente."
+                else -> "No hay una aplicación compatible para abrir «" + name + "» (" + mime + "). La vista previa integrada cubre imágenes, PDF y documentos de texto comunes."
+            }
         })
     }
 }

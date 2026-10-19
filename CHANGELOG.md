@@ -1,3 +1,15 @@
+## Versión 0.3.6 · apertura correcta de APK/XAPK/APKS · 2026-10-19
+
+### MIME y mensajes de instalación
+- Los archivos .apk conservan el MIME de paquete Android y se envían al flujo del instalador del sistema, que exige confirmación del usuario.
+- Los archivos .xapk y .apks se tratan como contenedores ZIP al solicitar una aplicación externa, en lugar de etiquetar ambos como un APK único. Cuando no hay visor compatible, el mensaje explica que hace falta un instalador compatible con esos formatos.
+- Se añadieron pruebas unitarias para MIME de APK, XAPK, APKS, tipo MIME específico del proveedor y fallback cuando el proveedor informa un tipo genérico.
+
+### Versión y verificación
+- Versión Android: 0.3.6, versionCode 9.
+- Validación CI de este incremento: pendiente para el nuevo SHA de main. No se declara PASS hasta que GitHub Actions confirme pruebas, compilación, firma y artefacto.
+- La validación automatizada no sustituye la prueba física de apertura en Android real.
+
 ## Versión 0.3.5 · identidad visual inspirada en la mascota capibara · 2026-10-19
 
 ### Cambios visuales
