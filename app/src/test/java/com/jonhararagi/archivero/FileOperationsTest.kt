@@ -127,4 +127,30 @@ class FileOperationsTest {
             directory.deleteRecursively()
         }
     }
+
+    @Test
+    fun returnsAnEmptyNonTruncatedPageWhenOffsetIsPastTheEnd() {
+        val directory = Files.createTempDirectory("archivero-listing-empty-page-test").toFile()
+        try {
+            (1..3).forEach { File(directory, "archivo-$it.txt").writeText("dato") }
+            val result = listFilesBounded(directory, 5, 10)
+            assertTrue(result.files.isEmpty())
+            assertFalse(result.truncated)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun rejectsNonPositiveDirectoryPageSize() {
+        val directory = Files.createTempDirectory("archivero-listing-limit-test").toFile()
+        try {
+            assertThrows(IllegalArgumentException::class.java) {
+                listFilesBounded(directory, 0)
+            }
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
 }

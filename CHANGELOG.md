@@ -1,3 +1,16 @@
+## Versión 0.3.4 · vista previa cancelable y manejo seguro de recursos · 2026-10-19
+
+### Correcciones
+- La vista previa de imágenes y documentos ya no absorbe `CancellationException`: al cambiar de archivo o página, el trabajo anterior se cancela correctamente en vez de informar falsamente un error.
+- La vista previa de PDF solo actualiza el indicador de carga si la tarea sigue activa, evitando que un render anterior apague el indicador del render nuevo.
+- La lectura de texto cierra el flujo incluso si se produce un error de E/S.
+- Añadidas pruebas de paginación para un desplazamiento más allá del final y para rechazar límites no positivos.
+- Incrementada la versión a `0.3.4` (`versionCode 7`) para distinguir esta APK de la 0.3.3.
+
+### Verificación
+- La validación automática de esta revisión debe consultarse en [GitHub Actions](https://github.com/jonhararagi/archivero/actions/workflows/android.yml) y vincularse al SHA exacto de `main`.
+- La CI no sustituye la prueba física de cambio rápido entre archivos/páginas, permisos SAF ni bibliotecas grandes en el teléfono. No se declara resuelto el cierre bajo la biblioteca real de 200 GB sin esa prueba.
+
 ## Versión 0.3.3 · navegación SAF de subcarpetas · 2026-10-19
 
 ### Corrección y paquete

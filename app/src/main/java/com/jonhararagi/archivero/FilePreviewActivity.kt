@@ -52,7 +52,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -126,10 +129,13 @@ private fun FilePreviewScreen(uri: Uri?, name: String, mime: String, onBack: () 
                 PreviewMode.UNSUPPORTED -> previewError = "Este formato no tiene una vista previa integrada. Prueba «Abrir con otra aplicación»."
                 PreviewMode.PDF -> Unit
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (error: Exception) {
             previewError = error.message ?: "No se pudo leer este archivo. Comprueba los permisos."
         } finally {
-            loading = false
+            // A cancelled preview must not overwrite the loading state of a newer URI/mode.
+            if (currentCoroutineContext().isActive) loading = false
         }
     }
 
@@ -145,11 +151,14 @@ private fun FilePreviewScreen(uri: Uri?, name: String, mime: String, onBack: () 
             bitmap = result.first
             pageCount = result.second
             pageSliderValue = pageIndex.toFloat()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (error: Exception) {
             bitmap = null
             previewError = error.message ?: "No se pudo abrir este PDF."
         } finally {
-            loading = false
+            // Page changes cancel the prior render; only the active render owns this state.
+            if (currentCoroutineContext().isActive) loading = false
         }
     }
 
@@ -333,8 +342,9 @@ private fun readTextPreview(context: Context, uri: Uri, extension: String): Stri
     }
 
     val input = context.contentResolver.openInputStream(uri) ?: throw IOException("Android no pudo leer el documento.")
-    var result = String(readLimited(input, 600_000), StandardCharsets.UTF_8)
-    input.close()
+    var result = input.use { stream ->
+        String(readLimited(stream, 600_000), StandardCharsets.UTF_8)
+    }
     if (extension == "rtf") {
         result = result.replace(Regex("""\\'[0-9a-fA-F]{2}"""), " ")
             .replace(Regex("""\\[a-zA-Z]+-?[0-9]* ?"""), " ")
