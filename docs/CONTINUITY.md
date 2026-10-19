@@ -1,13 +1,15 @@
 ## Estado actual · mascota chibi integrada en los recursos Android · 2026-10-19
 
-- Commit de código: `f20f540721999767d7dfe5ec910938bdf836cde6`.
+- Commit de código de la app: `f20f540721999767d7dfe5ec910938bdf836cde6`, CI **PASS** [39314477853](https://github.com/jonhararagi/archivero/actions/runs/39314477853).
+- Main validado con documentación: `f7077a03ea5ee485f3323c1b49073a2825d20f81`, CI **PASS** [39314527319](https://github.com/jonhararagi/archivero/actions/runs/39314527319).
 - Nuevos recursos WebP: `app/src/main/res/drawable-nodpi/mascota_chibi.webp` (512×686) y `mascota_chibi_launcher.webp` (256×256), ambos con transparencia.
 - La mascota chibi mantiene cabello castaño, gafas redondas, sudadera marrón y camiseta crema; la capucha no lleva las formas que parecían orejas.
 - Las tres apariciones de la mascota en `MainActivity.kt` usan el nuevo recurso. Los dos iconos adaptables apuntan al recorte chibi.
 - Se retiró del script Gradle la tarea temporal de dibujo programático. No quedan imports de `java.awt`, `ImageIO` ni dependencia de red para formar la mascota.
 - El original `pngtuber-capibara.png` y la copia `mascota_capibara.png` se conservaron.
 - Versión: `0.3.7` / `versionCode 10`.
-- Validación de CI de este SHA: pendiente hasta que se ejecute Actions y termine con PASS.
+- Pruebas unitarias, build, firma y publicación: PASS. APK extraída del artefacto: `21,213,421` bytes; SHA-256 `9ad30e45a0194e70084f1fa3f5c7709da7cbe9f9ea7346f6a0ba71ad76b96a7a`.
+- Certificado APK y keystore CI coinciden: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
 - Pendiente de dispositivo: revisar icono, composición, transparencia y tamaños táctiles en el Xiaomi, y pruebas funcionales con almacenamiento grande.
 
 ## Historial anterior · identidad visual Capibara Kawaii · 2026-10-19

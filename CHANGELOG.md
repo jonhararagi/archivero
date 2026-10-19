@@ -9,10 +9,15 @@
 - Se retiró el generador temporal de píxeles de Gradle. Los dos recursos finales están versionados, por lo que la compilación ya no depende de regenerar el dibujo ni de descargarlo.
 - Versión Android: `0.3.7` / `versionCode 10`.
 
-### Validación
-- El código que integra la mascota está en [commit f20f5407](https://github.com/jonhararagi/archivero/commit/f20f540721999767d7dfe5ec910938bdf836cde6).
-- La CI que valida este SHA exacto debe terminar con pruebas, compilación, verificación de firma y artefacto antes de marcar PASS.
-- La apariencia en el Xiaomi real y las pruebas con biblioteca de 200 GB siguen pendientes.
+### Validación automatizada confirmada
+- Código de la app: [commit f20f5407](https://github.com/jonhararagi/archivero/commit/f20f540721999767d7dfe5ec910938bdf836cde6), CI **PASS** [39314477853](https://github.com/jonhararagi/archivero/actions/runs/39314477853).
+- `main` con documentación incluida: SHA `f7077a03ea5ee485f3323c1b49073a2825d20f81`, CI **PASS** [39314527319](https://github.com/jonhararagi/archivero/actions/runs/39314527319).
+- `testDebugUnitTest`, `assembleDebug`, verificación de firma y publicación del artefacto: PASS.
+- Artefacto `archivero-debug-apk`, ID `12216143932`, ZIP de 20,350,645 bytes; SHA-256 del ZIP `48cf2ea912398a2d1e710091cea93a1754a91ad7db71fa39756a03a2e89500ed`.
+- APK debug extraída del artefacto: 21,213,421 bytes; SHA-256 `9ad30e45a0194e70084f1fa3f5c7709da7cbe9f9ea7346f6a0ba71ad76b96a7a`.
+- SHA-256 del certificado de APK y del keystore CI coincidentes: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+- Se verificó dentro del APK la presencia de `mascota_chibi.webp` y `mascota_chibi_launcher.webp`.
+- Es una APK debug, no release. La apariencia en el Xiaomi real y las pruebas con biblioteca de 200 GB siguen pendientes.
 
 ---
 
