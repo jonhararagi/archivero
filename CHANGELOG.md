@@ -1,5 +1,22 @@
 # Registro de cambios de Archivero
 
+## Versión 0.3.1 · reproductor sin pantallas apiladas · 2026-10-19
+
+### Navegación y música
+- El reproductor de música ahora ocupa toda la superficie disponible con un fondo opaco. Se elimina el panel parcial que dejaba visible la pestaña anterior detrás y podía confundir los resultados con una segunda pantalla superpuesta.
+- La flecha y el botón Atrás regresan a la lista desde la que se eligió la pista; la reproducción y los controles de la notificación continúan activos.
+- Al estar en los resultados de una categoría, Atrás vuelve primero al selector de tipos en lugar de saltar directamente a Inicio.
+- La lista por tipo conserva el recuento de archivos y el estado del análisis en una sola vista. Carpetas y búsquedas no necesitan mostrar dos pantallas simultáneas.
+
+### Tema y recursos
+- Se conserva el lenguaje Ciberpunk definido en 0.3.0: fondo azul noche sólido, paneles azul profundo, texto de alto contraste y acentos cian/magenta moderados. No se añade una retícula brillante ni un fondo decorativo que compita con los archivos.
+- Se mantiene la mascota anime local y el icono de aplicación ya integrados en `main`; esta revisión se concentra en navegación y reproductor, sin duplicar esos recursos.
+
+### Validación
+- GitHub Actions ejecuta pruebas unitarias y `assembleDebug` para el SHA de esta actualización; el enlace de CI y el hash de la APK deben verificarse antes de declarar PASS.
+- La compilación automatizada no sustituye la prueba física de Atrás, listas largas y reproducción en el dispositivo Android.
+
+
 ## Actualización de navegación y tema Ciberpunk · 2026-10-18
 
 ### Navegación por tipo sin pantallas superpuestas

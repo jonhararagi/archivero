@@ -786,6 +786,7 @@ fun ArchiveroApp() {
             showExitDialog -> showExitDialog = false
             showAppearance -> showAppearance = false
             showPlayerPanel -> showPlayerPanel = false
+            screen == Screen.TYPES && !choosingKind -> { choosingKind = true; query = "" }
             screen == Screen.FOLDERS && folderHistory.isNotEmpty() -> {
                 val parent = folderHistory.last()
                 folderHistory = folderHistory.dropLast(1)
@@ -1476,24 +1477,25 @@ fun ArchiveroApp() {
                 }
             }
         } else {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-                Surface(
-                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp).heightIn(max = 720.dp),
-                    color = activePalette.background,
-                    shape = RoundedCornerShape(28.dp),
-                    shadowElevation = 12.dp
+            // Keep the music player on an opaque, full-screen surface. A partial-height
+            // bottom sheet left the previous tab visible behind it and made the layout
+            // look like two screens stacked together.
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = activePalette.background,
+                shape = RoundedCornerShape(0.dp)
+            ) {
+                Column(
+                    Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Column(
-                        Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(18.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text("Reproductor de música", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                                 Text("Archivero · la música no se corta al minimizar", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             IconButton(onClick = { showPlayerPanel = false }) {
-                                Icon(Icons.Default.KeyboardArrowDown, "Minimizar reproductor sin detener la música")
+                                Icon(Icons.Default.ArrowBack, "Volver a los archivos sin detener la música")
                             }
                         }
                         Spacer(Modifier.height(8.dp))
@@ -1606,9 +1608,8 @@ fun ArchiveroApp() {
                             }
                         }
                         Spacer(Modifier.height(8.dp))
-                        Text("Desliza hacia abajo o toca la flecha para minimizar. La reproducción sigue activa y queda disponible en la notificación multimedia de Android.",
+                        Text("Usa Atrás o la flecha para volver a la lista de archivos. La música sigue activa y queda disponible en la notificación multimedia de Android.",
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
                 }
             }
         }

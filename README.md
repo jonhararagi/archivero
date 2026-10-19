@@ -19,7 +19,7 @@ Los archivos se procesan localmente. La aplicación no tiene una función de sub
 - Apertura de `.apk` con el instalador externo de Android y MIME de paquete explícito. Archivero no instala automáticamente: el sistema puede pedir habilitar «Instalar apps desconocidas» y siempre muestra su propia confirmación.
 - Selección de varios archivos de audio para crear una cola de reproducción.
 - Reproductor Media3 con reproducción en segundo plano, notificación de controles, anterior/siguiente, posición, aleatorio, repetición, favoritos y temporizador.
-- Mini reproductor inferior disponible solo después de iniciar música: abrir la categoría Música muestra primero los archivos de audio, sin superponer automáticamente el reproductor sobre los resultados. Al reproducir una pista, el mini reproductor permite volver al reproductor completo sin detenerla.
+- La categoría Música abre primero la lista de archivos y muestra el estado del análisis y el recuento de resultados en esa misma vista. Al elegir una pista, el reproductor se abre a pantalla completa con fondo opaco, sin dejar la pestaña anterior visible detrás; Atrás o la flecha devuelve a la lista sin detener la música. El mini reproductor permite reabrirlo y los controles de Android siguen disponibles en la notificación.
 - Miniaturas reales para imágenes compatibles y la primera página de PDF en las listas de archivos y limpieza; otros formatos muestran iconos por tipo y extensión.
 - Las miniaturas se decodifican fuera del hilo principal, se reducen a un tamaño pequeño y usan una caché en memoria limitada para controlar el uso de RAM.
 - Vista previa integrada para formatos compatibles, además de la opción de abrir un archivo con otra aplicación.
