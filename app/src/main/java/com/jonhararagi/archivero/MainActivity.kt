@@ -952,7 +952,7 @@ fun ArchiveroApp() {
                             contentAlignment = Alignment.Center
                         ) {
                             Image(
-                                painter = painterResource(id = R.drawable.mascota_capibara),
+                                painter = painterResource(id = R.drawable.mascota_capibara_clean),
                                 contentDescription = "Mascota capibara kawaii de Archivero",
                                 modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(25.dp)),
                                 contentScale = ContentScale.Crop,
@@ -1016,7 +1016,7 @@ fun ArchiveroApp() {
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Image(
-                                        painter = painterResource(id = R.drawable.mascota_capibara),
+                                        painter = painterResource(id = R.drawable.mascota_capibara_clean),
                                         contentDescription = "Mascota capibara original de Archivero",
                                         modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(17.dp)),
                                         contentScale = ContentScale.Crop,
@@ -1868,7 +1868,7 @@ private fun DiskCard(disk: Disk?, location: String, accent: Color = Color(0xFF80
             contentAlignment = Alignment.Center
         ) {
             Image(
-                painter = painterResource(id = R.drawable.mascota_capibara),
+                painter = painterResource(id = R.drawable.mascota_capibara_clean),
                 contentDescription = "Mascota capibara de Archivero",
                 modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(17.dp)),
                 contentScale = ContentScale.Crop,

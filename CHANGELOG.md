@@ -1,3 +1,18 @@
+## Versión 0.3.7 · mascota original con capucha lisa · 2026-10-19
+
+### Corrección de identidad visual
+- Se confirmó que `pngtuber-capibara.png` es el archivo original subido a `main`; el recurso Android anterior era una copia byte a byte. El icono de lanzamiento usaba un vector independiente, distinto de la ilustración subida.
+- Para respetar el arte original, el PNG fuente se conserva sin modificar. Una tarea reproducible de Gradle genera durante la compilación una variante de la misma imagen: mantiene rostro, lentes, cabello, ropa y pose, y suaviza únicamente la silueta superior de la capucha para quitar los dos bultos redondeados que parecían orejas.
+- Inicio, bienvenida y estados vacíos usan la variante generada. El icono adaptable usa un recorte cuadrado de la misma variante, en vez del personaje vectorial distinto.
+- La tarea crea recursos bajo `build/generated/res/mascot`; no requiere API remota ni añade dependencias de runtime. La imagen original del repositorio permanece intacta.
+- Se incrementó la versión Android a `0.3.7` / `versionCode 10` para distinguir la APK nueva de la 0.3.6.
+
+### Verificación
+- SHA/CI del código y la APK: pendiente de la ejecución de GitHub Actions tras este cambio. No declarar PASS hasta que finalicen pruebas, compilación, firma y publicación del artefacto.
+- Las pruebas físicas de apariencia y navegación en el Xiaomi siguen pendientes.
+
+---
+
 ## Pulido visual · Capibara Kawaii inspirado en la mascota · 2026-10-19
 
 ### Cambios de interfaz

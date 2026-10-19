@@ -1,4 +1,15 @@
-## Estado actual · identidad visual Capibara Kawaii · 2026-10-19
+## Estado en curso · corrección de la mascota sin bultos de capucha · 2026-10-19
+
+### Implementación enviada a main
+- Se mantiene intacta la imagen fuente `pngtuber-capibara.png` y su copia original `app/src/main/res/drawable-nodpi/mascota_capibara.png`.
+- Una tarea de Gradle reproducible genera `mascota_capibara_clean.png` desde la ilustración original, conservando el personaje y suavizando la parte alta de la capucha para eliminar los bultos redondos que parecían orejas.
+- Inicio, bienvenida y estados vacíos usan la variante generada; el icono adaptable usa un recorte cuadrado de esa misma variante y deja de usar el vector separado `anime_mascot_foreground.xml`.
+- Versión objetivo: `0.3.7` / `versionCode 10`, superior a la 0.3.6.
+- **Validación de este incremento: pendiente**. Consultar Actions del SHA nuevo. La variante generada debe inspeccionarse dentro de la APK extraída; las pruebas en el teléfono siguen pendientes.
+
+---
+
+## Historial anterior · identidad visual Capibara Kawaii · 2026-10-19
 
 ### Cambio de código verificado
 - Commit de código: `222515f276c3b96f08325bf9ebe33efe64b46ba1` ([commit](https://github.com/jonhararagi/archivero/commit/222515f276c3b96f08325bf9ebe33efe64b46ba1)).
