@@ -77,12 +77,15 @@ internal fun listDocumentChildrenBounded(
         }
 
         DocumentsContract.isTreeUri(uri) -> {
-            val documentId = try {
-                DocumentsContract.getDocumentId(uri)
+            // A tree root URI uses /tree/<id>, not /document/<id>.
+            // getDocumentId() rejects that root on standard SAF providers, while
+            // getTreeDocumentId() also works when navigating descendants from the same tree.
+            val treeDocumentId = try {
+                DocumentsContract.getTreeDocumentId(uri)
             } catch (error: IllegalArgumentException) {
-                throw IOException("Android no pudo identificar esta carpeta.", error)
+                throw IOException("Android no pudo identificar la raíz de esta carpeta.", error)
             }
-            val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(uri, documentId)
+            val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(uri, treeDocumentId)
             val projection = arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
             val cursor = context.contentResolver.query(childrenUri, projection, null, null, null)
                 ?: throw IOException("El proveedor de Android no pudo enumerar esta carpeta.")
