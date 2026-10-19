@@ -517,7 +517,7 @@ fun ArchiveroApp() {
         listingTruncated = false
         val result = withContext(Dispatchers.IO) {
             runCatching {
-                folderToList?.let { listDocumentChildrenBounded(context, it, MAX_DIRECTORY_ENTRIES) }
+                folderToList?.let { listDocumentChildrenBounded(context, it, listingLimit) }
                     ?: BoundedDocumentListing(emptyList(), false)
             }
         }
@@ -901,7 +901,7 @@ fun ArchiveroApp() {
                     NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                         NavigationBarItem(screen == Screen.HOME, { screen = Screen.HOME; choosingKind = false; query = "" }, { Icon(Icons.Default.Home, null) }, label = { Text("Inicio") })
                         NavigationBarItem(screen == Screen.TYPES, { screen = Screen.TYPES; choosingKind = true; query = "" }, { Icon(Icons.Default.Category, null) }, label = { Text("Tipos") })
-                        NavigationBarItem(screen == Screen.FOLDERS, { screen = Screen.FOLDERS; choosingKind = false; folderHistory = emptyList(); current = root; currentUri = rootUri; query = ""; refresh++ }, { Icon(Icons.Default.FolderOpen, null) }, label = { Text("Carpetas") })
+                        NavigationBarItem(screen == Screen.FOLDERS, { screen = Screen.FOLDERS; choosingKind = false; folderHistory = emptyList(); current = root; currentUri = rootUri; query = ""; listingLimit = MAX_DIRECTORY_ENTRIES; refresh++ }, { Icon(Icons.Default.FolderOpen, null) }, label = { Text("Carpetas") })
                         NavigationBarItem(screen == Screen.CLEAN, { screen = Screen.CLEAN; query = ""; cleanupSelectedUris = emptySet() }, { Icon(Icons.Default.CleaningServices, null) }, label = { Text("Limpiar") })
                     }
                 }
@@ -1097,6 +1097,7 @@ fun ArchiveroApp() {
                                         current?.let { folderHistory = folderHistory + it }
                                         current = file
                                         currentUri = file.uri
+                                        listingLimit = MAX_DIRECTORY_ENTRIES
                                         refresh++
                                     } else requestOpen(file, entries)
                                 }, { actionFile=file; deleteDialog=true })
