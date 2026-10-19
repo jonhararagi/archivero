@@ -94,4 +94,37 @@ class FileOperationsTest {
             directory.deleteRecursively()
         }
     }
+
+    @Test
+    fun traversesLargeDirectoriesInNonOverlappingPages() {
+        val directory = Files.createTempDirectory("archivero-listing-pages-test").toFile()
+        try {
+            (1..12).forEach { File(directory, "archivo-$it.txt").writeText("dato") }
+
+            val first = listFilesBounded(directory, 5, 0)
+            val second = listFilesBounded(directory, 5, first.files.size)
+            val third = listFilesBounded(directory, 5, first.files.size + second.files.size)
+            val allNames = (first.files + second.files + third.files).map { it.name }
+
+            assertTrue(first.truncated)
+            assertTrue(second.truncated)
+            assertFalse(third.truncated)
+            assertEquals(2, third.files.size)
+            assertEquals(12, allNames.toSet().size)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun rejectsNegativeDirectoryPageOffset() {
+        val directory = Files.createTempDirectory("archivero-listing-offset-test").toFile()
+        try {
+            assertThrows(IllegalArgumentException::class.java) {
+                listFilesBounded(directory, 5, -1)
+            }
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
 }
