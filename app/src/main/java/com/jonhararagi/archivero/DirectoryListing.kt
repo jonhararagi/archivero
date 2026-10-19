@@ -77,15 +77,20 @@ internal fun listDocumentChildrenBounded(
         }
 
         DocumentsContract.isTreeUri(uri) -> {
-            // A tree root URI uses /tree/<id>, not /document/<id>.
-            // getDocumentId() rejects that root on standard SAF providers, while
-            // getTreeDocumentId() also works when navigating descendants from the same tree.
-            val treeDocumentId = try {
-                DocumentsContract.getTreeDocumentId(uri)
+            // DocumentFile.fromTreeUri() exposes a document URI inside the original tree
+            // (/tree/<root>/document/<current>). Use the current document ID when listing a
+            // nested folder; getTreeDocumentId() alone always returns the original tree root.
+            val directoryDocumentId = try {
+                DocumentsContract.getDocumentId(uri)
             } catch (error: IllegalArgumentException) {
-                throw IOException("Android no pudo identificar la raíz de esta carpeta.", error)
+                // Be defensive for providers that hand us a bare /tree/<id> URI.
+                try {
+                    DocumentsContract.getTreeDocumentId(uri)
+                } catch (_: IllegalArgumentException) {
+                    throw IOException("Android no pudo identificar esta carpeta.", error)
+                }
             }
-            val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(uri, treeDocumentId)
+            val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(uri, directoryDocumentId)
             val projection = arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
             val cursor = context.contentResolver.query(childrenUri, projection, null, null, null)
                 ?: throw IOException("El proveedor de Android no pudo enumerar esta carpeta.")
@@ -102,12 +107,10 @@ internal fun listDocumentChildrenBounded(
                         truncated = true
                         break
                     }
-                    val authority = uri.authority
-                        ?: throw IOException("Android no informó el proveedor de esta carpeta.")
-                    // Treat the enumerated child as the root of its own tree URI so listFiles()
-                    // and future bounded queries enumerate that child's contents, not the old root.
-                    val childTreeUri = DocumentsContract.buildTreeDocumentUri(authority, childId)
-                    DocumentFile.fromTreeUri(context, childTreeUri)?.let(entries::add)
+                    // Keep the original tree ID/grant and only change the current document ID.
+                    // Building a new /tree/<childId> can drop the persisted grant for the picked tree.
+                    val childDocumentUri = DocumentsContract.buildDocumentUriUsingTree(uri, childId)
+                    DocumentFile.fromTreeUri(context, childDocumentUri)?.let(entries::add)
                 }
             }
         }

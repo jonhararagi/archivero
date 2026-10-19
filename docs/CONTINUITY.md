@@ -15,8 +15,8 @@ Versión Android: `versionName 0.3.2`, `versionCode 5`
 
 ## Cambios recientes en código
 
-- `DirectoryListing.kt`: la enumeración local usa `DirectoryStream`; el árbol SAF usa un cursor, `getTreeDocumentId()` y desplazamiento para enumerar correctamente la raíz `/tree/...` y cargar lotes de hasta 5.000 entradas.
-- Revisión actual añade corrección del identificador de raíz SAF; la CI debe confirmarla mediante `testDebugUnitTest` y `assembleDebug`. La prueba con el selector de carpetas de Android en un dispositivo real sigue pendiente.
+- `DirectoryListing.kt`: la enumeración local usa `DirectoryStream`; el árbol SAF usa un cursor y desplazamiento por lotes de hasta 5.000 entradas. La revisión nueva resuelve el ID del documento actual para subcarpetas y conserva el URI/permiso del árbol original al construir URI de hijos.
+- La corrección del recorrido SAF necesita CI sobre el SHA resultante y prueba funcional con el selector real de Android. No declarar validada la navegación física ni una biblioteca de 200 GB sin esa prueba.
 - `MainActivity.kt`: «Cargar siguientes 5.000» agrega el lote solicitado sin reiniciar la pantalla. La carga se cancela al cambiar de ubicación y propaga `CancellationException` para no aplicar respuestas obsoletas.
 - `FileOperationsTest.kt`: prueba páginas consecutivas, ausencia de elementos repetidos y rechazo de desplazamientos negativos.
 - `app/build.gradle.kts`: versión 0.3.2, código 5.

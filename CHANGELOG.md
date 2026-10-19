@@ -6,7 +6,7 @@
 - La lista en pantalla acumula los lotes que el usuario solicita, de modo que el consumo crece con la exploración. Algunos proveedores ajenos a las rutas file/SAF-tree solo exponen `DocumentFile.listFiles()`; su fallback todavía puede materializar el resultado entero. Se documenta como limitación, no como soporte universal de paginación.
 - El escáner recursivo mantiene por separado el límite de 100.000 elementos y profundidad 20, e informa resultados parciales. Cargar más elementos en una carpeta no convierte un análisis recursivo parcial en un inventario completo.
 - La carga inicial ya no depende de un límite acumulativo de 100.000 entradas. Si una consulta se cancela al cambiar de carpeta, la cancelación se propaga y la respuesta obsoleta no reemplaza la ubicación nueva.
-- La enumeración SAF usa `DocumentsContract.getTreeDocumentId()` en las URI raíz `/tree/...`. Usar `getDocumentId()` en esa URI puede fallar porque es la API para URI de documento individual; la raíz y los documentos descendientes necesitan el identificador del árbol al consultar sus hijos.
+- Corrección de navegación SAF: cada consulta usa el ID del documento que representa la carpeta actual, no siempre el ID de la raíz del árbol. Las URI de los hijos se construyen con `DocumentsContract.buildDocumentUriUsingTree()` para conservar la concesión persistente de la carpeta elegida al entrar en subcarpetas. La validación automática confirma compilación/pruebas unitarias, pero la navegación debe probarse también con el selector SAF real.
 
 ### Pruebas y versión
 - Se añadieron pruebas unitarias para recorrer una carpeta en páginas sin repetir ni perder entradas y para rechazar desplazamientos negativos.
