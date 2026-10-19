@@ -1,6 +1,7 @@
 import java.awt.AlphaComposite
 import java.awt.BasicStroke
 import java.awt.Color
+import java.awt.GradientPaint
 import java.awt.RadialGradientPaint
 import java.awt.RenderingHints
 import java.awt.geom.Path2D

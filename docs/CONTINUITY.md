@@ -5,7 +5,7 @@
 - Una tarea de Gradle reproducible genera `mascota_capibara_clean.png` desde la ilustración original, conservando el personaje y suavizando la parte alta de la capucha para eliminar los bultos redondos que parecían orejas.
 - Inicio, bienvenida y estados vacíos usan la variante generada; el icono adaptable usa un recorte cuadrado de esa misma variante y deja de usar el vector separado `anime_mascot_foreground.xml`.
 - Versión objetivo: `0.3.7` / `versionCode 10`, superior a la 0.3.6.
-- La primera CI de `8a9360ae4812f0326264495c2131925a693addcc` falló en la configuración del script Gradle: `java.awt.GradientPaint` no se resolvió. Se cambió a `GradientPaint`, ya importado. Esperar CI nueva antes de validar el incremento.
+- La primera CI de `8a9360ae4812f0326264495c2131925a693addcc` falló en la configuración del script Gradle: `java.awt.GradientPaint` no se resolvió. El primer cambio no añadía la importación, así que se agregó `import java.awt.GradientPaint` explícitamente. Esperar CI nueva antes de validar el incremento.
 - **Validación final: pendiente**. La variante generada debe inspeccionarse dentro de la APK extraída; las pruebas en el teléfono siguen pendientes.
 
 ---
