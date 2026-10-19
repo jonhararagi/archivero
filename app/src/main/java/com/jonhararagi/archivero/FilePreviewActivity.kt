@@ -39,6 +39,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -102,6 +103,13 @@ private fun FilePreviewScreen(uri: Uri?, name: String, mime: String, onBack: () 
     var pageIndex by remember(uri) { mutableIntStateOf(0) }
     var pageCount by remember(uri) { mutableIntStateOf(0) }
     var pageSliderValue by remember(uri) { mutableStateOf(0f) }
+
+    DisposableEffect(bitmap) {
+        val bitmapToRelease = bitmap
+        onDispose {
+            if (bitmapToRelease != null && !bitmapToRelease.isRecycled) bitmapToRelease.recycle()
+        }
+    }
 
     LaunchedEffect(uri, mode) {
         if (mode == PreviewMode.PDF) return@LaunchedEffect

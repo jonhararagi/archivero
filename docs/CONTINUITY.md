@@ -1,14 +1,14 @@
-## Estado en curso · reparación de SAF anidado · 2026-10-19
+## Estado en curso · versión 0.3.9 · chibi fiel y estabilidad de archivos · 2026-10-19
 
-- Base: `3c4ed454c0d0862e2577e886a9fa5dec918130f9`.
-- CI anterior [39334726534](https://github.com/jonhararagi/archivero/actions/runs/39334726534) falló porque la aplicación no puede extender `DocumentFile` directamente. Se retiró esa clase.
-- La nueva implementación usa `DocumentFile.fromSingleUri` con URI `tree/document` precisas y helpers de cursor para buscar/crear hijos dentro del mismo árbol SAF.
-- Se adaptaron las operaciones de copiar/mover/comprimir/extraer y el flujo de creación manual de carpetas para no usar `findFile/createFile/createDirectory` en wrappers de documento único.
-- Versión: `0.3.8` / `versionCode 11`.
-- CI de esta corrección pendiente. No crear APK de entrega hasta que pruebas, build, firma y artefacto pasen.
-- La mejora de memoria de vistas previas, cancelación del hash de duplicados y la chibi fiel siguen como próximos incrementos.
-
----
+- Base anterior verificada: `5e3cd6cfdcd0f84399938820a12b4c389e12ebf3`, CI PASS [39335630718](https://github.com/jonhararagi/archivero/actions/runs/39335630718).
+- Recursos nuevos: `mascota_chibi_fiel.webp` (320×634, transparencia) y `mascota_chibi_fiel_launcher.webp` (256×256), ambos derivados de la ilustración original. Cara, pelo, gafas y ropa se conservaron; el PNG original queda intacto.
+- Inicio, bienvenida, estados vacíos e icono usan la nueva chibi.
+- Memoria: muestreo de fondo personalizado acotado y liberación de bitmaps del visor.
+- Cancelación cooperativa del hash SHA-256, manejo seguro de errores y MIME con `Locale.ROOT`.
+- Se conserva el fix SAF de 0.3.8 para URI de hijos y operaciones de archivo en carpetas anidadas.
+- Versión destino `0.3.9` / `versionCode 12`.
+- Validación de este SHA: pendiente, ejecutar pruebas/build/firma y comprobar el artefacto.
+- Pruebas físicas pendientes en Xiaomi para SAF, imagen/PDF, vídeo, reproducción al minimizar/avanzar y volumen real (~200 GB).
 
 ## Historial anterior · identidad visual Capibara Kawaii · 2026-10-19
 

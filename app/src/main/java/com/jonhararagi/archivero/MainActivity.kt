@@ -64,6 +64,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.media3.common.MediaItem
@@ -384,14 +386,7 @@ fun ArchiveroApp() {
         context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).edit().putString("wallpaper", wallpaperUri).apply()
         val saved = wallpaperUri
         wallpaperBitmap = if (saved == null) null else withContext(Dispatchers.IO) {
-            runCatching {
-                val uri = Uri.parse(saved)
-                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                context.contentResolver.openInputStream(uri).use { stream -> BitmapFactory.decodeStream(stream, null, bounds) }
-                val largest = maxOf(bounds.outWidth, bounds.outHeight).coerceAtLeast(1)
-                val options = BitmapFactory.Options().apply { inSampleSize = (largest / 1600).coerceAtLeast(1) }
-                context.contentResolver.openInputStream(uri).use { stream -> BitmapFactory.decodeStream(stream, null, options)?.asImageBitmap() }
-            }.getOrNull()
+            runCatching { decodeWallpaperBitmap(context, Uri.parse(saved), 1600) }.getOrNull()
         }
     }
     val disk = remember(refresh) { Disk.read() }
@@ -713,38 +708,53 @@ fun ArchiveroApp() {
         duplicateScanTotal = candidates.size
         duplicateScanStatus = "Comparando el contenido completo de ${candidates.size} archivos..."
         scope.launch {
-            val result = withContext(Dispatchers.IO) {
-                val hashes = linkedMapOf<String, MutableList<DocumentFile>>()
-                var unreadable = 0
-                for (index in candidates.indices) {
-                    val file = candidates[index]
-                    val hash = runCatching { sha256Content(context, file) }.getOrNull()
-                    if (hash == null) {
-                        unreadable++
-                    } else {
-                        hashes.getOrPut("${file.length()}|$hash") { mutableListOf() }.add(file)
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    val hashes = linkedMapOf<String, MutableList<DocumentFile>>()
+                    var unreadable = 0
+                    for (index in candidates.indices) {
+                        currentCoroutineContext().ensureActive()
+                        val file = candidates[index]
+                        val hash = try {
+                            sha256Content(context, file)
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            null
+                        }
+                        if (hash == null) {
+                            unreadable++
+                        } else {
+                            hashes.getOrPut("${file.length()}|${hash}") { mutableListOf() }.add(file)
+                        }
+                        if ((index + 1) % 5 == 0 || index == candidates.lastIndex) {
+                            withContext(Dispatchers.Main) { duplicateScanProgress = index + 1 }
+                        }
                     }
-                    if ((index + 1) % 5 == 0 || index == candidates.lastIndex) {
-                        withContext(Dispatchers.Main) { duplicateScanProgress = index + 1 }
-                    }
+                    val confirmed = hashes.entries
+                        .filter { it.value.size > 1 }
+                        .map { entry ->
+                            DuplicateGroup(
+                                hash = entry.key.substringAfter('|'),
+                                files = entry.value.sortedBy { it.name.orEmpty().lowercase(Locale.ROOT) }
+                            )
+                        }
+                        .sortedByDescending { group -> group.files.firstOrNull()?.length() ?: 0L }
+                    Triple(confirmed, unreadable, candidates.size)
                 }
-                val confirmed = hashes.entries
-                    .filter { it.value.size > 1 }
-                    .map { entry ->
-                        DuplicateGroup(
-                            hash = entry.key.substringAfter('|'),
-                            files = entry.value.sortedBy { it.name.orEmpty().lowercase(Locale.ROOT) }
-                        )
-                    }
-                    .sortedByDescending { group -> group.files.firstOrNull()?.length() ?: 0L }
-                Triple(confirmed, unreadable, candidates.size)
-            }
-            duplicateGroups = result.first
-            duplicateScanRunning = false
-            cleanupSelectedUris = emptySet()
-            duplicateScanStatus = buildString {
-                append("Comparación finalizada: ${result.first.size} grupos con contenido idéntico confirmado por SHA-256. No se borró nada.")
-                if (result.second > 0) append(" ${result.second} archivo(s) no se pudieron leer y no se clasificaron como duplicados.")
+                duplicateGroups = result.first
+                cleanupSelectedUris = emptySet()
+                duplicateScanStatus = buildString {
+                    append("Comparación finalizada: ${result.first.size} grupos con contenido idéntico confirmado por SHA-256. No se borró nada.")
+                    if (result.second > 0) append(" ${result.second} archivo(s) no se pudieron leer y no se clasificaron como duplicados.")
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                duplicateGroups = emptyList()
+                duplicateScanStatus = "La comparación se interrumpió sin borrar archivos. Comprueba los permisos e inténtalo de nuevo."
+            } finally {
+                duplicateScanRunning = false
             }
         }
     }
@@ -952,7 +962,7 @@ fun ArchiveroApp() {
                             contentAlignment = Alignment.Center
                         ) {
                             Image(
-                                painter = painterResource(id = R.drawable.mascota_chibi),
+                                painter = painterResource(id = R.drawable.mascota_chibi_fiel),
                                 contentDescription = "Mascota capibara kawaii de Archivero",
                                 modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(25.dp)),
                                 contentScale = ContentScale.Crop,
@@ -1016,7 +1026,7 @@ fun ArchiveroApp() {
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Image(
-                                        painter = painterResource(id = R.drawable.mascota_chibi),
+                                        painter = painterResource(id = R.drawable.mascota_chibi_fiel),
                                         contentDescription = "Mascota capibara original de Archivero",
                                         modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(17.dp)),
                                         contentScale = ContentScale.Crop,
@@ -1868,7 +1878,7 @@ private fun DiskCard(disk: Disk?, location: String, accent: Color = Color(0xFF80
             contentAlignment = Alignment.Center
         ) {
             Image(
-                painter = painterResource(id = R.drawable.mascota_chibi),
+                painter = painterResource(id = R.drawable.mascota_chibi_fiel),
                 contentDescription = "Mascota capibara de Archivero",
                 modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(17.dp)),
                 contentScale = ContentScale.Crop,
@@ -2026,13 +2036,14 @@ private object ThumbnailCache : LruCache<String, Bitmap>(8 * 1024 * 1024) {
     }
 }
 
-private fun sha256Content(context: Context, file: DocumentFile): String {
+private suspend fun sha256Content(context: Context, file: DocumentFile): String {
     val digest = MessageDigest.getInstance("SHA-256")
     val input = context.contentResolver.openInputStream(file.uri)
         ?: throw IOException("Android no pudo leer el archivo")
     input.use { stream ->
         val buffer = ByteArray(64 * 1024)
         while (true) {
+            currentCoroutineContext().ensureActive()
             val read = stream.read(buffer)
             if (read < 0) break
             if (read > 0) digest.update(buffer, 0, read)
@@ -2040,6 +2051,7 @@ private fun sha256Content(context: Context, file: DocumentFile): String {
     }
     return digest.digest().joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
 }
+
 private fun isScreenshot(file: DocumentFile): Boolean {
     val ext = file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT)
     if (ext !in Kind.IMAGES.extensions) return false
@@ -2158,6 +2170,27 @@ private fun displayName(context: Context, uri: Uri): String {
     return fromProvider?.takeIf { it.isNotBlank() }
         ?: uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':')?.takeIf { it.isNotBlank() }
         ?: "Pista"
+}
+
+private fun decodeWallpaperBitmap(context: Context, uri: Uri, maxDimension: Int): ImageBitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    if (uri.scheme == "file") {
+        BitmapFactory.decodeFile(uri.path, bounds)
+    } else {
+        context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+    }
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+    var sample = 1
+    val largest = maxOf(bounds.outWidth, bounds.outHeight)
+    while (largest / sample > maxDimension) sample *= 2
+    val options = BitmapFactory.Options().apply { inSampleSize = sample }
+    val decoded = if (uri.scheme == "file") {
+        BitmapFactory.decodeFile(uri.path, options)
+    } else {
+        context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+    } ?: return null
+    return decoded.asImageBitmap()
 }
 
 private fun fileIcon(file: DocumentFile): ImageVector {

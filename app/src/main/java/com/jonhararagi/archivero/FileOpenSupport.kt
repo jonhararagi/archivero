@@ -1,5 +1,7 @@
 package com.jonhararagi.archivero
 
+import java.util.Locale
+
 /**
  * Chooses a MIME type that matches the container actually being opened.
  * XAPK/APKS are bundles, not a standalone Android package accepted by the
@@ -10,7 +12,7 @@ internal fun resolveFileMimeType(
     providedMime: String?,
     extensionMime: String?
 ): String {
-    val extension = fileName.substringAfterLast('.', "").lowercase()
+    val extension = fileName.substringAfterLast('.', "").lowercase(Locale.ROOT)
 
     return when (extension) {
         "apk" -> "application/vnd.android.package-archive"

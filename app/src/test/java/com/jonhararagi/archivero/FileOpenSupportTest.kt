@@ -5,6 +5,14 @@ import org.junit.Test
 
 class FileOpenSupportTest {
     @Test
+    fun uppercaseExtensionUsesSameMimeResolution() {
+        assertEquals(
+            "application/vnd.android.package-archive",
+            resolveFileMimeType("INSTALADOR.APK", "application/octet-stream", "application/zip")
+        )
+    }
+
+    @Test
     fun standaloneApkAlwaysUsesAndroidPackageMime() {
         assertEquals(
             "application/vnd.android.package-archive",

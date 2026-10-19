@@ -1,15 +1,22 @@
-## Versión 0.3.8 · corrección de carpetas SAF anidadas · 2026-10-19
+## Versión 0.3.9 · chibi fiel y robustez de archivos · 2026-10-19
 
-### Cambios de esta iteración
-- La primera implementación SAF quedó bloqueada por CI porque Android no expone públicamente el constructor de `DocumentFile`. Se eliminó la subclase inválida y se adoptó `DocumentFile.fromSingleUri` con URI calificadas por el árbol original.
-- La navegación anidada consulta hijos por cursor y ahora usa helpers SAF-aware para encontrar y crear archivos/carpetas desde copiar, mover, comprimir, extraer ZIP y crear carpetas. Se evita construir listas ilimitadas para comprobar un nombre.
-- Versión Android: `0.3.8` / `versionCode 11`.
+### Mascota
+- Se integró una transformación chibi construida a partir de los píxeles de la ilustración original: conserva su cara, gafas circulares, mechones, costuras y ropa, hace la cabeza más grande y acorta el cuerpo sin reemplazarla por otra chica dibujada.
+- Se quitaron los símbolos sueltos que venían en el margen de la imagen original. El PNG original `pngtuber-capibara.png` y su copia Android siguen intactos.
+- Inicio, bienvenida, estados vacíos e icono adaptable usan los recursos `mascota_chibi_fiel.webp` y `mascota_chibi_fiel_launcher.webp`.
+
+### Estabilidad y errores comunes
+- Carga del fondo personalizado: admite `file://` y `content://`, valida dimensiones y decodifica con muestreo de potencias de dos para limitar RAM.
+- Vistas previas de imagen/PDF: liberar bitmaps al cambiar de recurso o página.
+- Análisis de duplicados: comprobar cancelación durante lecturas SHA-256, propagar `CancellationException` y restablecer el estado si la operación falla.
+- MIME: normalización con `Locale.ROOT`, con test para extensión `.APK` en mayúsculas.
+- Se conserva el arreglo de SAF anidado de la versión 0.3.8: los hijos mantienen URI `tree/document` y las operaciones consultan/crean a través de `DocumentsContract`.
+- Versión Android: `0.3.9` / `versionCode 12`.
 
 ### Validación
-- CI anterior: **FAIL** [39334726534](https://github.com/jonhararagi/archivero/actions/runs/39334726534), debido a la subclase no válida de `DocumentFile`. Esta revisión reemplaza ese diseño.
-- CI nueva: pendiente. No declarar PASS hasta que terminen pruebas, compilación, firma y publicación del artefacto.
-- La revisión fiel del chibi y otras mejoras de memoria/vistas previas siguen pendientes; el PNG original se conserva.
-- Las pruebas físicas en Xiaomi y con aproximadamente 200 GB siguen pendientes.
+- El cambio SAF base [5e3cd6c](https://github.com/jonhararagi/archivero/commit/5e3cd6cfdcd0f84399938820a12b4c389e12ebf3) pasó unit tests, compilación, firma y publicación en [CI 39335630718](https://github.com/jonhararagi/archivero/actions/runs/39335630718).
+- La CI de este SHA todavía debe completar todas sus fases antes de declarar PASS.
+- Aún faltan pruebas físicas en Xiaomi para navegar carpetas SAF anidadas, abrir imagen/PDF grandes, minimizar/avanzar música y recorrer una biblioteca real de unos 200 GB.
 
 ---
 
