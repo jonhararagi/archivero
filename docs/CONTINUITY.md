@@ -3,14 +3,16 @@
 Última revisión: 2026-10-19  
 Repositorio: `jonhararagi/archivero`  
 Rama autorizada: `main`  
-Versión Android: `versionName 0.3.3`, `versionCode 6`
+Versión Android en `main`: `versionName 0.3.4`, `versionCode 7`
 
-## Estado verificado
+## Estado de la rama
 
-- Código `0.3.3`/`versionCode 6`, commit `c6962787184514ee611cb372cd3d96a78f516f53`: [GitHub Actions 39260226420](https://github.com/jonhararagi/archivero/actions/runs/39260226420), PASS en pruebas unitarias, `assembleDebug`, verificación de firma, SHA-256 y publicación de artefacto.
-- SHA-256 de la APK: `609b072552b41f6a7c8ec5e5958d6fcf9c31da8e3ea62c3b865b9c09928b1191`.
-- El certificado de la APK coincide con el keystore de CI: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
-- Artefacto `archivero-debug-apk`, ID `12189856826`, digest ZIP `sha256:9d9c56710523cbb77e4873b1319171447e0cd6907f16c73782959aab68a14f6d`. Es una APK de depuración, no una release comercial firmada; el enlace de Actions permite descargar el ZIP que incluye la APK y su fichero SHA-256.
+- Versión en `main`: `0.3.4` / `versionCode 7`; commit de código `6dc0d4ef2b00b1f5126599abbb496c3cf193e277`: [ver commit](https://github.com/jonhararagi/archivero/commit/6dc0d4ef2b00b1f5126599abbb496c3cf193e277).
+- Incremento de código: las vistas previas de imagen/PDF propagan `CancellationException`; los trabajos cancelados no deben cambiar el indicador de carga de una vista nueva; la lectura de texto cierra el flujo aunque falle la lectura.
+- Añadidas pruebas unitarias de desplazamiento más allá del final y de límite de página no positivo.
+- El workflow que corresponde al commit de código es [GitHub Actions 39285287357](https://github.com/jonhararagi/archivero/actions/runs/39285287357). En la última consulta, su estado era `queued` y todavía no había artefactos. No declarar PASS ni reutilizar la APK 0.3.3 hasta comprobar CI y artefacto del SHA final de `main`.
+- Último artefacto previamente verificado de `0.3.3`: [ejecución 39260712891](https://github.com/jonhararagi/archivero/actions/runs/39260712891), ID `12191750763`, APK debug del código anterior, SHA-256 `609b072552b41f6a7c8ec5e5958d6fcf9c31da8e3ea62c3b865b9c09928b1191`. No contiene las correcciones de `0.3.4`.
+- La firma de CI registrada para la APK anterior es `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`. Debe volver a comprobarse en el artefacto nuevo, no suponerse.
 
 ## Cambios recientes en código
 
@@ -18,7 +20,7 @@ Versión Android: `versionName 0.3.3`, `versionCode 6`
 - La corrección del recorrido SAF necesita CI sobre el SHA resultante y prueba funcional con el selector real de Android. No declarar validada la navegación física ni una biblioteca de 200 GB sin esa prueba.
 - `MainActivity.kt`: «Cargar siguientes 5.000» agrega el lote solicitado sin reiniciar la pantalla. La carga se cancela al cambiar de ubicación y propaga `CancellationException` para no aplicar respuestas obsoletas.
 - `FileOperationsTest.kt`: prueba páginas consecutivas, ausencia de elementos repetidos y rechazo de desplazamientos negativos.
-- `app/build.gradle.kts`: versión 0.3.3, código 6. CI de la versión pasa en el commit y ejecución registrados arriba; la prueba física con Android/SAF sigue pendiente.
+- `app/build.gradle.kts`: versión actual `0.3.4`, código 7. Esperar CI y artefacto para el SHA final de `main`; la prueba física con Android/SAF sigue pendiente.
 - Identidad visual: el recurso anime vectorial aparece en la bienvenida antes de los permisos y en Inicio; el icono Android es adaptable con fondo azul noche y primer plano de la mascota. No se generó una nueva ilustración rasterizada.
 - El reproductor de música se abre como una vista completa y vuelve a la lista con Atrás; carpetas y tipos usan vistas navegables separadas.
 
