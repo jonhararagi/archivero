@@ -177,7 +177,7 @@ fun ArchiveroApp() {
     var listedEntries by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
     var listingFailed by remember { mutableStateOf(false) }
     var listingTruncated by remember { mutableStateOf(false) }
-    var listingLimit by rememberSaveable { mutableIntStateOf(MAX_DIRECTORY_ENTRIES) }
+    var loadingMore by remember { mutableStateOf(false) }
     var hasScanned by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var scanning by remember { mutableStateOf(false) }
@@ -511,16 +511,28 @@ fun ArchiveroApp() {
         }
     }
 
-    LaunchedEffect(currentUri, refresh, listingLimit) {
+    LaunchedEffect(currentUri, refresh) {
         val folderToList = current
+        val requestedUri = currentUri
+        val requestedRefresh = refresh
         listingFailed = false
         listingTruncated = false
-        val result = withContext(Dispatchers.IO) {
-            runCatching {
-                folderToList?.let { listDocumentChildrenBounded(context, it, listingLimit) }
-                    ?: BoundedDocumentListing(emptyList(), false)
+        loadingMore = false
+        listedEntries = emptyList()
+        val result: Result<BoundedDocumentListing> = withContext(Dispatchers.IO) {
+            try {
+                Result.success(
+                    folderToList?.let {
+                        listDocumentChildrenBounded(context, it, MAX_DIRECTORY_ENTRIES)
+                    } ?: BoundedDocumentListing(emptyList(), false)
+                )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Result.failure(error)
             }
         }
+        if (currentUri != requestedUri || refresh != requestedRefresh) return@LaunchedEffect
         val listing = result.getOrNull()
         listedEntries = listing?.entries ?: emptyList()
         listingTruncated = listing?.truncated ?: false
@@ -901,7 +913,7 @@ fun ArchiveroApp() {
                     NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                         NavigationBarItem(screen == Screen.HOME, { screen = Screen.HOME; choosingKind = false; query = "" }, { Icon(Icons.Default.Home, null) }, label = { Text("Inicio") })
                         NavigationBarItem(screen == Screen.TYPES, { screen = Screen.TYPES; choosingKind = true; query = "" }, { Icon(Icons.Default.Category, null) }, label = { Text("Tipos") })
-                        NavigationBarItem(screen == Screen.FOLDERS, { screen = Screen.FOLDERS; choosingKind = false; folderHistory = emptyList(); current = root; currentUri = rootUri; query = ""; listingLimit = MAX_DIRECTORY_ENTRIES; refresh++ }, { Icon(Icons.Default.FolderOpen, null) }, label = { Text("Carpetas") })
+                        NavigationBarItem(screen == Screen.FOLDERS, { screen = Screen.FOLDERS; choosingKind = false; folderHistory = emptyList(); current = root; currentUri = rootUri; query = ""; refresh++ }, { Icon(Icons.Default.FolderOpen, null) }, label = { Text("Carpetas") })
                         NavigationBarItem(screen == Screen.CLEAN, { screen = Screen.CLEAN; query = ""; cleanupSelectedUris = emptySet() }, { Icon(Icons.Default.CleaningServices, null) }, label = { Text("Limpiar") })
                     }
                 }
@@ -1073,20 +1085,49 @@ fun ArchiveroApp() {
                         Text(entries.size.toString() + " elementos" + if (filteringFiles) " · filtrando…" else "", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(vertical = 6.dp))
                         if (listingTruncated) {
                             Text(
-                                "Carpeta extensa: se muestran ${entries.size} elementos. El resto sigue disponible; carga más cuando lo necesites.",
+                                "Se han cargado ${entries.size} elementos. Hay más en esta carpeta; puedes traer otro lote sin abrir una lista ilimitada de golpe.",
                                 color = if (isCyberpunk) activePalette.secondary else MaterialTheme.colorScheme.primary,
                                 style = MaterialTheme.typography.bodySmall
                             )
                             OutlinedButton(
                                 onClick = {
-                                    listingLimit = (listingLimit + MAX_DIRECTORY_ENTRIES).coerceAtMost(100_000)
-                                    refresh++
+                                    val folderToPage = current
+                                    val pageUri = currentUri
+                                    val pageRefresh = refresh
+                                    val offset = entries.size
+                                    if (folderToPage != null && !loadingMore) {
+                                        loadingMore = true
+                                        scope.launch {
+                                            try {
+                                                val nextPage = withContext(Dispatchers.IO) {
+                                                    listDocumentChildrenBounded(
+                                                        context, folderToPage, MAX_DIRECTORY_ENTRIES, offset
+                                                    )
+                                                }
+                                                if (currentUri == pageUri && refresh == pageRefresh &&
+                                                    current?.uri == folderToPage.uri) {
+                                                    listedEntries = (listedEntries + nextPage.entries)
+                                                        .distinctBy { it.uri.toString() }
+                                                    listingTruncated = nextPage.truncated
+                                                }
+                                            } catch (cancelled: CancellationException) {
+                                                throw cancelled
+                                            } catch (error: Exception) {
+                                                if (currentUri == pageUri && refresh == pageRefresh) {
+                                                    message = "No se pudo cargar el siguiente lote. Los archivos ya mostrados se conservan. Comprueba el permiso de la carpeta e inténtalo otra vez."
+                                                }
+                                            } finally {
+                                                if (currentUri == pageUri && refresh == pageRefresh) loadingMore = false
+                                            }
+                                        }
+                                    }
                                 },
-                                enabled = listingLimit < 100_000
+                                enabled = !loadingMore && current != null
                             ) {
-                                Icon(Icons.Default.ExpandMore, null)
+                                if (loadingMore) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                else Icon(Icons.Default.ExpandMore, null)
                                 Spacer(Modifier.width(6.dp))
-                                Text(if (listingLimit < 100_000) "Cargar ${MAX_DIRECTORY_ENTRIES} más" else "Límite de seguridad alcanzado")
+                                Text(if (loadingMore) "Cargando lote…" else "Cargar siguientes ${MAX_DIRECTORY_ENTRIES}")
                             }
                         }
                         if (listingFailed) EmptyNotice("No se pudo leer esta carpeta", "Comprueba los permisos de Android.", Icons.Default.FolderOff)
@@ -1097,7 +1138,6 @@ fun ArchiveroApp() {
                                         current?.let { folderHistory = folderHistory + it }
                                         current = file
                                         currentUri = file.uri
-                                        listingLimit = MAX_DIRECTORY_ENTRIES
                                         refresh++
                                     } else requestOpen(file, entries)
                                 }, { actionFile=file; deleteDialog=true })
