@@ -1,18 +1,13 @@
-## Estado en curso · versión 0.3.9 · chibi fiel y estabilidad de archivos · 2026-10-19
+## Estado en curso · 0.4.0 · galería fluida y limpieza inteligente · 2026-10-19
 
-- Base anterior verificada: `5e3cd6cfdcd0f84399938820a12b4c389e12ebf3`, CI PASS [39335630718](https://github.com/jonhararagi/archivero/actions/runs/39335630718).
-- Recursos nuevos: `mascota_chibi_fiel.webp` (320×634, transparencia) y `mascota_chibi_fiel_launcher.webp` (256×256), ambos derivados de la ilustración original. Cara, pelo, gafas y ropa se conservaron; el PNG original queda intacto.
-- Inicio, bienvenida, estados vacíos e icono usan la nueva chibi.
-- Memoria: muestreo de fondo personalizado acotado y liberación de bitmaps del visor.
-- Cancelación cooperativa del hash SHA-256, manejo seguro de errores y MIME con `Locale.ROOT`.
-- Se conserva el fix SAF de 0.3.8 para URI de hijos y operaciones de archivo en carpetas anidadas.
-- Versión destino `0.3.9` / `versionCode 12`.
-- CI del código exacto `8fe854e4ee2219a75fc4cb577b399a700dcdc36e`: **PASS** en [39336417301](https://github.com/jonhararagi/archivero/actions/runs/39336417301).
-- Unit tests, `assembleDebug`, verificación de firma y publicación de `archivero-debug-apk`: PASS.
-- Artefacto ID `12226344665`; APK 21.216.551 bytes, SHA-256 `68cd23ae3c7f3721e7c081c0d9b760918e8d32821cfc3a2d8d873665b8bb99c8`.
-- Certificado de APK y keystore CI coinciden: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
-- Pruebas físicas pendientes en Xiaomi para SAF, imagen/PDF, vídeo, reproducción al minimizar/avanzar y volumen real (~200 GB).
-- Esta actualización solo documenta resultados ya observados; la CI para el SHA final de `main` se ejecuta de nuevo.
+- Base verificada: `fd8dd7272406977153f9ae0143cc57d45b0605d3`, CI PASS [39336780741](https://github.com/jonhararagi/archivero/actions/runs/39336780741).
+- Versión objetivo: `0.4.0` / `versionCode 13`.
+- Imágenes: cuadrícula visual sin cantidad ni metadatos por foto; visor minimalista con zoom/pan y botones anterior/siguiente.
+- Rendimiento: caché de miniaturas de 24 MiB y miniaturas de hasta 360 px.
+- Limpiador: Capturas, Copias exactas, Fotos parecidas y Vídeos grandes. Copias exactas siguen usando SHA-256; fotos parecidas usan dHash de 64 bits y un límite de 2.500 imágenes por análisis.
+- Seguridad: la app no elimina candidatos automáticamente; requiere selección y confirmación y evita marcar todos los elementos de un grupo.
+- Capturas: sugerencia por nombre/ruta y antigüedad; la app no puede inferir si son innecesarias.
+- CI de `0.4.0` pendiente; prueba física de scroll/zoom y rendimiento en Xiaomi pendiente.
 
 ## Historial anterior · identidad visual Capibara Kawaii · 2026-10-19
 

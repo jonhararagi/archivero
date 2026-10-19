@@ -38,6 +38,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -86,13 +89,20 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 private enum class Screen { HOME, TYPES, FOLDERS, CLEAN }
-private enum class CleanupMode { SCREENSHOTS, DUPLICATES, VIDEOS }
+private enum class CleanupMode { SCREENSHOTS, DUPLICATES, SIMILAR_IMAGES, VIDEOS }
 private data class DuplicateGroup(val hash: String, val files: List<DocumentFile>)
+
+internal object ImageGallerySession {
+    var files: List<DocumentFile> = emptyList()
+    var index: Int = 0
+}
 private data class PendingOpenRequest(val file: DocumentFile, val queue: List<DocumentFile>)
+private data class CleanupGroupRow(val key: String, val files: List<DocumentFile>, val similar: Boolean)
 private data class FilteredFileLists(
     val folders: List<DocumentFile>,
     val matching: List<DocumentFile>,
     val duplicates: List<DuplicateGroup>,
+    val similar: List<SimilarImageGroup>,
     val cleanup: List<DocumentFile>
 )
 private data class ScanResult(
@@ -158,6 +168,10 @@ fun ArchiveroApp() {
     var scanProgress by remember { mutableIntStateOf(0) }
     var cleanupModeName by rememberSaveable { mutableStateOf(CleanupMode.SCREENSHOTS.name) }
     var duplicateGroups by remember { mutableStateOf<List<DuplicateGroup>>(emptyList()) }
+    var similarImageGroups by remember { mutableStateOf<List<SimilarImageGroup>>(emptyList()) }
+    var similarScanRunning by remember { mutableStateOf(false) }
+    var similarScanStatus by rememberSaveable { mutableStateOf("") }
+    var analyzeSimilarAfterScan by remember { mutableStateOf(false) }
     var duplicateScanRunning by remember { mutableStateOf(false) }
     var duplicateScanProgress by remember { mutableIntStateOf(0) }
     var duplicateScanTotal by remember { mutableIntStateOf(0) }
@@ -341,11 +355,11 @@ fun ArchiveroApp() {
     fun requestOpen(file: DocumentFile, queue: List<DocumentFile>) {
         val saved = savedOpenMethod(context, file)
         if (saved == "EXTERNAL" || (saved == "ARCHIVERO" && !canOpenNatively(context, file))) {
-            openDocument(file, context, false, { u, t, v -> startPlayback(u, t, v, queue) }, { message = it })
+            openDocument(file, context, false, { u, t, v -> startPlayback(u, t, v, queue) }, { message = it }, queue)
             return
         }
         if (saved == "ARCHIVERO" && canOpenNatively(context, file)) {
-            openDocument(file, context, true, { u, t, v -> startPlayback(u, t, v, queue) }, { message = it })
+            openDocument(file, context, true, { u, t, v -> startPlayback(u, t, v, queue) }, { message = it }, queue)
             return
         }
         pendingOpenRequest = PendingOpenRequest(file, queue)
@@ -360,7 +374,8 @@ fun ArchiveroApp() {
         openDocument(
             request.file, context, actualMethod == "ARCHIVERO",
             { u, t, v -> startPlayback(u, t, v, request.queue) },
-            { message = it }
+            { message = it },
+            request.queue
         )
     }
 
@@ -541,6 +556,7 @@ fun ArchiveroApp() {
     var folderEntries by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
     var matchingFiles by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
     var duplicateDisplayGroups by remember { mutableStateOf<List<DuplicateGroup>>(emptyList()) }
+    var similarDisplayGroups by remember { mutableStateOf<List<SimilarImageGroup>>(emptyList()) }
     var cleanupFiles by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
     var filteringFiles by remember { mutableStateOf(false) }
     var filterRequestId by remember { mutableIntStateOf(0) }
@@ -563,7 +579,7 @@ fun ArchiveroApp() {
         oldScreenshotFiles = cleanupCandidates.first
         largeVideoFiles = cleanupCandidates.second
     }
-    LaunchedEffect(entries, sourceFiles, activeKind, query, duplicateGroups, activeCleanupMode, oldScreenshotFiles, largeVideoFiles) {
+    LaunchedEffect(entries, sourceFiles, activeKind, query, duplicateGroups, similarImageGroups, activeCleanupMode, oldScreenshotFiles, largeVideoFiles) {
         filterRequestId++
         val request = filterRequestId
         filteringFiles = true
@@ -582,17 +598,23 @@ fun ArchiveroApp() {
                     val visible = group.files.filter { it.name.orEmpty().contains(normalizedQuery, ignoreCase = true) }
                     if (visible.isEmpty()) null else group.copy(files = visible)
                 }
+                val similars = similarImageGroups.mapNotNull { group ->
+                    val visible = group.files.filter { it.name.orEmpty().contains(normalizedQuery, ignoreCase = true) }
+                    if (visible.isEmpty()) null else group.copy(files = visible)
+                }
                 val cleanup = when (activeCleanupMode) {
                     CleanupMode.SCREENSHOTS -> oldScreenshotFiles
                     CleanupMode.DUPLICATES -> duplicates.flatMap { it.files }.distinctBy { it.uri.toString() }
+                    CleanupMode.SIMILAR_IMAGES -> similars.flatMap { it.files }.distinctBy { it.uri.toString() }
                     CleanupMode.VIDEOS -> largeVideoFiles
                 }.filter { it.name.orEmpty().contains(normalizedQuery, ignoreCase = true) }
-                FilteredFileLists(folders, matching, duplicates, cleanup)
+                FilteredFileLists(folders, matching, duplicates, similars, cleanup)
             }
             if (request == filterRequestId) {
                 folderEntries = result.folders
                 matchingFiles = result.matching
                 duplicateDisplayGroups = result.duplicates
+                similarDisplayGroups = result.similar
                 cleanupFiles = result.cleanup
             }
         } catch (cancelled: CancellationException) {
@@ -602,7 +624,6 @@ fun ArchiveroApp() {
         }
     }
     val selectedCleanupFiles = remember(cleanupFiles, cleanupSelectedUris) { cleanupFiles.filter { it.uri.toString() in cleanupSelectedUris } }
-    val selectedCleanupBytes = remember(selectedCleanupFiles) { selectedCleanupFiles.sumOf { it.length().coerceAtLeast(0L) } }
 
     fun scan() {
         val start = root
@@ -669,7 +690,7 @@ fun ArchiveroApp() {
                         result.visited + " elementos). Para completar, analiza una carpeta más específica." +
                         unreadableDetail + directoryLimitDetail
                 } else {
-                    "Búsqueda completa: " + result.files.size + " archivos encontrados."
+                    "Búsqueda completa."
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -745,8 +766,8 @@ fun ArchiveroApp() {
                 duplicateGroups = result.first
                 cleanupSelectedUris = emptySet()
                 duplicateScanStatus = buildString {
-                    append("Comparación finalizada: ${result.first.size} grupos con contenido idéntico confirmado por SHA-256. No se borró nada.")
-                    if (result.second > 0) append(" ${result.second} archivo(s) no se pudieron leer y no se clasificaron como duplicados.")
+                    append(if (result.first.isEmpty()) "No se encontraron copias exactas." else "Revisa las copias exactas. No se borró nada.")
+                    if (result.second > 0) append(" Algunos archivos no se pudieron leer y se omitieron.")
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -759,12 +780,65 @@ fun ArchiveroApp() {
         }
     }
 
+    fun analyzeSimilarImages() {
+        if (!hasScanned) {
+            analyzeSimilarAfterScan = true
+            similarScanStatus = "Primero se analiza la ubicación."
+            scan()
+            return
+        }
+        if (similarScanRunning) return
+        val candidates = sourceFiles
+            .filter { !it.isDirectory && isRasterImageFile(it) && it.length() > 0L }
+            .distinctBy { it.uri.toString() }
+        if (candidates.isEmpty()) {
+            similarImageGroups = emptyList()
+            similarScanStatus = "No hay imágenes compatibles para comparar."
+            return
+        }
+
+        similarScanRunning = true
+        similarScanStatus = "Comparando la apariencia de las fotos..."
+        scope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) { findSimilarImages(context, candidates) }
+                similarImageGroups = result.groups
+                cleanupSelectedUris = emptySet()
+                similarScanStatus = when {
+                    result.groups.isEmpty() && result.truncated ->
+                        "No se encontró ningún grupo en la selección analizada. Prueba una carpeta más específica."
+                    result.groups.isEmpty() ->
+                        "No se encontraron fotos parecidas en esta ubicación."
+                    result.truncated ->
+                        "Se analizó una selección limitada por seguridad. Para continuar, elige una carpeta más concreta."
+                    result.unreadable > 0 ->
+                        "Hay imágenes que Android no pudo leer; se dejaron fuera de los resultados."
+                    else ->
+                        "Revisa las fotos agrupadas. No se borró nada."
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                similarImageGroups = emptyList()
+                similarScanStatus = "La búsqueda de fotos parecidas se interrumpió. Prueba una carpeta más pequeña."
+            } finally {
+                similarScanRunning = false
+            }
+        }
+    }
+
     fun requestBulkDelete() {
         if (selectedCleanupFiles.isEmpty()) return
         if (activeCleanupMode == CleanupMode.DUPLICATES && duplicateGroups.any { group ->
                 group.files.size > 1 && group.files.all { it.uri.toString() in cleanupSelectedUris }
             }) {
             message = "Para proteger tus archivos, deja al menos una copia sin marcar en cada grupo de duplicados."
+            return
+        }
+        if (activeCleanupMode == CleanupMode.SIMILAR_IMAGES && similarImageGroups.any { group ->
+                group.files.size > 1 && group.files.all { it.uri.toString() in cleanupSelectedUris }
+            }) {
+            message = "Deja al menos una foto sin marcar en cada grupo parecido."
             return
         }
         bulkDeleteDialog = true
@@ -778,6 +852,12 @@ fun ArchiveroApp() {
                 group.files.size > 1 && group.files.all { it.uri.toString() in selected.map { file -> file.uri.toString() }.toSet() }
             }) {
             message = "No se borró nada: deja al menos una copia de cada grupo de duplicados."
+            return
+        }
+        if (activeCleanupMode == CleanupMode.SIMILAR_IMAGES && similarImageGroups.any { group ->
+                group.files.size > 1 && group.files.all { it.uri.toString() in selected.map { file -> file.uri.toString() }.toSet() }
+            }) {
+            message = "No se borró nada: deja al menos una foto sin marcar en cada grupo parecido."
             return
         }
         scope.launch {
@@ -794,6 +874,10 @@ fun ArchiveroApp() {
                     val remaining = group.files.filterNot { it.uri.toString() in deletedUris }
                     if (remaining.size > 1) group.copy(files = remaining) else null
                 }
+                similarImageGroups = similarImageGroups.mapNotNull { group ->
+                    val remaining = group.files.filterNot { it.uri.toString() in deletedUris }
+                    if (remaining.size > 1) group.copy(files = remaining) else null
+                }
                 refresh++
             }
             cleanupSelectedUris = emptySet()
@@ -806,6 +890,12 @@ fun ArchiveroApp() {
         if (analyzeDuplicatesAfterScan && hasScanned && !scanning) {
             analyzeDuplicatesAfterScan = false
             analyzeDuplicates()
+        }
+    }
+    LaunchedEffect(analyzeSimilarAfterScan, hasScanned, scanning) {
+        if (analyzeSimilarAfterScan && hasScanned && !scanning) {
+            analyzeSimilarAfterScan = false
+            analyzeSimilarImages()
         }
     }
     BackHandler {
@@ -1069,7 +1159,7 @@ fun ArchiveroApp() {
                             if (scanning) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Icon(Icons.Default.ManageSearch, null)
                             Spacer(Modifier.width(8.dp)); Text(if (scanning) "Analizando..." else "Buscar archivos en toda la ubicación")
                         }
-                        if (scanning) Text("Revisados: $scanProgress elementos", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (scanning) Text("Buscando archivos...", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (scanStatus.isNotBlank()) Text(scanStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 6.dp))
                     }
                     Screen.TYPES -> {
@@ -1110,20 +1200,28 @@ fun ArchiveroApp() {
                         } else {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
-                                    Header(activeKind.title, "Archivos de este tipo en la ubicación seleccionada")
+                                    Header(activeKind.title, if (activeKind == Kind.IMAGES) "Tu galería" else "Archivos de este tipo")
                                 }
                                 TextButton(onClick = { choosingKind = true; query = "" }) {
                                     Icon(Icons.Default.Category, null)
                                     Spacer(Modifier.width(4.dp))
-                                    Text("Cambiar tipo")
+                                    Text("Tipo")
                                 }
                             }
                             SearchBox(query) { query = it }
-                            if (scanning) Text("Buscando... $scanProgress elementos revisados", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            if (filteringFiles) Text("Filtrando archivos en segundo plano…", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            if (scanStatus.isNotBlank()) Text(scanStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
-                            Text("${matchingFiles.size} archivos encontrados", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(vertical = 6.dp))
-                            FileList(matchingFiles, { requestOpen(it, sourceFiles) }, { actionFile=it; actionMenu=true }, Modifier.weight(1f))
+                            if (scanning && activeKind != Kind.IMAGES) Text("Buscando archivos...", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (filteringFiles && activeKind != Kind.IMAGES) Text("Actualizando...", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (scanStatus.startsWith("Resultados parciales")) Text("Algunos archivos necesitan otro análisis desde una carpeta más específica.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
+                            if (activeKind == Kind.IMAGES) {
+                                ImageGalleryGrid(
+                                    files = matchingFiles,
+                                    onOpen = { requestOpen(it, sourceFiles) },
+                                    onMore = { actionFile = it; actionMenu = true },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            } else {
+                                FileList(matchingFiles, { requestOpen(it, sourceFiles) }, { actionFile=it; actionMenu=true }, Modifier.weight(1f))
+                            }
                             if (!hasScanned || scanStatus.startsWith("Resultados parciales")) {
                                 TextButton(onClick = { scan() }, enabled = !scanning) {
                                     Text(if (scanning) "Analizando..." else "Volver a analizar ubicación")
@@ -1151,8 +1249,7 @@ fun ArchiveroApp() {
                             }) { Icon(Icons.Default.ArrowBack, null); Text("Volver") }
                         }
                         SearchBox(query) { query = it }
-                        Text(entries.size.toString() + " elementos" + if (filteringFiles) " · filtrando…" else "", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(vertical = 6.dp))
-                        if (listingTruncated) {
+                                                if (listingTruncated) {
                             Text(
                                 "Se han cargado ${entries.size} elementos. Hay más en esta carpeta; puedes traer otro lote sin abrir una lista ilimitada de golpe.",
                                 color = if (isCyberpunk) activePalette.secondary else MaterialTheme.colorScheme.primary,
@@ -1214,9 +1311,7 @@ fun ArchiveroApp() {
                         }
                     }
                     Screen.CLEAN -> {
-                        Header("Galería de limpieza inteligente", "Revisa cada archivo antes de borrarlo")
-                        Spacer(Modifier.height(10.dp))
-                        DiskCard(disk, root?.name ?: "Ubicación elegida", activePalette.primary) { pickFolder.launch(null) }
+                        Header("Limpiar archivos", "Revisa las sugerencias antes de eliminar")
                         Spacer(Modifier.height(8.dp))
                         OutlinedButton(onClick = { scan() }, modifier = Modifier.fillMaxWidth(), enabled = !scanning) {
                             if (scanning) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Icon(Icons.Default.ManageSearch, null)
@@ -1238,86 +1333,108 @@ fun ArchiveroApp() {
                             FilterChip(
                                 selected = activeCleanupMode == CleanupMode.DUPLICATES,
                                 onClick = { cleanupModeName = CleanupMode.DUPLICATES.name; cleanupSelectedUris = emptySet() },
-                                label = { Text("Duplicados") },
+                                label = { Text("Copias exactas") },
                                 modifier = Modifier.weight(1f)
                             )
                         }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            FilterChip(
+                                selected = activeCleanupMode == CleanupMode.SIMILAR_IMAGES,
+                                onClick = { cleanupModeName = CleanupMode.SIMILAR_IMAGES.name; cleanupSelectedUris = emptySet() },
+                                label = { Text("Fotos parecidas") },
+                                modifier = Modifier.weight(1f)
+                            )
                             FilterChip(
                                 selected = activeCleanupMode == CleanupMode.VIDEOS,
                                 onClick = { cleanupModeName = CleanupMode.VIDEOS.name; cleanupSelectedUris = emptySet() },
                                 label = { Text("Vídeos grandes") },
                                 modifier = Modifier.weight(1f)
                             )
-                            if (activeCleanupMode == CleanupMode.DUPLICATES) {
-                                OutlinedButton(
-                                    onClick = { analyzeDuplicates() },
-                                    enabled = !duplicateScanRunning && hasScanned,
-                                    modifier = Modifier.weight(1.3f)
-                                ) {
-                                    if (duplicateScanRunning) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                                    else Icon(Icons.Default.Fingerprint, null)
-                                    Spacer(Modifier.width(5.dp))
-                                    Text(if (duplicateScanRunning) "Comparando..." else "Comparar contenido")
-                                }
-                            } else {
-                                Text(
-                                    if (activeCleanupMode == CleanupMode.SCREENSHOTS) "Más de 90 días" else "Desde 100 MB",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.weight(1.3f).align(Alignment.CenterVertically)
-                                )
+                        }
+                        if (activeCleanupMode == CleanupMode.DUPLICATES || activeCleanupMode == CleanupMode.SIMILAR_IMAGES) {
+                            OutlinedButton(
+                                onClick = { if (activeCleanupMode == CleanupMode.DUPLICATES) analyzeDuplicates() else analyzeSimilarImages() },
+                                enabled = if (activeCleanupMode == CleanupMode.DUPLICATES) !duplicateScanRunning && hasScanned else !similarScanRunning && hasScanned,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                if (duplicateScanRunning || similarScanRunning) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                                else Icon(if (activeCleanupMode == CleanupMode.DUPLICATES) Icons.Default.Fingerprint else Icons.Default.FilterCenterFocus, null)
+                                Spacer(Modifier.width(6.dp))
+                                Text(when {
+                                    duplicateScanRunning -> "Comparando copias..."
+                                    similarScanRunning -> "Buscando fotos parecidas..."
+                                    activeCleanupMode == CleanupMode.DUPLICATES -> "Buscar copias exactas"
+                                    else -> "Buscar fotos parecidas"
+                                })
                             }
                         }
                         Text(
                             when (activeCleanupMode) {
-                                CleanupMode.SCREENSHOTS -> "Capturas de pantalla con más de 90 días. Si Android no informa la fecha, se dejan fuera."
-                                CleanupMode.DUPLICATES -> "Solo se agrupan copias con el mismo tamaño y SHA-256 del contenido completo. El nombre no decide si son duplicados."
-                                CleanupMode.VIDEOS -> "Vídeos de 100 MB o más, ordenados del más grande al más pequeño."
+                                CleanupMode.SCREENSHOTS -> "Capturas antiguas sugeridas para revisión. Archivero no puede saber si aún las necesitas."
+                                CleanupMode.DUPLICATES -> "Compara el contenido real de los archivos, no solo su nombre."
+                                CleanupMode.SIMILAR_IMAGES -> "Busca fotos visualmente parecidas aunque tengan otra compresión. Revisa antes de borrar."
+                                CleanupMode.VIDEOS -> "Videos grandes que puedes revisar antes de liberar espacio."
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         SearchBox(query) { query = it }
-                        if (scanning) Text("Explorando: $scanProgress elementos", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (activeCleanupMode == CleanupMode.DUPLICATES && duplicateScanRunning) {
-                            LinearProgressIndicator(
-                                progress = { if (duplicateScanTotal == 0) 0f else duplicateScanProgress.toFloat() / duplicateScanTotal.coerceAtLeast(1) },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Text("Leyendo contenido: $duplicateScanProgress / $duplicateScanTotal archivos comparados", style = MaterialTheme.typography.labelSmall)
+                        if (scanning) LinearProgressIndicator(Modifier.fillMaxWidth())
+                        if (activeCleanupMode == CleanupMode.DUPLICATES && duplicateScanRunning) LinearProgressIndicator(Modifier.fillMaxWidth())
+                        if (activeCleanupMode == CleanupMode.SIMILAR_IMAGES && similarScanRunning) {
+                            LinearProgressIndicator(Modifier.fillMaxWidth())
+                            Text("Analizando miniaturas; no se borrará nada durante la búsqueda.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        if (scanStatus.isNotBlank()) Text(scanStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (scanStatus.startsWith("Resultados parciales") || scanStatus.startsWith("La búsqueda se interrumpió")) {
+                            Text("El análisis fue parcial. Puedes revisar una carpeta más específica.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                         if (activeCleanupMode == CleanupMode.DUPLICATES && duplicateScanStatus.isNotBlank()) {
                             Text(duplicateScanStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        if (cleanupFiles.isEmpty() && activeCleanupMode != CleanupMode.DUPLICATES) {
+                        if (activeCleanupMode == CleanupMode.SIMILAR_IMAGES && similarScanStatus.isNotBlank()) {
+                            Text(similarScanStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if (cleanupFiles.isEmpty() && activeCleanupMode != CleanupMode.DUPLICATES && activeCleanupMode != CleanupMode.SIMILAR_IMAGES) {
                             EmptyNotice(
-                                if (activeCleanupMode == CleanupMode.SCREENSHOTS) "No encontramos capturas antiguas" else "No encontramos vídeos grandes",
-                                "Prueba otra ubicación o vuelve a analizar los archivos.",
+                                when (activeCleanupMode) {
+                                    CleanupMode.SCREENSHOTS -> "No hay capturas antiguas para revisar"
+                                    CleanupMode.VIDEOS -> "No hay videos grandes para revisar"
+                                    else -> "No hay sugerencias"
+                                },
+                                "Prueba otra ubicación o analiza una carpeta más específica.",
                                 if (activeCleanupMode == CleanupMode.SCREENSHOTS) Icons.Default.ImageSearch else Icons.Default.Movie
                             )
                         }
                         if (activeCleanupMode == CleanupMode.DUPLICATES && duplicateDisplayGroups.isEmpty() && !duplicateScanRunning) {
                             EmptyNotice(
-                                if (duplicateScanStatus.isBlank()) "Compara los archivos para empezar" else "No hay duplicados confirmados",
-                                "Se comprueba el contenido completo. No se borra nada durante el análisis.",
+                                if (duplicateScanStatus.isBlank()) "Busca copias exactas" else "No hay copias exactas confirmadas",
+                                "Nada se elimina durante la búsqueda.",
                                 Icons.Default.Fingerprint
                             )
                         }
+                        if (activeCleanupMode == CleanupMode.SIMILAR_IMAGES && similarDisplayGroups.isEmpty() && !similarScanRunning) {
+                            EmptyNotice(
+                                if (similarScanStatus.isBlank()) "Busca fotos parecidas" else "No se encontraron fotos parecidas",
+                                "Las sugerencias se revisan antes de eliminar.",
+                                Icons.Default.FilterCenterFocus
+                            )
+                        }
                         LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                            if (activeCleanupMode == CleanupMode.DUPLICATES) {
-                                items(duplicateDisplayGroups, key = { it.hash }) { group ->
+                            if (activeCleanupMode == CleanupMode.DUPLICATES || activeCleanupMode == CleanupMode.SIMILAR_IMAGES) {
+                                val groups = if (activeCleanupMode == CleanupMode.DUPLICATES) {
+                                    duplicateDisplayGroups.map { CleanupGroupRow(it.hash, it.files, false) }
+                                } else {
+                                    similarDisplayGroups.map { CleanupGroupRow(it.hash.toString(), it.files, true) }
+                                }
+                                items(groups, key = { it.key }) { group ->
                                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), shape = RoundedCornerShape(16.dp)) {
-                                        Column(Modifier.fillMaxWidth().padding(10.dp)) {
-                                            Text("${group.files.size} copias con contenido idéntico", fontWeight = FontWeight.Bold)
-                                            Text("SHA-256: ${group.hash.take(20)}… · ${formatBytes(group.files.firstOrNull()?.length() ?: 0L)} cada una",
-                                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Column(Modifier.fillMaxWidth().padding(8.dp)) {
+                                            Text(if (group.similar) "Fotos parecidas" else "Copias idénticas", fontWeight = FontWeight.Bold)
                                             group.files.forEach { file ->
                                                 CleanupCandidateRow(
                                                     file = file,
                                                     checked = file.uri.toString() in cleanupSelectedUris,
-                                                    subtitle = "${formatBytes(file.length())} · ${cleanupLocation(file)}",
+                                                    subtitle = "",
                                                     onChecked = { checked ->
                                                         cleanupSelectedUris = if (checked) cleanupSelectedUris + file.uri.toString()
                                                         else cleanupSelectedUris - file.uri.toString()
@@ -1330,15 +1447,10 @@ fun ArchiveroApp() {
                                 }
                             } else {
                                 items(cleanupFiles, key = { it.uri.toString() }) { file ->
-                                    val subtitle = when (activeCleanupMode) {
-                                        CleanupMode.SCREENSHOTS -> "Captura · ${formatDate(file.lastModified())} · ${formatBytes(file.length())} · ${cleanupLocation(file)}"
-                                        CleanupMode.VIDEOS -> "Vídeo pesado · ${formatBytes(file.length())} · ${cleanupLocation(file)}"
-                                        else -> formatBytes(file.length())
-                                    }
                                     CleanupCandidateRow(
                                         file = file,
                                         checked = file.uri.toString() in cleanupSelectedUris,
-                                        subtitle = subtitle,
+                                        subtitle = "",
                                         onChecked = { checked ->
                                             cleanupSelectedUris = if (checked) cleanupSelectedUris + file.uri.toString()
                                             else cleanupSelectedUris - file.uri.toString()
@@ -1356,7 +1468,7 @@ fun ArchiveroApp() {
                             ) {
                                 Icon(Icons.Default.DeleteSweep, null)
                                 Spacer(Modifier.width(8.dp))
-                                Text("Revisar borrado · ${selectedCleanupFiles.size} archivo(s) · ${formatBytes(selectedCleanupBytes)}")
+                                Text("Revisar eliminación")
                             }
                         }
                     }
@@ -1547,9 +1659,9 @@ fun ArchiveroApp() {
 
     if (bulkDeleteDialog) AlertDialog(
         onDismissRequest = { bulkDeleteDialog = false },
-        title = { Text("Revisar limpieza") },
+        title = { Text("Confirmar eliminación") },
         text = {
-            Text("Vas a eliminar ${selectedCleanupFiles.size} archivo(s) seleccionados (${formatBytes(selectedCleanupBytes)}). Se revisarán los elementos marcados; esta acción puede ser permanente. Archivero nunca borra candidatos automáticamente.")
+            Text("Se eliminarán los archivos que marcaste. Esta acción puede ser permanente. Archivero nunca borra candidatos automáticamente; revisa las marcas antes de continuar.")
         },
         confirmButton = {
             TextButton(onClick = { confirmBulkDelete() }) { Text("Confirmar eliminación", color = MaterialTheme.colorScheme.error) }
@@ -1858,7 +1970,7 @@ private fun DiskCard(disk: Disk?, location: String, accent: Color = Color(0xFF80
             Spacer(Modifier.width(11.dp))
             Column(Modifier.weight(1f)) {
                 Text(file.name ?: "Sin nombre", fontWeight = FontWeight.SemiBold, maxLines = 1)
-                Text(if (folder) "Carpeta" else fileMetadataLabel(file), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                if (folder) Text("Carpeta", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
             IconButton(onClick = onMore) { Icon(Icons.Default.MoreVert, "Más acciones") }
         }
@@ -1868,6 +1980,65 @@ private fun DiskCard(disk: Disk?, location: String, accent: Color = Color(0xFF80
     if (files.isEmpty()) EmptyNotice("No encontramos archivos", "Prueba otra categoría o analiza la ubicación seleccionada.", Icons.Default.SearchOff)
     else LazyColumn(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) { items(files, key = { it.uri.toString() }) { file -> DocumentRow(file, { onOpen(file) }, { onMore(file) }) } }
 }
+@Composable
+private fun ImageGalleryGrid(
+    files: List<DocumentFile>,
+    onOpen: (DocumentFile) -> Unit,
+    onMore: (DocumentFile) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (files.isEmpty()) {
+        EmptyNotice("La galería está vacía", "Elige otra ubicación o analiza tus archivos.", Icons.Default.ImageSearch)
+    } else {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(104.dp),
+            modifier = modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(bottom = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            gridItems(files, key = { it.uri.toString() }) { file ->
+                Card(
+                    onClick = { onOpen(file) },
+                    modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF211F22))
+                ) {
+                    Box(Modifier.fillMaxSize()) {
+                        GalleryThumbnail(file, Modifier.fillMaxSize())
+                        IconButton(
+                            onClick = { onMore(file) },
+                            modifier = Modifier.align(Alignment.TopEnd).padding(2.dp)
+                                .size(34.dp).background(Color.Black.copy(alpha = 0.48f), CircleShape)
+                        ) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Acciones", tint = Color.White)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GalleryThumbnail(file: DocumentFile, modifier: Modifier = Modifier) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val key = remember(file.uri.toString(), file.name, file.lastModified(), file.length()) {
+        file.uri.toString() + "|" + file.length() + "|" + file.lastModified()
+    }
+    var bitmap by remember(key) { mutableStateOf(ThumbnailCache.getCached(key)) }
+    LaunchedEffect(key) {
+        bitmap = withContext(Dispatchers.IO) { ThumbnailCache.load(context, file, key) }
+    }
+    Box(modifier.background(Color(0xFF292528)), contentAlignment = Alignment.Center) {
+        if (bitmap != null && !bitmap!!.isRecycled) {
+            Image(bitmap = bitmap!!.asImageBitmap(), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        } else {
+            Icon(Icons.Default.Image, contentDescription = null, tint = Color.White.copy(alpha = 0.75f), modifier = Modifier.size(32.dp))
+        }
+    }
+}
+
 @Composable private fun EmptyNotice(title: String, subtitle: String, icon: ImageVector) {
     Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
@@ -1908,16 +2079,10 @@ private fun DiskCard(disk: Disk?, location: String, accent: Color = Color(0xFF80
         Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f).clickable(onClick = onOpen)) {
             Text(file.name ?: "Sin nombre", fontWeight = FontWeight.SemiBold, maxLines = 2)
-            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+            if (subtitle.isNotBlank()) Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
         }
         IconButton(onClick = onOpen) { Icon(Icons.Default.Visibility, "Revisar archivo") }
     }
-}
-private fun fileMetadataLabel(file: DocumentFile): String {
-    if (file.isDirectory) return "Carpeta"
-    val extension = file.name.orEmpty().substringAfterLast('.', "").uppercase(Locale.ROOT)
-    val size = formatBytes(file.length())
-    return if (extension.isBlank()) size else "$extension · $size"
 }
 
 @Composable
@@ -1955,14 +2120,13 @@ private fun FileThumbnail(file: DocumentFile, size: Int) {
                     modifier = Modifier.size((size * 0.48f).dp)
                 )
                 if (!folder && extension.isNotBlank()) {
-                    Text(extension, style = MaterialTheme.typography.labelSmall, maxLines = 1)
                 }
             }
         }
     }
 }
 
-private object ThumbnailCache : LruCache<String, Bitmap>(8 * 1024 * 1024) {
+private object ThumbnailCache : LruCache<String, Bitmap>(24 * 1024 * 1024) {
     override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount.coerceAtLeast(1)
 
     fun getCached(key: String): Bitmap? = get(key)
@@ -1992,7 +2156,7 @@ private object ThumbnailCache : LruCache<String, Bitmap>(8 * 1024 * 1024) {
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
         var sample = 1
         val largest = maxOf(bounds.outWidth, bounds.outHeight)
-        while (largest / sample > 192) sample *= 2
+        while (largest / sample > 360) sample *= 2
         val options = BitmapFactory.Options().apply { inSampleSize = sample }
         val decoded = if (uri.scheme == "file") {
             BitmapFactory.decodeFile(uri.path, options)
@@ -2001,8 +2165,8 @@ private object ThumbnailCache : LruCache<String, Bitmap>(8 * 1024 * 1024) {
         } ?: return null
 
         val maxDimension = maxOf(decoded.width, decoded.height)
-        if (maxDimension <= 192) return decoded
-        val ratio = 192f / maxDimension
+        if (maxDimension <= 360) return decoded
+        val ratio = 360f / maxDimension
         val scaled = Bitmap.createScaledBitmap(
             decoded,
             (decoded.width * ratio).toInt().coerceAtLeast(1),
@@ -2056,7 +2220,10 @@ private fun isScreenshot(file: DocumentFile): Boolean {
     val ext = file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT)
     if (ext !in Kind.IMAGES.extensions) return false
     val metadata = "${file.name.orEmpty()} ${file.uri}".lowercase(Locale.ROOT)
-    return listOf("screenshot", "screen_shot", "screen-shot", "screen capture", "captura", "screenshots").any { it in metadata }
+    return listOf(
+        "screenshot", "screen_shot", "screen-shot", "screen capture",
+        "captura", "screenshots", "captura_de_pantalla", "captura-de-pantalla"
+    ).any { it in metadata }
 }
 private fun isOldScreenshot(file: DocumentFile): Boolean {
     val modified = file.lastModified()
@@ -2098,7 +2265,7 @@ private fun canOpenNatively(context: Context, file: DocumentFile): Boolean {
         extension in Kind.VIDEOS.extensions ||
         mime.startsWith("audio/") || mime.startsWith("video/")
 }
-private fun openDocument(file: DocumentFile, context: Context, useNative: Boolean, onMedia: (Uri, String, Boolean) -> Unit, onError: (String) -> Unit) {
+private fun openDocument(file: DocumentFile, context: Context, useNative: Boolean, onMedia: (Uri, String, Boolean) -> Unit, onError: (String) -> Unit, galleryFiles: List<DocumentFile> = emptyList()) {
     val name = file.name ?: "archivo sin nombre"
     val extension = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
     val extensionMime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension).orEmpty()
@@ -2123,6 +2290,14 @@ private fun openDocument(file: DocumentFile, context: Context, useNative: Boolea
                 .putExtra("displayName", name)
                 .putExtra("mimeType", mime)
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            if (isRasterImageFile(file)) {
+                val gallery = galleryFiles.filter { isRasterImageFile(it) }
+                    .distinctBy { it.uri.toString() }
+                    .sortedBy { it.name.orEmpty().lowercase(Locale.ROOT) }
+                ImageGallerySession.files = if (gallery.isEmpty()) listOf(file) else gallery
+                ImageGallerySession.index = ImageGallerySession.files.indexOfFirst { it.uri == file.uri }.coerceAtLeast(0)
+                intent.putExtra("imageGallery", true)
+            }
             context.startActivity(intent)
         }.onFailure {
             onError("No se pudo abrir la vista previa de «" + name + "». Comprueba los permisos del archivo e inténtalo otra vez.")

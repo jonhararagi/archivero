@@ -1,28 +1,20 @@
-## Versión 0.3.9 · chibi fiel y robustez de archivos · 2026-10-19
+## Versión 0.4.0 · galería visual y limpieza inteligente · 2026-10-19
 
-### Mascota
-- Se integró una transformación chibi construida a partir de los píxeles de la ilustración original: conserva su cara, gafas circulares, mechones, costuras y ropa, hace la cabeza más grande y acorta el cuerpo sin reemplazarla por otra chica dibujada.
-- Se quitaron los símbolos sueltos que venían en el margen de la imagen original. El PNG original `pngtuber-capibara.png` y su copia Android siguen intactos.
-- Inicio, bienvenida, estados vacíos e icono adaptable usan los recursos `mascota_chibi_fiel.webp` y `mascota_chibi_fiel_launcher.webp`.
+### Navegación visual
+- La sección Imágenes usa una cuadrícula de miniaturas, sin conteos de archivos, extensiones, tamaños ni ubicación bajo cada foto.
+- El visor de fotos reduce la interfaz a cerrar y abrir con otra aplicación. Añade zoom y arrastre táctil, navegación anterior/siguiente y fondo negro para dar más espacio a la imagen.
+- La caché de miniaturas aumenta a 24 MiB y las miniaturas suben de 192 a 360 píxeles para hacer el desplazamiento más fluido sin decodificar cada foto a resolución completa.
 
-### Estabilidad y errores comunes
-- Carga del fondo personalizado: admite `file://` y `content://`, valida dimensiones y decodifica con muestreo de potencias de dos para limitar RAM.
-- Vistas previas de imagen/PDF: liberar bitmaps al cambiar de recurso o página.
-- Análisis de duplicados: comprobar cancelación durante lecturas SHA-256, propagar `CancellationException` y restablecer el estado si la operación falla.
-- MIME: normalización con `Locale.ROOT`, con test para extensión `.APK` en mayúsculas.
-- Se conserva el arreglo de SAF anidado de la versión 0.3.8: los hijos mantienen URI `tree/document` y las operaciones consultan/crean a través de `DocumentsContract`.
-- Versión Android: `0.3.9` / `versionCode 12`.
+### Limpieza
+- El limpiador ofrece Capturas antiguas, Copias exactas, Fotos parecidas y Vídeos grandes.
+- La búsqueda de similitud usa diferencia de luminancia (dHash) sobre miniaturas pequeñas, con un máximo de 2.500 imágenes por análisis para mantener el trabajo acotado en móviles. Si hay más candidatos, la interfaz indica que el análisis fue limitado.
+- Las listas de limpieza priorizan miniatura y nombre; ocultan hashes, rutas, fechas, tamaños y cantidades de elementos.
+- Las capturas antiguas se sugieren para revisión. Archivero no puede saber si son inútiles y no las elimina automáticamente.
+- Se exige selección y confirmación manual para borrar; el limpiador bloquea la selección de todos los miembros de un mismo grupo para evitar borrar todas las copias/fotos agrupadas.
 
-### Validación automatizada PASS
-- Commit de código: [8fe854e4](https://github.com/jonhararagi/archivero/commit/8fe854e4ee2219a75fc4cb577b399a700dcdc36e).
-- CI del commit exacto: **PASS** [39336417301](https://github.com/jonhararagi/archivero/actions/runs/39336417301).
-- `testDebugUnitTest`, `assembleDebug`, comprobación del firmante y subida del artefacto: PASS.
-- Artefacto `archivero-debug-apk`, ID `12226344665`, tamaño ZIP 20.355.903 bytes; SHA-256 ZIP `2ac88aed6bc9e37f209846665b68c992962a35c60e56219659a74e22fade1ed8`.
-- APK debug: 21.216.551 bytes; SHA-256 `68cd23ae3c7f3721e7c081c0d9b760918e8d32821cfc3a2d8d873665b8bb99c8`.
-- SHA-256 del certificado de APK y del keystore de CI coincidentes: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
-- Se confirmó en la APK la presencia de `mascota_chibi_fiel.webp` y `mascota_chibi_fiel_launcher.webp`.
-- APK debug, no release. Aún faltan pruebas físicas en Xiaomi para navegación SAF anidada, imagen/PDF grandes, vídeo, música minimizada y biblioteca real de unos 200 GB.
-- Este registro documental no cambia el código Android; la CI del `main` resultante se vuelve a ejecutar para verificar la referencia final.
+### Validación
+- CI de la versión `0.4.0`: pendiente. No declarar PASS hasta completar tests, compilación Android, firma y publicación del artefacto.
+- Pruebas físicas pendientes en Xiaomi: desplazamiento por galería grande, zoom, navegación entre fotos, limpieza segura y tiempos de análisis.
 
 ---
 

@@ -12,6 +12,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,6 +30,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -43,12 +47,16 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -73,9 +81,24 @@ class FilePreviewActivity : ComponentActivity() {
         val uri = intent.data
         val name = intent.getStringExtra("displayName") ?: uri?.lastPathSegment ?: "Archivo"
         val mime = intent.getStringExtra("mimeType").orEmpty()
+        val gallery = if (intent.getBooleanExtra("imageGallery", false)) ImageGallerySession.files else emptyList()
+        val initialIndex = ImageGallerySession.index.coerceIn(0, (gallery.size - 1).coerceAtLeast(0))
         setContent {
             MaterialTheme {
-                FilePreviewScreen(uri = uri, name = name, mime = mime, onBack = { finish() })
+                var galleryIndex by rememberSaveable { mutableIntStateOf(initialIndex) }
+                val galleryFile = gallery.getOrNull(galleryIndex)
+                FilePreviewScreen(
+                    uri = galleryFile?.uri ?: uri,
+                    name = galleryFile?.name ?: name,
+                    mime = if (galleryFile != null) "image/*" else mime,
+                    imageGallery = gallery,
+                    galleryIndex = galleryIndex,
+                    onGalleryIndexChange = { next ->
+                        galleryIndex = next.coerceIn(0, (gallery.size - 1).coerceAtLeast(0))
+                        ImageGallerySession.index = galleryIndex
+                    },
+                    onBack = { finish() }
+                )
             }
         }
     }
@@ -85,7 +108,7 @@ private enum class PreviewMode { IMAGE, PDF, TEXT, LEGACY, UNSUPPORTED }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @androidx.compose.runtime.Composable
-private fun FilePreviewScreen(uri: Uri?, name: String, mime: String, onBack: () -> Unit) {
+private fun FilePreviewScreen(uri: Uri?, name: String, mime: String, imageGallery: List<DocumentFile> = emptyList(), galleryIndex: Int = 0, onGalleryIndexChange: (Int) -> Unit = {}, onBack: () -> Unit) {
     val context = LocalContext.current
     val extension = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
     val mode = when {
@@ -103,6 +126,13 @@ private fun FilePreviewScreen(uri: Uri?, name: String, mime: String, onBack: () 
     var pageIndex by remember(uri) { mutableIntStateOf(0) }
     var pageCount by remember(uri) { mutableIntStateOf(0) }
     var pageSliderValue by remember(uri) { mutableStateOf(0f) }
+    var imageScale by remember(uri) { mutableFloatStateOf(1f) }
+    var imageOffset by remember(uri) { mutableStateOf(Offset.Zero) }
+    val imageTransform = rememberTransformableState { zoomChange, panChange, _ ->
+        val nextScale = (imageScale * zoomChange).coerceIn(1f, 5f)
+        imageScale = nextScale
+        imageOffset = if (nextScale <= 1.01f) Offset.Zero else imageOffset + panChange
+    }
 
     DisposableEffect(bitmap) {
         val bitmapToRelease = bitmap
@@ -191,25 +221,43 @@ private fun FilePreviewScreen(uri: Uri?, name: String, mime: String, onBack: () 
     }
 
     Scaffold(
+        containerColor = if (mode == PreviewMode.IMAGE) androidx.compose.ui.graphics.Color.Black else MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                title = { Text(name, maxLines = 1) },
-                navigationIcon = {
+            if (mode == PreviewMode.IMAGE) {
+                Row(
+                    Modifier.fillMaxWidth().height(48.dp).background(androidx.compose.ui.graphics.Color.Black),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Volver a Archivero")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Volver a la galería", tint = androidx.compose.ui.graphics.Color.White)
                     }
-                },
-                actions = {
-                    TextButton(onClick = { openExternally() }) {
-                        Icon(Icons.Default.OpenInNew, contentDescription = null)
-                        Text(" Abrir con")
+                    Spacer(Modifier.weight(1f))
+                    IconButton(onClick = { openExternally() }) {
+                        Icon(Icons.Default.OpenInNew, contentDescription = "Abrir con otra aplicación", tint = androidx.compose.ui.graphics.Color.White)
                     }
                 }
-            )
+            } else {
+                TopAppBar(
+                    title = { Text(name, maxLines = 1) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Volver a Archivero")
+                        }
+                    },
+                    actions = {
+                        TextButton(onClick = { openExternally() }) {
+                            Icon(Icons.Default.OpenInNew, contentDescription = null)
+                            Text(" Abrir con")
+                        }
+                    }
+                )
+            }
         }
     ) { contentPadding ->
         Column(
-            Modifier.fillMaxSize().padding(contentPadding).padding(horizontal = 12.dp, vertical = 8.dp),
+            Modifier.fillMaxSize().padding(contentPadding).then(
+                if (mode == PreviewMode.IMAGE) Modifier else Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+            ),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             if (loading) {
@@ -217,12 +265,44 @@ private fun FilePreviewScreen(uri: Uri?, name: String, mime: String, onBack: () 
                     CircularProgressIndicator()
                 }
             } else if (mode == PreviewMode.IMAGE && bitmap != null) {
-                Image(
-                    bitmap = bitmap!!.asImageBitmap(),
-                    contentDescription = name,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.weight(1f).fillMaxWidth().background(androidx.compose.ui.graphics.Color(0xFF17191D))
-                )
+                Box(
+                    Modifier.weight(1f).fillMaxWidth().background(androidx.compose.ui.graphics.Color.Black),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        bitmap = bitmap!!.asImageBitmap(),
+                        contentDescription = name,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize()
+                            .transformable(state = imageTransform)
+                            .graphicsLayer {
+                                scaleX = imageScale
+                                scaleY = imageScale
+                                translationX = imageOffset.x
+                                translationY = imageOffset.y
+                            }
+                    )
+                    if (imageGallery.size > 1) {
+                        Row(
+                            Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp)
+                                .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f), RoundedCornerShape(28.dp)),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = { onGalleryIndexChange((galleryIndex - 1).coerceAtLeast(0)) },
+                                enabled = galleryIndex > 0
+                            ) {
+                                Icon(Icons.Default.ChevronLeft, contentDescription = "Imagen anterior", tint = androidx.compose.ui.graphics.Color.White)
+                            }
+                            IconButton(
+                                onClick = { onGalleryIndexChange((galleryIndex + 1).coerceAtMost(imageGallery.lastIndex)) },
+                                enabled = galleryIndex < imageGallery.lastIndex
+                            ) {
+                                Icon(Icons.Default.ChevronRight, contentDescription = "Imagen siguiente", tint = androidx.compose.ui.graphics.Color.White)
+                            }
+                        }
+                    }
+                }
             } else if (mode == PreviewMode.PDF && bitmap != null) {
                 Image(
                     bitmap = bitmap!!.asImageBitmap(),
