@@ -1,23 +1,15 @@
-## Versión 0.3.7 · mascota chibi original integrada · 2026-10-19
+## Versión 0.3.8 · corrección de carpetas SAF anidadas · 2026-10-19
 
-### Cambios
-- Se preparó una versión chibi basada en la ilustración original: cabello castaño, gafas redondas, sudadera marrón, camiseta crema y proporciones pequeñas con cabeza más grande.
-- La capucha es lisa, sin los bultos que parecían orejas. No se añadieron orejas animales, cuernos, lazos, símbolos ni accesorios nuevos.
-- Se eliminó el fondo casi blanco de la ilustración generada y se guardó como WebP con canal alfa: `app/src/main/res/drawable-nodpi/mascota_chibi.webp`.
-- Se agregó `app/src/main/res/drawable-nodpi/mascota_chibi_launcher.webp` para el icono adaptable. Inicio, bienvenida, estados vacíos e icono launcher usan ahora la misma identidad chibi.
-- Se mantiene sin cambios el PNG original `pngtuber-capibara.png` y su copia `mascota_capibara.png`.
-- Se retiró el generador temporal de píxeles de Gradle. Los dos recursos finales están versionados, por lo que la compilación ya no depende de regenerar el dibujo ni de descargarlo.
-- Versión Android: `0.3.7` / `versionCode 10`.
+### Cambios de esta iteración
+- La primera implementación SAF quedó bloqueada por CI porque Android no expone públicamente el constructor de `DocumentFile`. Se eliminó la subclase inválida y se adoptó `DocumentFile.fromSingleUri` con URI calificadas por el árbol original.
+- La navegación anidada consulta hijos por cursor y ahora usa helpers SAF-aware para encontrar y crear archivos/carpetas desde copiar, mover, comprimir, extraer ZIP y crear carpetas. Se evita construir listas ilimitadas para comprobar un nombre.
+- Versión Android: `0.3.8` / `versionCode 11`.
 
-### Validación automatizada confirmada
-- Código de la app: [commit f20f5407](https://github.com/jonhararagi/archivero/commit/f20f540721999767d7dfe5ec910938bdf836cde6), CI **PASS** [39314477853](https://github.com/jonhararagi/archivero/actions/runs/39314477853).
-- `main` con documentación incluida: SHA `f7077a03ea5ee485f3323c1b49073a2825d20f81`, CI **PASS** [39314527319](https://github.com/jonhararagi/archivero/actions/runs/39314527319).
-- `testDebugUnitTest`, `assembleDebug`, verificación de firma y publicación del artefacto: PASS.
-- Artefacto `archivero-debug-apk`, ID `12216143932`, ZIP de 20,350,645 bytes; SHA-256 del ZIP `48cf2ea912398a2d1e710091cea93a1754a91ad7db71fa39756a03a2e89500ed`.
-- APK debug extraída del artefacto: 21,213,421 bytes; SHA-256 `9ad30e45a0194e70084f1fa3f5c7709da7cbe9f9ea7346f6a0ba71ad76b96a7a`.
-- SHA-256 del certificado de APK y del keystore CI coincidentes: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
-- Se verificó dentro del APK la presencia de `mascota_chibi.webp` y `mascota_chibi_launcher.webp`.
-- Es una APK debug, no release. La apariencia en el Xiaomi real y las pruebas con biblioteca de 200 GB siguen pendientes.
+### Validación
+- CI anterior: **FAIL** [39334726534](https://github.com/jonhararagi/archivero/actions/runs/39334726534), debido a la subclase no válida de `DocumentFile`. Esta revisión reemplaza ese diseño.
+- CI nueva: pendiente. No declarar PASS hasta que terminen pruebas, compilación, firma y publicación del artefacto.
+- La revisión fiel del chibi y otras mejoras de memoria/vistas previas siguen pendientes; el PNG original se conserva.
+- Las pruebas físicas en Xiaomi y con aproximadamente 200 GB siguen pendientes.
 
 ---
 

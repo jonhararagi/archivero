@@ -2,6 +2,7 @@ package com.jonhararagi.archivero
 
 import android.content.Context
 import androidx.documentfile.provider.DocumentFile
+import android.provider.DocumentsContract
 import java.io.IOException
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
@@ -22,7 +23,7 @@ internal object FileOperations {
         requireWritableDirectory(parent)
         val original = source.name ?: "archivo"
         val (base, extension) = splitName(original)
-        val candidate = uniqueName(parent) { index ->
+        val candidate = uniqueName(context, parent) { index ->
             val suffix = if (index == 1) " (copia)" else " (copia " + index + ")"
             base + suffix + extension
         }
@@ -35,11 +36,11 @@ internal object FileOperations {
         requireUsableSource(source)
         requireWritableDirectory(parent)
         val original = source.name ?: "archivo"
-        require(parent.findFile(original)?.uri != source.uri) {
+        require(findChildDocument(context, parent, original)?.uri != source.uri) {
             "El archivo ya está en la carpeta abierta. Abre otra carpeta antes de moverlo."
         }
         val (base, extension) = splitName(original)
-        val candidate = uniqueName(parent) { index ->
+        val candidate = uniqueName(context, parent) { index ->
             if (index == 1) original else base + " (" + index + ")" + extension
         }
         val destination = createFile(context, parent, source, candidate)
@@ -61,11 +62,11 @@ internal object FileOperations {
         requireWritableDirectory(parent)
         val original = source.name ?: "archivo"
         val (base, _) = splitName(original)
-        val candidate = uniqueName(parent) { index ->
+        val candidate = uniqueName(context, parent) { index ->
             val suffix = if (index == 1) "" else " (" + index + ")"
             base + suffix + ".zip"
         }
-        val archive = parent.createFile("application/zip", candidate)
+        val archive = createChildDocument(context, parent, "application/zip", candidate)
             ?: throw IOException("Android no permitió crear el archivo ZIP.")
 
         try {
@@ -123,14 +124,14 @@ internal object FileOperations {
                     var directory = parent
                     val directoryParts = if (entry.isDirectory) parts else parts.dropLast(1)
                     for (part in directoryParts) {
-                        val existing = directory.findFile(part)
+                        val existing = findChildDocument(context, directory, part)
                         directory = if (existing != null) {
                             require(existing.isDirectory) {
                                 "No se puede extraer '" + entry.name + "': ya existe un archivo con el nombre de una carpeta."
                             }
                             existing
                         } else {
-                            (directory.createDirectory(part)
+                            (createChildDocument(context, directory, DocumentsContract.Document.MIME_TYPE_DIR, part)
                                 ?: throw IOException("No se pudo crear la carpeta '" + part + "'."))
                                 .also { createdDirectories.add(it) }
                         }
@@ -138,10 +139,10 @@ internal object FileOperations {
 
                     if (!entry.isDirectory) {
                         val name = parts.last()
-                        require(directory.findFile(name) == null) {
+                        require(findChildDocument(context, directory, name) == null) {
                             "Ya existe '" + name + "'. No se sobrescribieron archivos; se canceló la extracción."
                         }
-                        val destination = directory.createFile("application/octet-stream", name)
+                        val destination = createChildDocument(context, directory, "application/octet-stream", name)
                             ?: throw IOException("No se pudo crear '" + name + "'.")
                         createdFiles.add(destination)
 
@@ -207,11 +208,11 @@ internal object FileOperations {
         return if (dot > 0) name.substring(0, dot) to name.substring(dot) else name to ""
     }
 
-    private fun uniqueName(parent: DocumentFile, build: (Int) -> String): String {
+    private fun uniqueName(context: Context, parent: DocumentFile, build: (Int) -> String): String {
         var index = 1
         while (true) {
             val candidate = build(index)
-            if (parent.findFile(candidate) == null) return candidate
+            if (findChildDocument(context, parent, candidate) == null) return candidate
             index++
             if (index > 100_000) throw IOException("No se encontró un nombre de destino disponible.")
         }
@@ -224,7 +225,7 @@ internal object FileOperations {
         name: String
     ): DocumentFile {
         val mime = context.contentResolver.getType(source.uri) ?: "application/octet-stream"
-        return parent.createFile(mime, name)
+        return createChildDocument(context, parent, mime, name)
             ?: throw IOException("Android no permitió crear '" + name + "'.")
     }
 

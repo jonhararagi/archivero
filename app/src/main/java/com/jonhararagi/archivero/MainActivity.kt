@@ -1410,7 +1410,7 @@ fun ArchiveroApp() {
             val result = runCatching {
                 require(folderName.trim().isNotEmpty()) { "Escribe un nombre para la carpeta." }
                 val parent = current ?: error("No hay una carpeta abierta.")
-                if (parent.findFile(folderName.trim()) != null) false else parent.createDirectory(folderName.trim()) != null
+                if (findChildDocument(context, parent, folderName.trim()) != null) false else createChildDocument(context, parent, DocumentsContract.Document.MIME_TYPE_DIR, folderName.trim()) != null
             }
             message = result.fold({ if (it) { refresh++; "Carpeta creada." } else "Ya existe o Android no permitió crearla." }, { it.message ?: "No se pudo crear la carpeta." })
             newFolderDialog = false

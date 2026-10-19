@@ -31,8 +31,8 @@ android {
         applicationId = "com.jonhararagi.archivero"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "0.3.7"
+        versionCode = 11
+        versionName = "0.3.8"
     }
     buildFeatures { compose = true }
     compileOptions {
@@ -41,10 +41,6 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 }
-
- 
-// Keep the original uploaded PNG unchanged. Generate a deterministic app variant
-// whose hood is smooth and animal-ear-free, plus a square launcher crop of that same character.
 
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))

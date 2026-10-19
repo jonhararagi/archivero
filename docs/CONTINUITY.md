@@ -1,16 +1,14 @@
-## Estado actual · mascota chibi integrada en los recursos Android · 2026-10-19
+## Estado en curso · reparación de SAF anidado · 2026-10-19
 
-- Commit de código de la app: `f20f540721999767d7dfe5ec910938bdf836cde6`, CI **PASS** [39314477853](https://github.com/jonhararagi/archivero/actions/runs/39314477853).
-- Main validado con documentación: `f7077a03ea5ee485f3323c1b49073a2825d20f81`, CI **PASS** [39314527319](https://github.com/jonhararagi/archivero/actions/runs/39314527319).
-- Nuevos recursos WebP: `app/src/main/res/drawable-nodpi/mascota_chibi.webp` (512×686) y `mascota_chibi_launcher.webp` (256×256), ambos con transparencia.
-- La mascota chibi mantiene cabello castaño, gafas redondas, sudadera marrón y camiseta crema; la capucha no lleva las formas que parecían orejas.
-- Las tres apariciones de la mascota en `MainActivity.kt` usan el nuevo recurso. Los dos iconos adaptables apuntan al recorte chibi.
-- Se retiró del script Gradle la tarea temporal de dibujo programático. No quedan imports de `java.awt`, `ImageIO` ni dependencia de red para formar la mascota.
-- El original `pngtuber-capibara.png` y la copia `mascota_capibara.png` se conservaron.
-- Versión: `0.3.7` / `versionCode 10`.
-- Pruebas unitarias, build, firma y publicación: PASS. APK extraída del artefacto: `21,213,421` bytes; SHA-256 `9ad30e45a0194e70084f1fa3f5c7709da7cbe9f9ea7346f6a0ba71ad76b96a7a`.
-- Certificado APK y keystore CI coinciden: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
-- Pendiente de dispositivo: revisar icono, composición, transparencia y tamaños táctiles en el Xiaomi, y pruebas funcionales con almacenamiento grande.
+- Base: `3c4ed454c0d0862e2577e886a9fa5dec918130f9`.
+- CI anterior [39334726534](https://github.com/jonhararagi/archivero/actions/runs/39334726534) falló porque la aplicación no puede extender `DocumentFile` directamente. Se retiró esa clase.
+- La nueva implementación usa `DocumentFile.fromSingleUri` con URI `tree/document` precisas y helpers de cursor para buscar/crear hijos dentro del mismo árbol SAF.
+- Se adaptaron las operaciones de copiar/mover/comprimir/extraer y el flujo de creación manual de carpetas para no usar `findFile/createFile/createDirectory` en wrappers de documento único.
+- Versión: `0.3.8` / `versionCode 11`.
+- CI de esta corrección pendiente. No crear APK de entrega hasta que pruebas, build, firma y artefacto pasen.
+- La mejora de memoria de vistas previas, cancelación del hash de duplicados y la chibi fiel siguen como próximos incrementos.
+
+---
 
 ## Historial anterior · identidad visual Capibara Kawaii · 2026-10-19
 
