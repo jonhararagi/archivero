@@ -101,6 +101,7 @@ private data class ScanResult(
     val directoryLimitHit: Boolean
 )
 private enum class Palette(val label: String, val primary: Color, val secondary: Color, val background: Color) {
+    CAPIBARA("Capibara kawaii", Color(0xFF80594E), Color(0xFFB65C61), Color(0xFFFFF7F1)),
     CIBERPUNK("Ciberpunk", Color(0xFF39D5F2), Color(0xFFE35AC8), Color(0xFF10172A)),
     VERDE("Verde bosque", Color(0xFF285E55), Color(0xFF547D73), Color(0xFFF4F7F5)),
     VIOLETA("Violeta", Color(0xFF7048A8), Color(0xFF9575CD), Color(0xFFF7F2FC)),
@@ -109,13 +110,13 @@ private enum class Palette(val label: String, val primary: Color, val secondary:
     AMBAR("Ámbar", Color(0xFF93600B), Color(0xFFC28B2C), Color(0xFFFFF8E9))
 }
 private enum class Kind(val title: String, val icon: ImageVector, val tint: Color, val extensions: Set<String>) {
-    IMAGES("Imágenes", Icons.Default.Image, Color(0xFF7657B5), setOf("jpg","jpeg","jpe","jfif","jps","png","webp","gif","bmp","heic","heif","avif","tif","tiff","svg")),
-    VIDEOS("Videos", Icons.Default.Movie, Color(0xFFB3261E), setOf("mp4","mkv","mov","avi","webm","3gp","m4v")),
-    MUSIC("Música", Icons.Default.MusicNote, Color(0xFF00796B), setOf("mp3","wav","aac","m4a","ogg","flac","opus","wma")),
-    DOCS("Documentos", Icons.Default.Description, Color(0xFF245CA6), setOf("pdf","doc","docx","txt","rtf","odt","xls","xlsx","ppt","pptx","csv","md","json","xml","html","htm","log")),
-    APK("APK", Icons.Default.Android, Color(0xFF397447), setOf("apk","xapk","apks")),
-    ZIP("Comprimidos", Icons.Default.FolderZip, Color(0xFF8A4F00), setOf("zip","rar","7z","tar","gz","bz2")),
-    OTHER("Otros", Icons.Default.InsertDriveFile, Color(0xFF58616B), emptySet())
+    IMAGES("Imágenes", Icons.Default.Image, Color(0xFFB65C61), setOf("jpg","jpeg","jpe","jfif","jps","png","webp","gif","bmp","heic","heif","avif","tif","tiff","svg")),
+    VIDEOS("Videos", Icons.Default.Movie, Color(0xFF956858), setOf("mp4","mkv","mov","avi","webm","3gp","m4v")),
+    MUSIC("Música", Icons.Default.MusicNote, Color(0xFFAA7A45), setOf("mp3","wav","aac","m4a","ogg","flac","opus","wma")),
+    DOCS("Documentos", Icons.Default.Description, Color(0xFF7D6359), setOf("pdf","doc","docx","txt","rtf","odt","xls","xlsx","ppt","pptx","csv","md","json","xml","html","htm","log")),
+    APK("APK", Icons.Default.Android, Color(0xFF8B7064), setOf("apk","xapk","apks")),
+    ZIP("Comprimidos", Icons.Default.FolderZip, Color(0xFFB8874C), setOf("zip","rar","7z","tar","gz","bz2")),
+    OTHER("Otros", Icons.Default.InsertDriveFile, Color(0xFF89776E), emptySet())
 }
 private data class Disk(val used: Long, val total: Long) {
     val free get() = (total - used).coerceAtLeast(0)
@@ -138,10 +139,13 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun ArchiveroApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
-    var selectedPaletteName by rememberSaveable {
-        mutableStateOf(context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).getString("palette", Palette.CIBERPUNK.name) ?: Palette.CIBERPUNK.name)
-    }
-    val activePalette = runCatching { Palette.valueOf(selectedPaletteName) }.getOrDefault(Palette.CIBERPUNK)
+    val savedPaletteName = context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).getString("palette", null)
+    // New installs and the previous default use the mascot-inspired palette.
+    val initialPaletteName = if (savedPaletteName == null || savedPaletteName == Palette.CIBERPUNK.name) {
+        Palette.CAPIBARA.name
+    } else savedPaletteName
+    var selectedPaletteName by rememberSaveable { mutableStateOf(initialPaletteName) }
+    val activePalette = runCatching { Palette.valueOf(selectedPaletteName) }.getOrDefault(Palette.CAPIBARA)
     var showAppearance by remember { mutableStateOf(false) }
     var showExitDialog by remember { mutableStateOf(false) }
     var wallpaperUri by rememberSaveable {
@@ -813,6 +817,7 @@ fun ArchiveroApp() {
     }
 
     val isCyberpunk = activePalette == Palette.CIBERPUNK
+    val isCapibara = activePalette == Palette.CAPIBARA
     MaterialTheme(colorScheme = if (isCyberpunk) androidx.compose.material3.darkColorScheme(
         primary = activePalette.primary,
         onPrimary = Color(0xFF07131C),
@@ -832,10 +837,14 @@ fun ArchiveroApp() {
         primary = activePalette.primary,
         secondary = activePalette.secondary,
         background = activePalette.background,
-        surface = Color.White,
-        onSurface = Color(0xFF17182B),
-        surfaceVariant = activePalette.secondary.copy(alpha = 0.12f),
-        onSurfaceVariant = Color(0xFF292A40)
+        surface = if (isCapibara) Color(0xFFFFFCF9) else Color.White,
+        onSurface = if (isCapibara) Color(0xFF4C3832) else Color(0xFF17182B),
+        surfaceVariant = if (isCapibara) Color(0xFFF1E2DA) else activePalette.secondary.copy(alpha = 0.12f),
+        onSurfaceVariant = if (isCapibara) Color(0xFF80665D) else Color(0xFF292A40),
+        primaryContainer = if (isCapibara) Color(0xFFEBD8CB) else activePalette.primary.copy(alpha = 0.12f),
+        onPrimaryContainer = if (isCapibara) Color(0xFF4C3832) else Color(0xFF17182B),
+        secondaryContainer = if (isCapibara) Color(0xFFF7DEDB) else activePalette.secondary.copy(alpha = 0.12f),
+        onSecondaryContainer = if (isCapibara) Color(0xFF703E42) else Color(0xFF292A40)
     )) {
         Box(Modifier.fillMaxSize().background(activePalette.background)) {
             wallpaperBitmap?.let { image ->
@@ -929,9 +938,11 @@ fun ArchiveroApp() {
                 if (rootUri == null) {
                     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                         Image(
-                            painter = painterResource(id = R.drawable.anime_mascot),
-                            contentDescription = "Mascota anime cyberpunk de Archivero",
-                            modifier = Modifier.size(132.dp)
+                            painter = painterResource(id = R.drawable.mascota_capibara),
+                            contentDescription = "Mascota capibara kawaii de Archivero",
+                            modifier = Modifier.width(180.dp).height(200.dp).clip(RoundedCornerShape(24.dp)),
+                            contentScale = ContentScale.Crop,
+                            alignment = Alignment.TopCenter
                         )
                         Spacer(Modifier.height(20.dp))
                         Text("Todo tu espacio, más simple", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
@@ -950,21 +961,36 @@ fun ArchiveroApp() {
                         Card(
                             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                             shape = RoundedCornerShape(24.dp),
-                            colors = CardDefaults.cardColors(containerColor = if (isCyberpunk) MaterialTheme.colorScheme.surface else Color(0xFFFFEAF3))
+                            colors = CardDefaults.cardColors(containerColor = when {
+                                isCyberpunk -> MaterialTheme.colorScheme.surface
+                                isCapibara -> Color(0xFFFFEEE6)
+                                else -> Color(0xFFFFEAF3)
+                            })
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(start = 18.dp, top = 12.dp, bottom = 12.dp, end = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text("¡Hola, explorador!", color = if (isCyberpunk) MaterialTheme.colorScheme.onSurface else Color(0xFF51365F), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
-                                    Text("Tus archivos, ordenados con cariño.", color = if (isCyberpunk) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xFF684B70), style = MaterialTheme.typography.bodyMedium)
-                                    Text(if (isCyberpunk) "ARCHIVERO · MODO CIBERPUNK" else "✦ MODO KAWAII ✦", color = activePalette.primary, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                    Text("¡Hola, explorador!", color = if (isCyberpunk || isCapibara) MaterialTheme.colorScheme.onSurface else Color(0xFF51365F), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+                                    Text("Tus archivos, ordenados con cariño.", color = if (isCyberpunk || isCapibara) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xFF684B70), style = MaterialTheme.typography.bodyMedium)
+                                    Text(
+                                        when {
+                                            isCyberpunk -> "ARCHIVERO · MODO CIBERPUNK"
+                                            isCapibara -> "♡ MODO CAPIBARA KAWAII ♡"
+                                            else -> "✦ MODO KAWAII ✦"
+                                        },
+                                        color = activePalette.primary,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                                 Image(
-                                    painter = painterResource(id = R.drawable.anime_mascot),
-                                    contentDescription = "Mascota anime original de Archivero",
-                                    modifier = Modifier.size(88.dp)
+                                    painter = painterResource(id = R.drawable.mascota_capibara),
+                                    contentDescription = "Mascota capibara original de Archivero",
+                                    modifier = Modifier.width(100.dp).height(112.dp).clip(RoundedCornerShape(17.dp)),
+                                    contentScale = ContentScale.Crop,
+                                    alignment = Alignment.TopCenter
                                 )
                             }
                         }
@@ -1565,7 +1591,7 @@ fun ArchiveroApp() {
                                 Icon(
                                     if (playbackUri?.toString() in favoriteUris) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                                     "Añadir o quitar de favoritos",
-                                    tint = if (playbackUri?.toString() in favoriteUris) Color(0xFFD64D68) else MaterialTheme.colorScheme.onSurfaceVariant
+                                    tint = if (playbackUri?.toString() in favoriteUris) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             OutlinedButton(onClick = { pickMusic.launch(arrayOf("audio/*")) }) {
@@ -1724,7 +1750,7 @@ fun ArchiveroApp() {
 }
 
 @Composable
-private fun DiskCard(disk: Disk?, location: String, accent: Color = Color(0xFF285E55), onChange: () -> Unit) {
+private fun DiskCard(disk: Disk?, location: String, accent: Color = Color(0xFF80594E), onChange: () -> Unit) {
     Card(colors = CardDefaults.cardColors(containerColor = accent), shape = RoundedCornerShape(23.dp)) {
         Column(Modifier.fillMaxWidth().padding(17.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1743,7 +1769,7 @@ private fun DiskCard(disk: Disk?, location: String, accent: Color = Color(0xFF28
                     Spacer(Modifier.weight(1f)); Text((disk.used.toDouble() / disk.total.coerceAtLeast(1) * 100).toInt().toString() + "%", color = Color.White, fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.height(8.dp))
-                LinearProgressIndicator(progress = { (disk.used.toFloat() / disk.total.coerceAtLeast(1)).coerceIn(0f,1f) }, modifier = Modifier.fillMaxWidth().height(8.dp), color = Color(0xFFBCE8D6), trackColor = Color.White.copy(alpha = .22f))
+                LinearProgressIndicator(progress = { (disk.used.toFloat() / disk.total.coerceAtLeast(1)).coerceIn(0f,1f) }, modifier = Modifier.fillMaxWidth().height(8.dp), color = Color(0xFFF1BFB4), trackColor = Color.White.copy(alpha = .22f))
                 Spacer(Modifier.height(8.dp))
                 Row { Text(formatBytes(disk.free) + " libres", color = Color.White.copy(alpha = .9f)); Spacer(Modifier.weight(1f)); Text(formatBytes(disk.total) + " total", color = Color.White.copy(alpha = .9f)) }
             }
@@ -1770,7 +1796,7 @@ private fun DiskCard(disk: Disk?, location: String, accent: Color = Color(0xFF28
 @Composable private fun ActionTile(title: String, subtitle: String, icon: ImageVector, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Card(modifier.clickable(onClick = onClick), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), shape = RoundedCornerShape(17.dp)) {
         Column(Modifier.fillMaxWidth().padding(13.dp)) {
-            Icon(icon, null, tint = Color(0xFF285E55), modifier = Modifier.size(25.dp)); Spacer(Modifier.height(7.dp))
+            Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(25.dp)); Spacer(Modifier.height(7.dp))
             Text(title, fontWeight = FontWeight.Bold); Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -1798,8 +1824,18 @@ private fun DiskCard(disk: Disk?, location: String, accent: Color = Color(0xFF28
 }
 @Composable private fun EmptyNotice(title: String, subtitle: String, icon: ImageVector) {
     Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(icon, null, Modifier.size(42.dp), tint = MaterialTheme.colorScheme.secondary); Spacer(Modifier.height(8.dp))
-        Text(title, fontWeight = FontWeight.Bold); Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        Image(
+            painter = painterResource(id = R.drawable.mascota_capibara),
+            contentDescription = "Mascota capibara de Archivero",
+            modifier = Modifier.width(86.dp).height(96.dp).clip(RoundedCornerShape(17.dp)),
+            contentScale = ContentScale.Crop,
+            alignment = Alignment.TopCenter
+        )
+        Spacer(Modifier.height(4.dp))
+        Icon(icon, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.secondary)
+        Spacer(Modifier.height(8.dp))
+        Text(title, fontWeight = FontWeight.Bold)
+        Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
     }
 }
 @Composable private fun CleanupCandidateRow(
@@ -1846,7 +1882,7 @@ private fun FileThumbnail(file: DocumentFile, size: Int) {
     val extension = file.name.orEmpty().substringAfterLast('.', "").uppercase(Locale.ROOT).take(5)
     Box(
         Modifier.size(size.dp).clip(RoundedCornerShape(12.dp))
-            .background(if (folder) Color(0xFFE2EFE8) else Color(0xFFE9EDF4)),
+            .background(if (folder) Color(0xFFF2E1D7) else Color(0xFFFFF0E8)),
         contentAlignment = Alignment.Center
     ) {
         if (bitmap != null && !folder) {
@@ -1861,7 +1897,7 @@ private fun FileThumbnail(file: DocumentFile, size: Int) {
                 Icon(
                     if (folder) Icons.Default.Folder else fileIcon(file),
                     contentDescription = null,
-                    tint = if (folder) Color(0xFF285E55) else Color(0xFF52657D),
+                    tint = if (folder) Color(0xFF80594E) else Color(0xFF967B70),
                     modifier = Modifier.size((size * 0.48f).dp)
                 )
                 if (!folder && extension.isNotBlank()) {

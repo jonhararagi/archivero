@@ -13,9 +13,9 @@ Los archivos se procesan localmente. La aplicación no tiene una función de sub
 
 ## Funciones incluidas
 
-- Pantalla de bienvenida con la mascota anime ciberpunk visible antes de otorgar permisos, tarjeta de Inicio con personaje y accesos directos por categoría; icono adaptativo de Android con fondo azul noche y el arte vectorial de Archivero como primer plano.
+- Pantalla de bienvenida, Inicio y estados vacíos con la mascota capibara kawaii subida a `main` (`pngtuber-capibara.png`), integrada como recurso local. No necesita red para mostrarse.
 - Categorías de imágenes, vídeos, música, documentos, APK, ZIP y otros formatos; al abrir un tipo se muestra solo su lista de resultados, con búsqueda por nombre y opción clara para cambiar de categoría.
-- Tema Ciberpunk con fondo azul noche liso, paneles azul profundo, texto claro y acentos cian/magenta usados con moderación; las seis paletas y el fondo personalizado se mantienen.
+- Tema predeterminado **Capibara kawaii**, inspirado en la mascota: cacao y marrón suave, crema, beige cálido y coral rosado; tipografía oscura y superficies claras para facilitar la lectura. La paleta Ciberpunk y las demás alternativas siguen disponibles; el icono adaptativo también se armonizó con tonos cálidos. Hay siete paletas y fondo personalizado.
 - Apertura de `.apk` con el instalador externo de Android y MIME de paquete explícito. Archivero no instala automáticamente: el sistema puede pedir habilitar «Instalar apps desconocidas» y siempre muestra su propia confirmación.
 - Selección de varios archivos de audio para crear una cola de reproducción.
 - Reproductor Media3 con reproducción en segundo plano, notificación de controles, anterior/siguiente, posición, aleatorio, repetición, favoritos y temporizador.
@@ -23,7 +23,7 @@ Los archivos se procesan localmente. La aplicación no tiene una función de sub
 - Miniaturas reales para imágenes compatibles y la primera página de PDF en las listas de archivos y limpieza; otros formatos muestran iconos por tipo y extensión.
 - Las miniaturas se decodifican fuera del hilo principal, se reducen a un tamaño pequeño y usan una caché en memoria limitada para controlar el uso de RAM.
 - Vista previa integrada para formatos compatibles, además de la opción de abrir un archivo con otra aplicación.
-- Seis paletas visuales, incluido Ciberpunk, y fondo local persistente. La identidad Ciberpunk usa un fondo principal definido y superficies contrastantes, no una rejilla brillante detrás de cada elemento.
+- Siete paletas visuales, incluido Capibara kawaii como predeterminado y Ciberpunk como alternativa, además de fondo local persistente. La paleta Capibara usa tonos cálidos de la ilustración y superficies contrastantes.
 - Búsqueda recursiva manual con progreso, límite de 100.000 elementos y profundidad máxima 20. Entrar a Limpieza no inicia un escaneo automático; debe tocarse «Analizar ubicación». La vista de carpetas carga lotes de 5.000 elementos y permite continuar sin sustituir toda la lista por un array ilimitado. En rutas de almacenamiento local usa `DirectoryStream` y en árboles SAF usa un cursor con desplazamiento; cada lote se acumula solo cuando el usuario lo solicita. Los proveedores ajenos a estos dos caminos pueden obligar a `DocumentFile.listFiles()`, que sí puede materializar todos sus resultados.
 - Limpieza revisable de capturas identificables de más de 90 días, vídeos de 100 MB o más y duplicados idénticos.
 - La detección de duplicados agrupa primero por tamaño y confirma el contenido mediante SHA-256; no usa el nombre como prueba.

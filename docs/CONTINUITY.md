@@ -1,19 +1,11 @@
-# Registro de continuidad de Archivero
-
-Última revisión: 2026-10-19  
-Repositorio: `jonhararagi/archivero`  
-Rama autorizada: `main`  
-Versión Android en `main`: `versionName 0.3.4`, `versionCode 7`
-
 ## Estado de la rama
 
-- Versión de la aplicación: `0.3.4` / `versionCode 7`; commit que introdujo el código de esta versión: `6dc0d4ef2b00b1f5126599abbb496c3cf193e277`: [ver commit](https://github.com/jonhararagi/archivero/commit/6dc0d4ef2b00b1f5126599abbb496c3cf193e277).
-- Incremento de código: las vistas previas de imagen/PDF propagan `CancellationException`; los trabajos cancelados no deben cambiar el indicador de carga de una vista nueva; la lectura de texto cierra el flujo aunque falle la lectura.
-- Añadidas pruebas unitarias de desplazamiento más allá del final y de límite de página no positivo.
-- La ejecución asociada al head `dfbacb552ffee594f07b6bd6b9bbe6e51f94606f` es [GitHub Actions 39285504320](https://github.com/jonhararagi/archivero/actions/runs/39285504320). Los logs muestran `testDebugUnitTest` y `assembleDebug` exitosos, verificación de firma y publicación del artefacto. La API de estado agregado sigue mostrando `queued`; por esa inconsistencia, registrar los pasos como PASS y la conclusión agregada de CI como PARTIAL.
-- APK debug descargada y comprobada: SHA-256 `1ee77ad22c93fcc55c6c805b53df60c154968ea385e579db48b4bf5a87cc6ff0`. Artefacto ZIP ID `12203445585`; digest `sha256:be5c0bae701248872df8a7420456e8654ec6a953069d59684ce1f0d0ab03f53f`. La huella del certificado de la APK coincide con el keystore de CI: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
-- La APK anterior de `0.3.3` no contiene estas correcciones. No reemplazar la descarga nueva por el artefacto viejo.
-- No se ha validado físicamente la navegación SAF en el Xiaomi ni el comportamiento con una biblioteca real de 200 GB. Esas pruebas siguen pendientes.
+- Incremento visual previsto en la versión `0.3.5` / `versionCode 8`. El commit y la CI definitivos deben registrarse una vez que se publique la revisión.
+- Se identifica como fuente visual de verdad `pngtuber-capibara.png`, añadida a la raíz de `main`. Se incorpora como `app/src/main/res/drawable-nodpi/mascota_capibara.png` y se muestra en bienvenida, Inicio y estados vacíos.
+- La paleta `CAPIBARA` (cacao, crema, beige y coral) pasa a ser predeterminada; una instalación que guardaba el antiguo valor predeterminado `CIBERPUNK` se migra a `CAPIBARA`. Las otras paletas elegidas se conservan y Ciberpunk permanece disponible.
+- Iconos de categorías, miniaturas, tarjeta de almacenamiento, icono adaptable y superficies visuales se armonizan con la mascota. Se busca una interfaz cute, cálida y legible, no neón en cada control.
+- Estado de compilación de esta revisión: pendiente hasta vincular la ejecución de GitHub Actions al SHA de código y verificar pruebas, APK, hash y certificado.
+- La revisión visual en el Xiaomi y las comprobaciones físicas de bibliotecas grandes/SAF siguen pendientes.
 
 ## Cambios recientes en código
 
@@ -22,8 +14,8 @@ Versión Android en `main`: `versionName 0.3.4`, `versionCode 7`
 - `MainActivity.kt`: «Cargar siguientes 5.000» agrega el lote solicitado sin reiniciar la pantalla. La carga se cancela al cambiar de ubicación y propaga `CancellationException` para no aplicar respuestas obsoletas.
 - `FilePreviewActivity.kt`: los renders cancelados de imagen/PDF se repropagan sin modificar el estado de carga de una vista nueva; la lectura de texto cierra el flujo ante error. Incluye dos pruebas nuevas de límites de paginación.
 - `FileOperationsTest.kt`: prueba páginas consecutivas, ausencia de elementos repetidos y rechazo de desplazamientos negativos.
-- `app/build.gradle.kts`: versión `0.3.4`, código 7. Los pasos de CI para la compilación registrada arriba pasan; la prueba física con Android/SAF sigue pendiente.
-- Identidad visual: el recurso anime vectorial aparece en la bienvenida antes de los permisos y en Inicio; el icono Android es adaptable con fondo azul noche y primer plano de la mascota. No se generó una nueva ilustración rasterizada.
+- `app/build.gradle.kts`: versión `0.3.5`, código 8. Verificar la CI asociada al SHA más reciente antes de declarar PASS; la prueba física con Android/SAF sigue pendiente.
+- Identidad visual: desde 0.3.5, la imagen capibara kawaii subida por el usuario aparece en bienvenida, Inicio y estados vacíos; el icono adaptativo vectorial está recoloreado para armonizar. El recurso PNG original se conserva sin editar.
 - El reproductor de música se abre como una vista completa y vuelve a la lista con Atrás; carpetas y tipos usan vistas navegables separadas.
 
 ## Limitaciones conocidas

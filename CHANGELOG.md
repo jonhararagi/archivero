@@ -1,3 +1,18 @@
+## Versión 0.3.5 · identidad visual inspirada en la mascota capibara · 2026-10-19
+
+### Cambios visuales
+- La imagen original subida a `main` como `pngtuber-capibara.png` se integra como recurso Android local `mascota_capibara.png`; se muestra en la bienvenida, la tarjeta de Inicio y los estados vacíos.
+- Nueva paleta predeterminada **Capibara kawaii**: cacao y marrón cálido, crema, beige suave y coral rosado, extraída visualmente de la sudadera, el cabello, la camiseta y los detalles rosados de la mascota.
+- Las superficies claras, el texto cacao, las tarjetas crema y los acentos coral forman una familia visual consistente sin cubrir ni competir con los nombres de archivo.
+- Los iconos vectoriales adaptativos existentes se recolorean en tonos cálidos para que no desentonen con la ilustración principal.
+- La preferencia predeterminada anterior Ciberpunk se migra a Capibara kawaii; las demás paletas que el usuario ya eligió se conservan. Ciberpunk continúa disponible en Personalizar apariencia.
+- Los iconos de tipos de archivo y las miniaturas usan tonos tierra coordinados con la paleta principal.
+
+### Versión y verificación
+- Versión Android: `0.3.5`, `versionCode 8`.
+- El resultado automático debe comprobarse en [GitHub Actions](https://github.com/jonhararagi/archivero/actions/workflows/android.yml) para el SHA exacto que contiene los cambios.
+- Las pruebas automatizadas y la compilación no sustituyen la revisión visual en un Android real. Pendiente comprobar encuadre/tamaño de la mascota en el Xiaomi, contraste en las siete paletas y recorte en distintas densidades.
+
 ## Versión 0.3.4 · vista previa cancelable y manejo seguro de recursos · 2026-10-19
 
 ### Correcciones
