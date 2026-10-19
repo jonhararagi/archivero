@@ -13,7 +13,7 @@ Los archivos se procesan localmente. La aplicación no tiene una función de sub
 
 ## Funciones incluidas
 
-- Inicio visual con información de almacenamiento, mascota anime cyberpunk original de cabello oscuro con detalles cian/magenta y accesos que llevan directamente a la categoría elegida.
+- Pantalla de bienvenida con la mascota anime ciberpunk visible antes de otorgar permisos, tarjeta de Inicio con personaje y accesos directos por categoría; icono adaptativo de Android con fondo azul noche y el arte vectorial de Archivero como primer plano.
 - Categorías de imágenes, vídeos, música, documentos, APK, ZIP y otros formatos; al abrir un tipo se muestra solo su lista de resultados, con búsqueda por nombre y opción clara para cambiar de categoría.
 - Tema Ciberpunk con fondo azul noche liso, paneles azul profundo, texto claro y acentos cian/magenta usados con moderación; las seis paletas y el fondo personalizado se mantienen.
 - Apertura de `.apk` con el instalador externo de Android y MIME de paquete explícito. Archivero no instala automáticamente: el sistema puede pedir habilitar «Instalar apps desconocidas» y siempre muestra su propia confirmación.

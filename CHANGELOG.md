@@ -11,7 +11,7 @@
 - Se añadieron pruebas unitarias para recorrer una carpeta en páginas sin repetir ni perder entradas y para rechazar desplazamientos negativos.
 - Versión Android actualizada a `versionCode 5` y `versionName 0.3.2`.
 - El workflow Android ejecuta `testDebugUnitTest`, `assembleDebug`, comprueba el APK y calcula su SHA-256. El estado final de CI debe corresponder al SHA final de `main`.
-- La mascota vectorial anime ciberpunk preexistente sigue integrada en Inicio. No se generó una nueva ilustración rasterizada en esta iteración.
+- La mascota vectorial anime ciberpunk queda visible también en la pantalla de bienvenida antes de conceder permisos, además de la tarjeta de Inicio. El lanzador usa iconos adaptativos de Android con fondo azul noche y el arte de la mascota como primer plano. No se generó una nueva ilustración rasterizada en esta iteración.
 - No se probó físicamente contra la biblioteca real de 200 GB ni contra todos los proveedores SAF. Esas validaciones siguen pendientes.
 
 # Registro de cambios de Archivero

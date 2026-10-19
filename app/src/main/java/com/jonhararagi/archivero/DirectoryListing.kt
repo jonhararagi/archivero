@@ -110,10 +110,8 @@ internal fun listDocumentChildrenBounded(
         }
 
         else -> {
-            // Compatibility fallback for providers that do not expose a SAF tree URI.
-            // Compatibility fallback: some non-tree providers expose only listFiles(), which
-            // may materialize the provider's full result. Keep pagination streaming where the
-            // filesystem or SAF tree APIs support it; see README for this provider limitation.
+            // Some non-tree providers expose only listFiles(), which may materialize the full
+            // result. File and SAF-tree locations use streaming pagination; see README for limits.
             val all = directory.listFiles()
             val page = all.drop(offset).take(limit)
             truncated = all.size > offset + page.size
