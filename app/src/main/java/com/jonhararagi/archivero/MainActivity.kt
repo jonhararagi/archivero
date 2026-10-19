@@ -928,9 +928,11 @@ fun ArchiveroApp() {
                 Spacer(Modifier.height(8.dp))
                 if (rootUri == null) {
                     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(Modifier.size(100.dp).background(Color(0xFFDDECE5), CircleShape), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.FolderCopy, null, Modifier.size(52.dp), tint = Color(0xFF285E55))
-                        }
+                        Image(
+                            painter = painterResource(id = R.drawable.anime_mascot),
+                            contentDescription = "Mascota anime cyberpunk de Archivero",
+                            modifier = Modifier.size(132.dp)
+                        )
                         Spacer(Modifier.height(20.dp))
                         Text("Todo tu espacio, más simple", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
                         Spacer(Modifier.height(8.dp))
