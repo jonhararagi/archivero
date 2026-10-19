@@ -19,8 +19,22 @@ jobs:
       - name: Restore stable CI debug signing key
         uses: actions/cache@v4
         with:
-          path: ~/.android/debug.keystore
+          path: /home/runner/.android/debug.keystore
           key: archivero-ci-debug-keystore-v1
+      - name: Ensure CI debug signing key exists
+        shell: bash
+        run: |
+          key="/home/runner/.android/debug.keystore"
+          mkdir -p "$(dirname "$key")"
+          if [ ! -s "$key" ]; then
+            keytool -genkeypair -noprompt -keystore "$key" -storetype JKS \
+              -storepass android -alias androiddebugkey -keypass android \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+          keytool -list -keystore "$key" -storetype JKS \
+            -storepass android -alias androiddebugkey >/dev/null
+          echo "CI debug signing key is ready."
       - uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
