@@ -54,6 +54,6 @@ Las compilaciones `debug` de GitHub Actions conservan la clave de depuración me
 
 ## Compilar
 
-Requiere JDK 17 y Android SDK 35. Abre el proyecto en Android Studio y sincroniza Gradle.
+Requiere JDK 17 y Android SDK 36 (el workflow instala `platforms;android-36` y `build-tools;36.0.0`). Abre el proyecto en Android Studio y sincroniza Gradle.
 
 [Ver compilaciones y descargar el APK generado por GitHub Actions](https://github.com/jonhararagi/archivero/actions/workflows/android.yml)
