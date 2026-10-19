@@ -1,15 +1,18 @@
-## Versión 0.3.2 · continuación progresiva de carpetas grandes · 2026-10-19
+## Versión 0.3.2 · paginación progresiva y fiabilidad · 2026-10-19
 
-### Navegación de carpetas extensas
-- La vista de carpetas ya no deja el límite inicial de 5.000 entradas como un callejón sin salida: cuando el proveedor informa que hay más resultados, aparece «Cargar 5.000 más».
-- Cada solicitud aumenta el límite de enumeración de forma explícita, vuelve a leer el directorio fuera del hilo principal y conserva el orden de carpetas y nombres. El usuario decide cuándo cargar más, en lugar de asignar memoria para una biblioteca enorme al abrir la app.
-- El límite de seguridad para una sola vista es de 100.000 entradas. Alcanzarlo no significa que la carpeta esté completa; se informa que se llegó al límite. El comportamiento depende de lo que el proveedor SAF permita enumerar.
-- Esta mejora afecta a la navegación de carpetas. El escáner recursivo de análisis conserva sus propios límites y continúa marcando los resultados como parciales si alguna carpeta excede el máximo; no se presenta como inventario completo.
+### Carpetas grandes y memoria
+- La vista de carpetas carga lotes de 5.000 entradas. «Cargar siguientes 5.000» pide la siguiente página y conserva lo que ya estaba visible, sin reiniciar la pantalla ni mostrar otra pestaña por detrás.
+- En el almacenamiento local, la enumeración se hace con `DirectoryStream`; en árboles SAF, con un cursor del proveedor. Ambas rutas saltan el desplazamiento ya mostrado y retienen solo el lote nuevo durante la consulta, en lugar de crear un array completo del directorio al abrirlo.
+- La lista en pantalla acumula los lotes que el usuario solicita, de modo que el consumo crece con la exploración. Algunos proveedores ajenos a las rutas file/SAF-tree solo exponen `DocumentFile.listFiles()`; su fallback todavía puede materializar el resultado entero. Se documenta como limitación, no como soporte universal de paginación.
+- El escáner recursivo mantiene por separado el límite de 100.000 elementos y profundidad 20, e informa resultados parciales. Cargar más elementos en una carpeta no convierte un análisis recursivo parcial en un inventario completo.
+- La carga inicial ya no depende de un límite acumulativo de 100.000 entradas. Si una consulta se cancela al cambiar de carpeta, la cancelación se propaga y la respuesta obsoleta no reemplaza la ubicación nueva.
 
-### Verificación
-- GitHub Actions debe validar pruebas unitarias y compilación debug para el SHA de esta revisión.
-- No se afirma que se haya probado con los 200 GB reales del teléfono ni con todos los proveedores SAF. La validación física de directorios muy grandes sigue pendiente.
-- La ilustración anime vectorial existente sigue integrada; no se ha generado una nueva imagen rasterizada en esta iteración.
+### Pruebas y versión
+- Se añadieron pruebas unitarias para recorrer una carpeta en páginas sin repetir ni perder entradas y para rechazar desplazamientos negativos.
+- Versión Android actualizada a `versionCode 5` y `versionName 0.3.2`.
+- El workflow Android ejecuta `testDebugUnitTest`, `assembleDebug`, comprueba el APK y calcula su SHA-256. El estado final de CI debe corresponder al SHA final de `main`.
+- La mascota vectorial anime ciberpunk preexistente sigue integrada en Inicio. No se generó una nueva ilustración rasterizada en esta iteración.
+- No se probó físicamente contra la biblioteca real de 200 GB ni contra todos los proveedores SAF. Esas validaciones siguen pendientes.
 
 # Registro de cambios de Archivero
 
