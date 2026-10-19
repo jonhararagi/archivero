@@ -1,4 +1,29 @@
-## Estado verificado · Archivero Android
+## Estado actual · identidad visual Capibara Kawaii · 2026-10-19
+
+### Cambio de código verificado
+- Commit de código: `222515f276c3b96f08325bf9ebe33efe64b46ba1` ([commit](https://github.com/jonhararagi/archivero/commit/222515f276c3b96f08325bf9ebe33efe64b46ba1)).
+- CI del commit de código: **PASS**, ejecución [39296641336](https://github.com/jonhararagi/archivero/actions/runs/39296641336).
+- `testDebugUnitTest`, `assembleDebug`, verificación de la firma y publicación del artefacto: PASS.
+- Tema predeterminado basado en la mascota PNG: cacao `#674840`, coral rosado `#B65C61`, crema `#FFF7F1` y rosa suave `#F7DEDB`.
+- Cambios confirmados en `MainActivity.kt`: mayor coherencia cromática, fondos suaves detrás de la mascota en bienvenida/Inicio/estados vacíos, etiqueta kawaii en cápsula, tarjetas de categorías más redondeadas y miniaturas coordinadas.
+- Recurso original `pngtuber-capibara.png` conservado sin modificar. La paleta Ciberpunk sigue disponible para selección manual.
+- Aplicación: `0.3.6` / `versionCode 9`.
+
+### APK del cambio visual
+- Artefacto CI `archivero-debug-apk`, ID `12207821973`.
+- Tamaño APK: `21,181,924` bytes.
+- SHA-256 APK: `af869eb763002c2db5c2cffeac43bbff27655943aab4fa05e5a3ffb89f723f8c`.
+- SHA-256 del certificado APK/keystore CI: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`; coinciden.
+- SHA-256 ZIP del artefacto: `f4baa7f855c7d7613a4a32b35b9200aad5b852d2054572194d04e511d20c2eb1`.
+- Tipo: APK debug, no release. El ZIP se descargó y comprobó sin errores.
+
+### Validación que sigue pendiente
+- Revisar la apariencia en el Xiaomi real y confirmar que la imagen se recorta bien en diferentes tamaños de pantalla.
+- Repetir navegación SAF, apertura de contenido y pruebas con almacenamiento grande en dispositivo real. CI no demuestra por sí sola estabilidad física ni rendimiento con 200 GB.
+
+---
+
+## Historial anterior · Archivero Android
 
 ### Versión y cambios de código
 

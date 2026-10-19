@@ -1,3 +1,24 @@
+## Pulido visual · Capibara Kawaii inspirado en la mascota · 2026-10-19
+
+### Cambios de interfaz
+- Se ajustó la paleta predeterminada para acercarla a los colores dominantes de la ilustración PNG original subida a `main`: cacao profundo (`#674840`), coral rosado (`#B65C61`), crema cálida (`#FFF7F1`) y rosa suave (`#F7DEDB`).
+- Se amplió la armonía del tema claro con colores explícitos para fondo, superficies, contenedores, texto secundario y bordes suaves; Ciberpunk y las otras paletas continúan disponibles.
+- Se incorporaron fondos rosa suave detrás de la mascota en bienvenida, Inicio y estados vacíos, sin editar el archivo original.
+- La etiqueta «♡ MODO CAPIBARA KAWAII ♡» ahora se muestra como una cápsula pastel. Las tarjetas de categorías tienen contornos discretos y radios más redondeados.
+- Las miniaturas de carpetas/archivos se coordinaron con tonos tierra y crema. No se cambió la lógica de navegación, permisos ni operaciones de archivos.
+
+### Verificación CI del cambio de código
+- Commit de código: [222515f276c3b96f08325bf9ebe33efe64b46ba1](https://github.com/jonhararagi/archivero/commit/222515f276c3b96f08325bf9ebe33efe64b46ba1).
+- **CI PASS**: [GitHub Actions 39296641336](https://github.com/jonhararagi/archivero/actions/runs/39296641336), asociada exactamente al SHA anterior.
+- `testDebugUnitTest`: PASS. `assembleDebug`: PASS. Verificación del firmante y publicación del artefacto: PASS.
+- APK debug: 21.181.924 bytes. SHA-256: `af869eb763002c2db5c2cffeac43bbff27655943aab4fa05e5a3ffb89f723f8c`.
+- SHA-256 del certificado de la APK y del keystore de CI, coincidentes: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+- Artefacto `archivero-debug-apk`, ID `12207821973`; SHA-256 del ZIP: `f4baa7f855c7d7613a4a32b35b9200aad5b852d2054572194d04e511d20c2eb1`.
+- La APK conserva versión `0.3.6` / `versionCode 9`; este incremento es de pulido visual y no cambia el número de versión Android.
+- Es una APK debug, no una release. No se ha probado físicamente esta apariencia en el Xiaomi ni se declara validado el rendimiento con una biblioteca real de 200 GB.
+
+---
+
 ## Versión 0.3.6 · apertura correcta de APK/XAPK/APKS · 2026-10-19
 
 ### MIME y mensajes de instalación
