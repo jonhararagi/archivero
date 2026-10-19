@@ -8,8 +8,11 @@
 - Incrementada la versión a `0.3.4` (`versionCode 7`) para distinguir esta APK de la 0.3.3.
 
 ### Verificación
-- La validación automática de esta revisión debe consultarse en [GitHub Actions](https://github.com/jonhararagi/archivero/actions/workflows/android.yml) y vincularse al SHA exacto de `main`.
-- La CI no sustituye la prueba física de cambio rápido entre archivos/páginas, permisos SAF ni bibliotecas grandes en el teléfono. No se declara resuelto el cierre bajo la biblioteca real de 200 GB sin esa prueba.
+- Workflow de Android para el SHA `dfbacb552ffee594f07b6bd6b9bbe6e51f94606f`: [ejecución 39285504320](https://github.com/jonhararagi/archivero/actions/runs/39285504320). Los registros de pasos muestran `testDebugUnitTest` y `assembleDebug` con `BUILD SUCCESSFUL`, verificación de firma coincidente y publicación del artefacto.
+- SHA-256 de la APK producida: `1ee77ad22c93fcc55c6c805b53df60c154968ea385e579db48b4bf5a87cc6ff0`. Huella SHA-256 del certificado firmante y del keystore de CI: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+- Artefacto `archivero-debug-apk`, ID `12203445585`, digest del ZIP `sha256:be5c0bae701248872df8a7420456e8654ec6a953069d59684ce1f0d0ab03f53f`. El hash SHA-256 de la APK se volvió a calcular después de descargar el ZIP y coincidió con el fichero `.sha256`.
+- Nota de estado: la API de GitHub todavía devuelve `queued` para el estado agregado del run aunque el log incluye pasos completos y el artefacto está publicado. La evidencia por paso es PASS para pruebas, compilación, firma y artefacto; la conclusión agregada del run no quedó expuesta y se registra como PARTIAL.
+- Estas pruebas no sustituyen la validación física. Continúan pendientes la navegación SAF en el Xiaomi, la biblioteca real de aproximadamente 200 GB y los casos de archivos dañados/proveedores variados.
 
 ## Versión 0.3.3 · navegación SAF de subcarpetas · 2026-10-19
 

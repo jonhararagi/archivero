@@ -7,20 +7,22 @@ Versión Android en `main`: `versionName 0.3.4`, `versionCode 7`
 
 ## Estado de la rama
 
-- Versión en `main`: `0.3.4` / `versionCode 7`; commit de código `6dc0d4ef2b00b1f5126599abbb496c3cf193e277`: [ver commit](https://github.com/jonhararagi/archivero/commit/6dc0d4ef2b00b1f5126599abbb496c3cf193e277).
+- Versión de la aplicación: `0.3.4` / `versionCode 7`; commit que introdujo el código de esta versión: `6dc0d4ef2b00b1f5126599abbb496c3cf193e277`: [ver commit](https://github.com/jonhararagi/archivero/commit/6dc0d4ef2b00b1f5126599abbb496c3cf193e277).
 - Incremento de código: las vistas previas de imagen/PDF propagan `CancellationException`; los trabajos cancelados no deben cambiar el indicador de carga de una vista nueva; la lectura de texto cierra el flujo aunque falle la lectura.
 - Añadidas pruebas unitarias de desplazamiento más allá del final y de límite de página no positivo.
-- El workflow que corresponde al commit de código es [GitHub Actions 39285287357](https://github.com/jonhararagi/archivero/actions/runs/39285287357). En la última consulta, su estado era `queued` y todavía no había artefactos. No declarar PASS ni reutilizar la APK 0.3.3 hasta comprobar CI y artefacto del SHA final de `main`.
-- Último artefacto previamente verificado de `0.3.3`: [ejecución 39260712891](https://github.com/jonhararagi/archivero/actions/runs/39260712891), ID `12191750763`, APK debug del código anterior, SHA-256 `609b072552b41f6a7c8ec5e5958d6fcf9c31da8e3ea62c3b865b9c09928b1191`. No contiene las correcciones de `0.3.4`.
-- La firma de CI registrada para la APK anterior es `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`. Debe volver a comprobarse en el artefacto nuevo, no suponerse.
+- La ejecución asociada al head `dfbacb552ffee594f07b6bd6b9bbe6e51f94606f` es [GitHub Actions 39285504320](https://github.com/jonhararagi/archivero/actions/runs/39285504320). Los logs muestran `testDebugUnitTest` y `assembleDebug` exitosos, verificación de firma y publicación del artefacto. La API de estado agregado sigue mostrando `queued`; por esa inconsistencia, registrar los pasos como PASS y la conclusión agregada de CI como PARTIAL.
+- APK debug descargada y comprobada: SHA-256 `1ee77ad22c93fcc55c6c805b53df60c154968ea385e579db48b4bf5a87cc6ff0`. Artefacto ZIP ID `12203445585`; digest `sha256:be5c0bae701248872df8a7420456e8654ec6a953069d59684ce1f0d0ab03f53f`. La huella del certificado de la APK coincide con el keystore de CI: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+- La APK anterior de `0.3.3` no contiene estas correcciones. No reemplazar la descarga nueva por el artefacto viejo.
+- No se ha validado físicamente la navegación SAF en el Xiaomi ni el comportamiento con una biblioteca real de 200 GB. Esas pruebas siguen pendientes.
 
 ## Cambios recientes en código
 
 - `DirectoryListing.kt`: la enumeración local usa `DirectoryStream`; el árbol SAF usa un cursor y desplazamiento por lotes de hasta 5.000 entradas. La revisión nueva resuelve el ID del documento actual para subcarpetas y conserva el URI/permiso del árbol original al construir URI de hijos.
 - La corrección del recorrido SAF necesita CI sobre el SHA resultante y prueba funcional con el selector real de Android. No declarar validada la navegación física ni una biblioteca de 200 GB sin esa prueba.
 - `MainActivity.kt`: «Cargar siguientes 5.000» agrega el lote solicitado sin reiniciar la pantalla. La carga se cancela al cambiar de ubicación y propaga `CancellationException` para no aplicar respuestas obsoletas.
+- `FilePreviewActivity.kt`: los renders cancelados de imagen/PDF se repropagan sin modificar el estado de carga de una vista nueva; la lectura de texto cierra el flujo ante error. Incluye dos pruebas nuevas de límites de paginación.
 - `FileOperationsTest.kt`: prueba páginas consecutivas, ausencia de elementos repetidos y rechazo de desplazamientos negativos.
-- `app/build.gradle.kts`: versión actual `0.3.4`, código 7. Esperar CI y artefacto para el SHA final de `main`; la prueba física con Android/SAF sigue pendiente.
+- `app/build.gradle.kts`: versión `0.3.4`, código 7. Los pasos de CI para la compilación registrada arriba pasan; la prueba física con Android/SAF sigue pendiente.
 - Identidad visual: el recurso anime vectorial aparece en la bienvenida antes de los permisos y en Inicio; el icono Android es adaptable con fondo azul noche y primer plano de la mascota. No se generó una nueva ilustración rasterizada.
 - El reproductor de música se abre como una vista completa y vuelve a la lista con Atrás; carpetas y tipos usan vistas navegables separadas.
 
