@@ -3,12 +3,17 @@
 ### MIME y mensajes de instalación
 - Los archivos .apk conservan el MIME de paquete Android y se envían al flujo del instalador del sistema, que exige confirmación del usuario.
 - Los archivos .xapk y .apks se tratan como contenedores ZIP al solicitar una aplicación externa, en lugar de etiquetar ambos como un APK único. Cuando no hay visor compatible, el mensaje explica que hace falta un instalador compatible con esos formatos.
-- Se añadieron pruebas unitarias para MIME de APK, XAPK, APKS, tipo MIME específico del proveedor y fallback cuando el proveedor informa un tipo genérico.
+- Se añadieron cinco pruebas unitarias: MIME de APK, XAPK, APKS, tipo MIME específico del proveedor y fallback cuando el proveedor informa un tipo genérico.
+- Se incrementó la versión Android a 0.3.6 / versionCode 9.
 
-### Versión y verificación
-- Versión Android: 0.3.6, versionCode 9.
-- Validación CI de este incremento: pendiente para el nuevo SHA de main. No se declara PASS hasta que GitHub Actions confirme pruebas, compilación, firma y artefacto.
-- La validación automatizada no sustituye la prueba física de apertura en Android real.
+### Verificación y artefacto
+- Commit de código validado: a71a3332b60b81af043118a69c277231777dec30.
+- **CI PASS**: [GitHub Actions 39291438524](https://github.com/jonhararagi/archivero/actions/runs/39291438524). Los logs muestran BUILD SUCCESSFUL en testDebugUnitTest y assembleDebug; también pasaron la comprobación de firma y la publicación del artefacto.
+- APK debug: 21,181,924 bytes. SHA-256: 07a19cddb60de435f8fd4aa401ca8cbce3b2b1b7cbc48c41a168293e1673264b.
+- SHA-256 del certificado de la APK y del keystore de CI, coincidentes: ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba.
+- Artefacto archivero-debug-apk, ID 12206105817; ZIP SHA-256: dc75ad9d21f7066aa68c44382487fd26d95102f2b8132fe2f34af588b80f9aff.
+- Es una APK debug, no una release. Las pruebas físicas de instalación/apertura en Android real siguen pendientes.
+
 
 ## Versión 0.3.5 · identidad visual inspirada en la mascota capibara · 2026-10-19
 
