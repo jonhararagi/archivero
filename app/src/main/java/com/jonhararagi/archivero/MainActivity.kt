@@ -91,6 +91,23 @@ import java.util.zip.ZipOutputStream
 private enum class Screen { HOME, TYPES, FOLDERS, CLEAN }
 private enum class CleanupMode { SCREENSHOTS, DUPLICATES, SIMILAR_IMAGES, VIDEOS }
 private data class DuplicateGroup(val hash: String, val files: List<DocumentFile>)
+internal data class SizedCandidate<T>(val value: T, val size: Long)
+
+/** Keeps only unique, positive-sized items whose size is shared with another item. */
+internal fun <T, K> potentialDuplicateCandidates(
+    candidates: Iterable<SizedCandidate<T>>,
+    keyOf: (T) -> K
+): List<SizedCandidate<T>> {
+    val unique = candidates.asSequence()
+        .filter { it.size > 0L }
+        .distinctBy { keyOf(it.value) }
+        .toList()
+    val duplicateSizes = unique.groupingBy { it.size }.eachCount()
+        .filterValues { it > 1 }
+        .keys
+    return unique.filter { it.size in duplicateSizes }
+}
+
 
 internal object ImageGallerySession {
     var files: List<DocumentFile> = emptyList()
@@ -720,31 +737,50 @@ fun ArchiveroApp() {
             return
         }
         if (duplicateScanRunning) return
-        val candidates = sourceFiles
-            .filter { !it.isDirectory && it.length() > 0L }
-            .groupBy { it.length() }
-            .filter { (size, files) -> size > 0L && files.size > 1 }
-            .values.flatten()
-            .distinctBy { it.uri.toString() }
-        if (candidates.isEmpty()) {
-            duplicateGroups = emptyList()
-            duplicateScanProgress = 0
-            duplicateScanTotal = 0
-            duplicateScanStatus = "No hay archivos con el mismo tamaño para comparar. No se ha eliminado nada."
-            return
-        }
         duplicateScanRunning = true
         duplicateScanProgress = 0
-        duplicateScanTotal = candidates.size
-        duplicateScanStatus = "Comparando el contenido completo de ${candidates.size} archivos..."
+        duplicateScanTotal = sourceFiles.size
+        duplicateScanStatus = "Preparando candidatos en segundo plano..."
         scope.launch {
             try {
                 val result = withContext(Dispatchers.IO) {
-                    val hashes = linkedMapOf<String, MutableList<DocumentFile>>()
+                    val sized = ArrayList<SizedCandidate<DocumentFile>>(minOf(sourceFiles.size, 4_096))
                     var unreadable = 0
+
+                    // Querying DocumentFile metadata can block on SAF providers. Keep both
+                    // metadata reads and candidate grouping off the Compose/UI thread.
+                    for ((index, file) in sourceFiles.withIndex()) {
+                        currentCoroutineContext().ensureActive()
+                        try {
+                            if (!file.isDirectory) {
+                                val size = file.length()
+                                if (size > 0L) sized.add(SizedCandidate(file, size))
+                            }
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            unreadable++
+                        }
+                        if ((index + 1) % 2_000 == 0 || index == sourceFiles.lastIndex) {
+                            withContext(Dispatchers.Main) { duplicateScanProgress = index + 1 }
+                        }
+                    }
+
+                    val candidates = potentialDuplicateCandidates(sized) { it.uri.toString() }
+                    if (candidates.isEmpty()) {
+                        return@withContext Triple(emptyList<DuplicateGroup>(), unreadable, 0)
+                    }
+                    withContext(Dispatchers.Main) {
+                        duplicateScanTotal = candidates.size
+                        duplicateScanProgress = 0
+                        duplicateScanStatus = "Comparando el contenido completo de ${candidates.size} archivos..."
+                    }
+
+                    val hashes = linkedMapOf<String, MutableList<DocumentFile>>()
                     for (index in candidates.indices) {
                         currentCoroutineContext().ensureActive()
-                        val file = candidates[index]
+                        val candidate = candidates[index]
+                        val file = candidate.value
                         val hash = try {
                             sha256Content(context, file)
                         } catch (cancelled: CancellationException) {
@@ -755,7 +791,7 @@ fun ArchiveroApp() {
                         if (hash == null) {
                             unreadable++
                         } else {
-                            hashes.getOrPut("${file.length()}|${hash}") { mutableListOf() }.add(file)
+                            hashes.getOrPut("${candidate.size}|${hash}") { mutableListOf() }.add(file)
                         }
                         if ((index + 1) % 5 == 0 || index == candidates.lastIndex) {
                             withContext(Dispatchers.Main) { duplicateScanProgress = index + 1 }
@@ -769,13 +805,17 @@ fun ArchiveroApp() {
                                 files = entry.value.sortedBy { it.name.orEmpty().lowercase(Locale.ROOT) }
                             )
                         }
-                        .sortedByDescending { group -> group.files.firstOrNull()?.length() ?: 0L }
+                        .sortedByDescending { group -> group.files.firstOrNull()?.let { runCatching { it.length() }.getOrDefault(0L) } ?: 0L }
                     Triple(confirmed, unreadable, candidates.size)
                 }
                 duplicateGroups = result.first
                 cleanupSelectedUris = emptySet()
                 duplicateScanStatus = buildString {
-                    append(if (result.first.isEmpty()) "No se encontraron copias exactas." else "Revisa las copias exactas. No se borró nada.")
+                    when {
+                        result.third == 0 -> append("No hay archivos con el mismo tamaño para comparar. No se ha eliminado nada.")
+                        result.first.isEmpty() -> append("No se encontraron copias exactas.")
+                        else -> append("Revisa las copias exactas. No se borró nada.")
+                    }
                     if (result.second > 0) append(" Algunos archivos no se pudieron leer y se omitieron.")
                 }
             } catch (cancelled: CancellationException) {
