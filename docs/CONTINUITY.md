@@ -1,3 +1,27 @@
+## Continuidad · limpiador de archivos con escaneo fuera del hilo visual · 2026-10-20
+
+### Cambio de código
+- Cabeza de código: `abe285f4c467dd615d354583cf671d91a2818985`.
+- La recopilación de metadatos para duplicados exactos ya no sucede antes de `scope.launch`: consulta `isDirectory` y `length()`, agrupa por tamaño y deduplica por URI en `Dispatchers.IO`.
+- Se añaden comprobaciones de cancelación durante el recorrido. Si una ubicación cambia, los permisos fallan o la enumeración se interrumpe, la operación informa del fallo y no ejecuta ningún borrado.
+- El escaneo de fotos similares ahora recibe la lista original y descubre candidatos en segundo plano, comprobando cancelación entre archivos y deteniéndose cuando identifica más de 2.500 imágenes compatibles. Los elementos visualmente parecidos siguen siendo sugerencias, no copias idénticas.
+- Pruebas añadidas en `DuplicateDetectionTest.kt`: tamaños compartidos, URI repetidas, archivo vacío, tamaño no positivo, entrada única y entrada vacía.
+
+### Validación automatizada observada
+- GitHub Actions [run 39483773953](https://github.com/jonhararagi/archivero/actions/runs/39483773953), SHA `abe285f4c467dd615d354583cf671d91a2818985`.
+- `testDebugUnitTest`: PASS; `assembleDebug`: PASS; verificación de certificado: PASS; paso de subida del artefacto: PASS.
+- El job todavía estaba ejecutando sus acciones de limpieza al escribir esta entrada. Confirmar la conclusión final y el artefacto de la ejecución antes de entregar la APK.
+
+### Pendiente, no marcar PASS
+1. Benchmark de duplicados y fotos similares con conjuntos etiquetados y tamaños de 1.000/10.000 imágenes.
+2. Medición de RAM/tiempo y desplazamiento en el Xiaomi real.
+3. Pruebas de permisos SAF revocados, elementos inaccesibles y cancelación a mitad del escaneo.
+4. Biblioteca física de aproximadamente 200 GB sin validar aún.
+
+**Estado:** corrección de código y pasos principales de CI **PASS**; rendimiento a escala y dispositivo real **PARTIAL**.
+
+---
+
 ## Continuidad · verificación de artefacto tras actualizar documentación · 2026-10-20
 
 - SHA verificado de `main` en esa comprobación: `d0842575783646f21aebf3c9a7fb882901e1a7f7`.

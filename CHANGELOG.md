@@ -1,3 +1,14 @@
+## Rendimiento del limpiador · escaneo de candidatos en segundo plano · 2026-10-20
+
+- La detección de duplicados exactos ahora consulta metadatos y agrupa candidatos en `Dispatchers.IO`, con comprobaciones de cancelación durante el recorrido. El hash SHA-256 del contenido completo solo se calcula para elementos con tamaño compartido.
+- La búsqueda de fotos parecidas mueve la enumeración de candidatos al escáner de fondo y se detiene tras encontrar evidencia de que supera el límite de 2.500 imágenes. La selección se mantiene acotada y el usuario recibe una advertencia cuando el resultado es parcial.
+- La función pura `potentialDuplicateCandidates` cubre tamaño positivo compartido, URI repetidas, archivos vacíos y entradas únicas mediante pruebas unitarias.
+- Commits relacionados: [`de01b9b`](https://github.com/jonhararagi/archivero/commit/de01b9bc788b3d6d4d969b0b53d48e9bad484c43), [`06fe849`](https://github.com/jonhararagi/archivero/commit/06fe84927f4e35b99a9ffc3960650cdc1a0ba05a), [`590f0c1`](https://github.com/jonhararagi/archivero/commit/590f0c1ae68b0ca9afa1bd2141b36cbcbd64f844), [`abe285f`](https://github.com/jonhararagi/archivero/commit/abe285f4c467dd615d354583cf671d91a2818985).
+- La validación CI de la cabeza de código incluye tests unitarios, `assembleDebug`, comprobación de firma y publicación del artefacto: [run 39483773953](https://github.com/jonhararagi/archivero/actions/runs/39483773953). En el momento de este registro, esos pasos figuran en éxito; GitHub estaba terminando las tareas de limpieza del job.
+- Validación física pendiente: medir tiempos/RAM en el Xiaomi, probar proveedores SAF variados y ensayar con una biblioteca real de gran tamaño. No se afirma que 200 GB estén verificados.
+
+---
+
 ## Rendimiento de miniaturas SAF · 2026-10-20
 
 ### Cambio de código
