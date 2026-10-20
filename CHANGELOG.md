@@ -1,3 +1,14 @@
+## Evidencia de entrega 0.4.2 · 2026-10-20
+
+- SHA de código validado: `f2e1ff41e05ce5a04860b72d7a537b3c5b45504c`.
+- [GitHub Actions run 39487033724](https://github.com/jonhararagi/archivero/actions/runs/39487033724): **PASS**; pruebas unitarias, `assembleDebug`, verificación de firma y publicación del artefacto pasaron.
+- Artefacto CI ID `12293698093`, nombre `archivero-debug-apk`, tamaño ZIP 20.398.195 bytes; SHA-256 ZIP `b8ccb98f4db6c67234547483e290129be58c9bfa56743aa24af966ae81e4165a`.
+- APK extraída: 21.265.707 bytes; SHA-256 `6b47334b448ff1ee80fb47740cc5d1fc630b8eefb0c725e4fc19d6adc41bfbff`. La suma coincide con el archivo `.sha256` incluido; `unzip -t` no encontró errores.
+- Certificado SHA-256 de la APK y del keystore CI coinciden: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+- Esta verificación automatizada no sustituye el benchmark en el Xiaomi ni las pruebas representativas con 200 GB.
+
+---
+
 ## Archivero Android 0.4.2 · 2026-10-20
 
 - Incrementados `versionName` a `0.4.2` y `versionCode` a `15` para entregar la siguiente iteración como actualización instalable.

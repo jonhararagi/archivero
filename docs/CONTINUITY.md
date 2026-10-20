@@ -1,3 +1,24 @@
+## Continuidad · verificación final de Archivero 0.4.2 · 2026-10-20
+
+- La ejecución de CI para el SHA `f2e1ff41e05ce5a04860b72d7a537b3c5b45504c` quedó **PASS** en [run 39487033724](https://github.com/jonhararagi/archivero/actions/runs/39487033724).
+- Pasaron `testDebugUnitTest`, `assembleDebug`, verificación de certificado y subida del artefacto.
+- Artefacto: ID `12293698093`, `archivero-debug-apk`, ZIP 20.398.195 bytes, SHA-256 `b8ccb98f4db6c67234547483e290129be58c9bfa56743aa24af966ae81e4165a`.
+- APK: 21.265.707 bytes, SHA-256 `6b47334b448ff1ee80fb47740cc5d1fc630b8eefb0c725e4fc19d6adc41bfbff`. SHA coincide con `.sha256` del artefacto y la prueba del ZIP pasó.
+- Certificado del APK y keystore de CI: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+- Versión incluida en ese SHA: `0.4.2`, `versionCode 15`.
+- La siguiente comprobación antes de entregar una nueva APK debe consultar la cabeza de `main` y descargar solo el artefacto de su ejecución exacta.
+
+### Pendiente de validación física
+1. Medir desplazamiento, uso de RAM y tiempos de escaneo en el Xiaomi real.
+2. Probar carpetas SAF con miles de elementos, permisos revocados y operaciones canceladas.
+3. Ejecutar un benchmark repetible con 1.000 y 10.000 imágenes, incluidos duplicados exactos y similares.
+4. Probar el almacenamiento real de aproximadamente 200 GB. No declarar esa escala validada por CI.
+5. Comparar las funciones prioritarias con Files by Google, Solid Explorer, X-plore, Total Commander y CX File Explorer usando el mismo conjunto de tareas.
+
+**Estado:** automatización de versión 0.4.2 **PASS**; pruebas físicas y comparación de rendimiento **PARTIAL**.
+
+---
+
 ## Continuidad · Archivero Android 0.4.2 · 2026-10-20
 
 ### Incremento de rendimiento
