@@ -582,8 +582,14 @@ fun ArchiveroApp() {
     var cleanupFiles by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
     var filteringFiles by remember { mutableStateOf(false) }
     var filterRequestId by remember { mutableIntStateOf(0) }
-    val sourceFiles = remember(hasScanned, indexed, entries) {
-        if (hasScanned) indexed else entries.filterNot { it.isDirectory }
+    var sourceFiles by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
+    LaunchedEffect(hasScanned, indexed, entries) {
+        val candidates = if (hasScanned) indexed else entries
+        // DocumentFile.isDirectory may issue provider metadata queries. Keep this derivation
+        // off the Compose/UI thread, and retain entries whose providers cannot report the type.
+        sourceFiles = withContext(Dispatchers.IO) {
+            candidates.filter { file -> runCatching { !file.isDirectory }.getOrDefault(true) }
+        }
     }
     val activeKind = runCatching { Kind.valueOf(selectedKind) }.getOrDefault(Kind.IMAGES)
     val activeCleanupMode = runCatching { CleanupMode.valueOf(cleanupModeName) }.getOrDefault(CleanupMode.SCREENSHOTS)
