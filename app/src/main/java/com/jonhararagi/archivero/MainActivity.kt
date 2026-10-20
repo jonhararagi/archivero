@@ -173,12 +173,10 @@ class MainActivity : ComponentActivity() {
 fun ArchiveroApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val savedPaletteName = context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).getString("palette", null)
-    // New installs and the previous default use the mascot-inspired palette.
-    val initialPaletteName = if (savedPaletteName == null || savedPaletteName == Palette.CIBERPUNK.name) {
-        Palette.CAPIBARA.name
-    } else savedPaletteName
+    // Cyberpunk is the first-run identity; preserve any palette the user explicitly selected.
+    val initialPaletteName = savedPaletteName ?: Palette.CIBERPUNK.name
     var selectedPaletteName by rememberSaveable { mutableStateOf(initialPaletteName) }
-    val activePalette = runCatching { Palette.valueOf(selectedPaletteName) }.getOrDefault(Palette.CAPIBARA)
+    val activePalette = runCatching { Palette.valueOf(selectedPaletteName) }.getOrDefault(Palette.CIBERPUNK)
     var showAppearance by remember { mutableStateOf(false) }
     var showExitDialog by remember { mutableStateOf(false) }
     var wallpaperUri by rememberSaveable {

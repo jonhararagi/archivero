@@ -3,6 +3,7 @@
 - La enumeración por lotes para el sistema de archivos y árboles SAF conserva un límite de memoria al leer entradas, mientras que los proveedores no compatibles ya no pasan por `DocumentFile.listFiles()`, que materializa una matriz completa antes de aplicar el límite.
 - En ese caso, Archivero muestra el motivo y solicita volver a seleccionar la carpeta mediante el selector SAF, en lugar de arriesgar un consumo descontrolado de memoria o presentar una falsa paginación.
 - La vista de carpeta muestra el motivo real del error de enumeración en lugar de una explicación genérica de permisos.
+- En una instalación nueva, la paleta inicial ahora es Ciberpunk (azul noche con acentos cian/magenta); las preferencias de paleta guardadas por el usuario se conservan.
 - Se amplían las pruebas de paginación local con páginas consecutivas, ausencia de repetidos, página final, offset fuera de rango y rechazo de parámetros no válidos.
 - La primera CI detectó una importación `java.io.File` ausente en la prueba nueva; se corrigió en [`448d517`](https://github.com/jonhararagi/archivero/commit/448d51743e5045f6fff436c3d010f63fdffc8f04). La validación debe hacerse contra la cabeza posterior que incluya el endurecimiento de proveedores.
 - Pendiente: pruebas instrumentadas con proveedores SAF reales y carpetas masivas en el dispositivo objetivo.
