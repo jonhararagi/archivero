@@ -96,7 +96,11 @@ internal object ImageGallerySession {
     var files: List<DocumentFile> = emptyList()
     var index: Int = 0
 }
-private data class PendingOpenRequest(val file: DocumentFile, val queue: List<DocumentFile>)
+private data class PendingOpenRequest(
+    val file: DocumentFile,
+    val queue: List<DocumentFile>,
+    val imageGalleryPrepared: Boolean = false
+)
 private data class CleanupGroupRow(val key: String, val files: List<DocumentFile>, val similar: Boolean)
 private data class FilteredFileLists(
     val folders: List<DocumentFile>,
@@ -352,17 +356,17 @@ fun ArchiveroApp() {
             }
         }
     }
-    fun requestOpen(file: DocumentFile, queue: List<DocumentFile>) {
+    fun requestOpen(file: DocumentFile, queue: List<DocumentFile>, imageGalleryPrepared: Boolean = false) {
         val saved = savedOpenMethod(context, file)
         if (saved == "EXTERNAL" || (saved == "ARCHIVERO" && !canOpenNatively(context, file))) {
-            openDocument(file, context, false, { u, t, v -> startPlayback(u, t, v, queue) }, { message = it }, queue)
+            openDocument(file, context, false, { u, t, v -> startPlayback(u, t, v, queue) }, { message = it }, queue, imageGalleryPrepared)
             return
         }
         if (saved == "ARCHIVERO" && canOpenNatively(context, file)) {
-            openDocument(file, context, true, { u, t, v -> startPlayback(u, t, v, queue) }, { message = it }, queue)
+            openDocument(file, context, true, { u, t, v -> startPlayback(u, t, v, queue) }, { message = it }, queue, imageGalleryPrepared)
             return
         }
-        pendingOpenRequest = PendingOpenRequest(file, queue)
+        pendingOpenRequest = PendingOpenRequest(file, queue, imageGalleryPrepared)
     }
     fun confirmOpenChoice(request: PendingOpenRequest, method: String, always: Boolean) {
         val actualMethod = if (method == "ARCHIVERO" && canOpenNatively(context, request.file)) "ARCHIVERO" else "EXTERNAL"
@@ -375,7 +379,8 @@ fun ArchiveroApp() {
             request.file, context, actualMethod == "ARCHIVERO",
             { u, t, v -> startPlayback(u, t, v, request.queue) },
             { message = it },
-            request.queue
+            request.queue,
+            request.imageGalleryPrepared
         )
     }
 
@@ -587,12 +592,16 @@ fun ArchiveroApp() {
             val normalizedQuery = query.trim()
             val result = withContext(Dispatchers.IO) {
                 val folders = entries.filter { it.name.orEmpty().contains(normalizedQuery, ignoreCase = true) }
-                val matching = sourceFiles.filter { file ->
+                val matching = sourceFiles.asSequence().filter { file ->
                     val ext = file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT)
                     val kindMatches = if (activeKind == Kind.OTHER) {
                         Kind.values().filter { it != Kind.OTHER }.none { ext in it.extensions }
                     } else ext in activeKind.extensions
                     kindMatches && file.name.orEmpty().contains(normalizedQuery, ignoreCase = true)
+                }.distinctBy { it.uri.toString() }.let { found ->
+                    if (activeKind == Kind.IMAGES) {
+                        found.sortedBy { it.name.orEmpty().lowercase(Locale.ROOT) }.toList()
+                    } else found.toList()
                 }
                 val duplicates = duplicateGroups.mapNotNull { group ->
                     val visible = group.files.filter { it.name.orEmpty().contains(normalizedQuery, ignoreCase = true) }
@@ -1215,7 +1224,7 @@ fun ArchiveroApp() {
                             if (activeKind == Kind.IMAGES) {
                                 ImageGalleryGrid(
                                     files = matchingFiles,
-                                    onOpen = { requestOpen(it, sourceFiles) },
+                                    onOpen = { requestOpen(it, matchingFiles, imageGalleryPrepared = true) },
                                     onMore = { actionFile = it; actionMenu = true },
                                     modifier = Modifier.weight(1f)
                                 )
@@ -2265,7 +2274,7 @@ private fun canOpenNatively(context: Context, file: DocumentFile): Boolean {
         extension in Kind.VIDEOS.extensions ||
         mime.startsWith("audio/") || mime.startsWith("video/")
 }
-private fun openDocument(file: DocumentFile, context: Context, useNative: Boolean, onMedia: (Uri, String, Boolean) -> Unit, onError: (String) -> Unit, galleryFiles: List<DocumentFile> = emptyList()) {
+private fun openDocument(file: DocumentFile, context: Context, useNative: Boolean, onMedia: (Uri, String, Boolean) -> Unit, onError: (String) -> Unit, galleryFiles: List<DocumentFile> = emptyList(), imageGalleryPrepared: Boolean = false) {
     val name = file.name ?: "archivo sin nombre"
     val extension = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
     val extensionMime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension).orEmpty()
@@ -2291,9 +2300,16 @@ private fun openDocument(file: DocumentFile, context: Context, useNative: Boolea
                 .putExtra("mimeType", mime)
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             if (isRasterImageFile(file)) {
-                val gallery = galleryFiles.filter { isRasterImageFile(it) }
-                    .distinctBy { it.uri.toString() }
-                    .sortedBy { it.name.orEmpty().lowercase(Locale.ROOT) }
+                // The image-category list is filtered, deduplicated, and sorted by the
+                // background filtering job. Never repeat O(n log n) gallery preparation
+                // on the UI thread when a folder has a very large number of images.
+                val gallery = if (imageGalleryPrepared) galleryFiles else {
+                    galleryFiles.asSequence()
+                        .filter { isRasterImageFile(it) }
+                        .distinctBy { it.uri.toString() }
+                        .sortedBy { it.name.orEmpty().lowercase(Locale.ROOT) }
+                        .toList()
+                }
                 ImageGallerySession.files = if (gallery.isEmpty()) listOf(file) else gallery
                 ImageGallerySession.index = ImageGallerySession.files.indexOfFirst { it.uri == file.uri }.coerceAtLeast(0)
                 intent.putExtra("imageGallery", true)
