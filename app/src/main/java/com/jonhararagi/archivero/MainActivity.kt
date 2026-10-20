@@ -837,23 +837,18 @@ fun ArchiveroApp() {
             return
         }
         if (similarScanRunning) return
-        val candidates = sourceFiles
-            .filter { !it.isDirectory && isRasterImageFile(it) && it.length() > 0L }
-            .distinctBy { it.uri.toString() }
-        if (candidates.isEmpty()) {
-            similarImageGroups = emptyList()
-            similarScanStatus = "No hay imágenes compatibles para comparar."
-            return
-        }
-
         similarScanRunning = true
-        similarScanStatus = "Comparando la apariencia de las fotos..."
+        similarScanStatus = "Preparando una selección acotada en segundo plano..."
         scope.launch {
             try {
-                val result = withContext(Dispatchers.IO) { findSimilarImages(context, candidates) }
+                // DocumentFile metadata can query SAF providers. The cancellable scanner
+                // discovers candidates on Dispatchers.IO and stops once the cap is exceeded.
+                val result = withContext(Dispatchers.IO) { findSimilarImages(context, sourceFiles) }
                 similarImageGroups = result.groups
                 cleanupSelectedUris = emptySet()
                 similarScanStatus = when {
+                    result.scanned == 0 ->
+                        "No hay imágenes compatibles para comparar."
                     result.groups.isEmpty() && result.truncated ->
                         "No se encontró ningún grupo en la selección analizada. Prueba una carpeta más específica."
                     result.groups.isEmpty() ->
