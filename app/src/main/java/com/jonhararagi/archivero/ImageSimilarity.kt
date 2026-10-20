@@ -8,6 +8,9 @@ import androidx.documentfile.provider.DocumentFile
 import java.io.IOException
 import java.io.InputStream
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 internal const val MAX_SIMILAR_IMAGE_CANDIDATES = 2_500
 internal const val SIMILAR_IMAGE_DISTANCE_THRESHOLD = 8
@@ -81,27 +84,38 @@ internal fun groupSimilarImageHashes(
 }
 
 /**
- * Hashes only tiny previews and holds no full-resolution images after processing. Work and
- * memory are bounded to keep this tool practical on mid-range Android devices.
+ * Hashes only tiny previews and holds no full-resolution images after processing. Candidate
+ * discovery is cancellable and stops once the configured cap is proven to be exceeded.
  */
-internal fun findSimilarImages(
+internal suspend fun findSimilarImages(
     context: Context,
     files: List<DocumentFile>,
     maxCandidates: Int = MAX_SIMILAR_IMAGE_CANDIDATES
 ): SimilarImageScanResult {
     require(maxCandidates > 0) { "El límite debe ser positivo." }
-    val rasterFiles = files.asSequence()
-        .filter(::isRasterImageFile)
-        .distinctBy { it.uri.toString() }
-        .filter { it.length() > 0L }
-        .toList()
+    val rasterFiles = ArrayList<DocumentFile>(minOf(files.size, maxCandidates))
+    val seenUris = HashSet<String>()
+    var unreadable = 0
+    for (file in files) {
+        currentCoroutineContext().ensureActive()
+        try {
+            if (isRasterImageFile(file) && file.length() > 0L && seenUris.add(file.uri.toString())) {
+                rasterFiles.add(file)
+                if (rasterFiles.size > maxCandidates) break
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            unreadable++
+        }
+    }
     val truncated = rasterFiles.size > maxCandidates
     val candidates = rasterFiles.take(maxCandidates)
     val samples = ArrayList<ImageHashSample>(candidates.size)
     val readableFiles = HashMap<String, DocumentFile>(candidates.size)
-    var unreadable = 0
 
     for (file in candidates) {
+        currentCoroutineContext().ensureActive()
         val hash = runCatching { perceptualHashForUri(context, file.uri) }.getOrNull()
         if (hash == null) {
             unreadable++
