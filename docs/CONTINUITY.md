@@ -6,6 +6,7 @@
 - `listDocumentChildrenBounded` ya no llama a `DocumentFile.listFiles()` en proveedores fuera del sistema de archivos y árboles SAF. Esa API materializa los hijos antes de limitar la página; en directorios grandes podría elevar la memoria sin control. Ahora devuelve un error explícito y la UI recomienda volver a elegir la carpeta por SAF.
 - La pantalla muestra el mensaje real del proveedor para distinguir un árbol no compatible de un permiso revocado o un error genérico.
 - La instalación nueva usa Ciberpunk por defecto, con fondo azul noche y acentos cian/magenta. Una preferencia de paleta guardada explícitamente se conserva.
+- Commit que contiene el cambio de código y documentación: `2e4a1de69a39a4f5539a1f8f9a38de8d6d408506`; verificar pruebas y compilación desde la ejecución asociada a la cabeza definitiva de `main`.
 - Los árboles SAF siguen usando un cursor con procesamiento acotado y el sistema de archivos local sigue usando `DirectoryStream`. El proveedor puede no ofrecer orden estable o soporte para saltos nativos; la implementación actual recorre los elementos previos para llegar al offset, sin mantenerlos en una lista en memoria.
 - No se ha validado este cambio en proveedores SAF de terceros ni en el Xiaomi físico. No declarar verificado el inventario de aproximadamente 200 GB.
 - TIMER de esta subiteración: la estimación original de 120–180 minutos es una previsión, no un tiempo real medido en el conector. Mantener el estado abierto hasta CI y pruebas físicas.
