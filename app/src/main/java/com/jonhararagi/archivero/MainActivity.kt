@@ -2032,12 +2032,13 @@ private fun ImageGalleryGrid(
 @Composable
 private fun GalleryThumbnail(file: DocumentFile, modifier: Modifier = Modifier) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val key = remember(file.uri.toString(), file.name, file.lastModified(), file.length()) {
-        file.uri.toString() + "|" + file.length() + "|" + file.lastModified()
-    }
-    var bitmap by remember(key) { mutableStateOf(ThumbnailCache.getCached(key)) }
-    LaunchedEffect(key) {
-        bitmap = withContext(Dispatchers.IO) { ThumbnailCache.load(context, file, key) }
+    // SAF metadata queries can touch a document provider. Keep them off the Compose/UI thread.
+    val fileUri = file.uri.toString()
+    var bitmap by remember(fileUri) { mutableStateOf<Bitmap?>(null) }
+    LaunchedEffect(file) {
+        bitmap = withContext(Dispatchers.IO) {
+            ThumbnailCache.load(context, file, thumbnailCacheKey(file))
+        }
     }
     Box(modifier.background(Color(0xFF292528)), contentAlignment = Alignment.Center) {
         if (bitmap != null && !bitmap!!.isRecycled) {
@@ -2097,17 +2098,23 @@ private fun GalleryThumbnail(file: DocumentFile, modifier: Modifier = Modifier) 
 @Composable
 private fun FileThumbnail(file: DocumentFile, size: Int) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val key = remember(file.uri.toString(), file.name, file.lastModified(), file.length()) {
-        file.uri.toString() + "|" + file.length() + "|" + file.lastModified()
-    }
-    var bitmap by remember(key) { mutableStateOf(ThumbnailCache.getCached(key)) }
+    // Resolve provider metadata and decode previews away from the UI thread.
+    val fileUri = file.uri.toString()
+    var bitmap by remember(fileUri) { mutableStateOf<Bitmap?>(null) }
+    var folder by remember(fileUri) { mutableStateOf(false) }
+    var extension by remember(fileUri) { mutableStateOf("") }
 
-    LaunchedEffect(key) {
-        bitmap = withContext(Dispatchers.IO) { ThumbnailCache.load(context, file, key) }
+    LaunchedEffect(file) {
+        val loaded = withContext(Dispatchers.IO) {
+            val isDirectory = runCatching { file.isDirectory }.getOrDefault(false)
+            val name = runCatching { file.name }.getOrNull().orEmpty()
+            val preview = if (isDirectory) null else ThumbnailCache.load(context, file, thumbnailCacheKey(file))
+            Triple(preview, isDirectory, name.substringAfterLast('.', "").uppercase(Locale.ROOT).take(5))
+        }
+        bitmap = loaded.first
+        folder = loaded.second
+        extension = loaded.third
     }
-
-    val folder = file.isDirectory
-    val extension = file.name.orEmpty().substringAfterLast('.', "").uppercase(Locale.ROOT).take(5)
     Box(
         Modifier.size(size.dp).clip(RoundedCornerShape(12.dp))
             .background(if (folder) Color(0xFFF2E3DB) else Color(0xFFFFF0EA)),
@@ -2116,14 +2123,14 @@ private fun FileThumbnail(file: DocumentFile, size: Int) {
         if (bitmap != null && !folder) {
             Image(
                 bitmap = bitmap!!.asImageBitmap(),
-                contentDescription = "Miniatura de " + (file.name ?: "archivo"),
+                contentDescription = if (extension.isNotBlank()) "Miniatura de archivo " + extension else "Miniatura de archivo",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
             )
         } else {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 Icon(
-                    if (folder) Icons.Default.Folder else fileIcon(file),
+                    if (folder) Icons.Default.Folder else fileIconForExtension(extension),
                     contentDescription = null,
                     tint = if (folder) Color(0xFF674840) else Color(0xFF80665D),
                     modifier = Modifier.size((size * 0.48f).dp)
@@ -2135,16 +2142,21 @@ private fun FileThumbnail(file: DocumentFile, size: Int) {
     }
 }
 
+private fun thumbnailCacheKey(file: DocumentFile): String {
+    val uri = file.uri.toString()
+    val length = runCatching { file.length() }.getOrDefault(-1L)
+    val modified = runCatching { file.lastModified() }.getOrDefault(-1L)
+    return "$uri|$length|$modified"
+}
+
 private object ThumbnailCache : LruCache<String, Bitmap>(24 * 1024 * 1024) {
     override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount.coerceAtLeast(1)
 
-    fun getCached(key: String): Bitmap? = get(key)
-
     fun load(context: Context, file: DocumentFile, key: String): Bitmap? {
         get(key)?.let { return it }
-        if (file.isDirectory) return null
+        if (runCatching { file.isDirectory }.getOrDefault(true)) return null
 
-        val extension = file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT)
+        val extension = runCatching { file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) }.getOrDefault("")
         val decoded = runCatching {
             when {
                 extension in setOf("jpg", "jpeg", "jpe", "jfif", "jps", "png", "webp", "gif", "bmp", "heic", "heif", "avif", "tif", "tiff") ->
@@ -2384,8 +2396,8 @@ private fun decodeWallpaperBitmap(context: Context, uri: Uri, maxDimension: Int)
     return decoded.asImageBitmap()
 }
 
-private fun fileIcon(file: DocumentFile): ImageVector {
-    val ext = file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT)
+private fun fileIconForExtension(extension: String): ImageVector {
+    val ext = extension.substringAfterLast('.', "").lowercase(Locale.ROOT)
     return when {
         ext in Kind.IMAGES.extensions -> Icons.Default.Image
         ext in Kind.VIDEOS.extensions -> Icons.Default.Movie
