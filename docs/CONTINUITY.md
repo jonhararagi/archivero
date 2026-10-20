@@ -1,3 +1,12 @@
+## Continuidad · versión de entrega Android 0.4.1 · 2026-10-20
+
+- Versión Android incrementada en `app/build.gradle.kts`: `versionName 0.4.1`, `versionCode 14`.
+- Propósito: que la APK de esta iteración se identifique como actualización respecto a la 0.4.0/versionCode 13.
+- Código de limpieza incluido: escaneo de metadatos de duplicados y fotos similares en segundo plano, con cancelación y límite acotado en similitud; véanse el changelog y los commits funcionales registrados a continuación.
+- Entregar únicamente el artefacto de la ejecución de CI asociada al SHA final de esta versión. Confirmar tests, `assembleDebug`, certificado, ZIP íntegro y SHA-256 antes de publicar.
+
+---
+
 ## Continuidad · limpiador de archivos con escaneo fuera del hilo visual · 2026-10-20
 
 ### Cambio de código

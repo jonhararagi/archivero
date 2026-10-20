@@ -1,3 +1,11 @@
+## Versión Android 0.4.1 · 2026-10-20
+
+- `versionName = 0.4.1`; `versionCode = 14), incrementados para distinguir la actualización de la 0.4.0 instalada anteriormente.
+- Incluye la mejora del escaneo de candidatos a duplicados y fotos similares fuera del hilo visual documentada más abajo.
+- La APK de entrega debe proceder de la CI del SHA que contenga esta versión, con pruebas, compilación y firma verificadas.
+
+---
+
 ## Rendimiento del limpiador · escaneo de candidatos en segundo plano · 2026-10-20
 
 - La detección de duplicados exactos ahora consulta metadatos y agrupa candidatos en `Dispatchers.IO`, con comprobaciones de cancelación durante el recorrido. El hash SHA-256 del contenido completo solo se calcula para elementos con tamaño compartido.
