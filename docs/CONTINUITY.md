@@ -1,3 +1,25 @@
+## Continuidad · Archivero Android 0.4.2 · 2026-10-20
+
+### Incremento de rendimiento
+- Versión de entrega prevista: `versionName 0.4.2`, `versionCode 15`.
+- Commit funcional anterior: `421db94b9d4446a3cea65dae32581dbe287827df`.
+- En la carpeta actual, la resolución de `DocumentFile.isDirectory` se calcula en `Dispatchers.IO`, no durante la composición de Compose.
+- Cuando `hasScanned` es verdadero, se reutiliza `indexed` directamente, ya que el recorrido recursivo solo añade a esa lista elementos que no son directorios. Así se evita copiar hasta 100.000 referencias y consultar sus metadatos otra vez.
+- Se conserva la tolerancia a errores de proveedor: si no se puede determinar el tipo de un elemento del directorio actual, se mantiene visible como candidato en vez de ocultarlo silenciosamente.
+- Esta iteración conserva las mejoras del limpiador de duplicados: metadatos/tamaños se obtienen en segundo plano, agrupación por tamaño positivo + URI sin duplicar, hash del contenido completo solo para candidatos del mismo tamaño, y escaneo de similares cancelable con límite de 2.500 imágenes.
+- Pruebas existentes añadidas en `DuplicateDetectionTest.kt` comprueban tamaños compartidos, URI repetidas, tamaño no positivo, archivo único y entrada vacía.
+
+### Criterio de entrega
+- Ejecutar la CI para la cabeza final de `main` que contenga versión 0.4.2.
+- Confirmar `testDebugUnitTest`, `assembleDebug`, certificado coincidente, subida del artefacto y SHA-256 del APK.
+- Descargar y verificar el artefacto exacto de esa ejecución antes de entregar un enlace.
+- No declarar medido el rendimiento en el Xiaomi ni el funcionamiento con 200 GB: faltan pruebas físicas representativas.
+- No reclamar superioridad general sobre Files by Google, Solid Explorer, X-plore, Total Commander y CX File Explorer sin benchmark comparable.
+
+**Estado al escribir esta entrada:** código de iteración 0.4.2 preparado; validación de CI del SHA final pendiente.
+
+---
+
 ## Continuidad · versión de entrega Android 0.4.1 · 2026-10-20
 
 - Versión Android incrementada en `app/build.gradle.kts`: `versionName 0.4.1`, `versionCode 14`.

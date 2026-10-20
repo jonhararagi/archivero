@@ -1,3 +1,13 @@
+## Archivero Android 0.4.2 · 2026-10-20
+
+- Incrementados `versionName` a `0.4.2` y `versionCode` a `15` para entregar la siguiente iteración como actualización instalable.
+- Se trasladó a `Dispatchers.IO` la preparación de la lista de archivos visibles para las vistas de categorías, galería y limpiador, evitando consultar `DocumentFile.isDirectory` durante la composición de Compose.
+- Tras el escaneo recursivo se reutiliza la lista `indexed`, que ya contiene únicamente archivos, sin recorrer otra vez los proveedores ni copiar la lista grande.
+- Se mantienen las mejoras anteriores: metadatos de miniaturas fuera del hilo visual; selección y agrupación de candidatos de duplicados exactos en segundo plano; búsqueda de imágenes similares cancelable y acotada a 2.500 candidatos; pruebas de la selección de duplicados.
+- Esta versión debe entregarse solo tras PASS de tests, compilación, verificación de firma y artefacto para el SHA final de `main`.
+
+---
+
 ## Versión Android 0.4.1 · 2026-10-20
 
 - `versionName = 0.4.1`; `versionCode = 14), incrementados para distinguir la actualización de la 0.4.0 instalada anteriormente.
