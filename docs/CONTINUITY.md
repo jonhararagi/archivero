@@ -1,3 +1,24 @@
+## Continuidad · 2026-10-20 · metadatos de miniaturas fuera del hilo visual
+
+### Entrega de código verificada
+- Cambio de código: [commit `802e57952463a422567234c037bb3c8f906a14ce`](https://github.com/jonhararagi/archivero/commit/802e57952463a422567234c037bb3c8f906a14ce).
+- Se retiraron las llamadas síncronas a `file.length()` y `file.lastModified()` de las claves Compose de las miniaturas de galería/limpieza. La consulta de metadatos, generación de la clave, determinación del tipo y decodificación se hacen desde `Dispatchers.IO`.
+- La caché sigue limitada a 24 MiB. Los errores de metadatos del proveedor usan fallbacks seguros.
+- CI de ese SHA: [run 39430152866](https://github.com/jonhararagi/archivero/actions/runs/39430152866), **PASS**. Pasaron `testDebugUnitTest`, `assembleDebug`, la verificación de certificado y la publicación del artefacto.
+- APK debug de esa ejecución: 21.265.703 bytes; SHA-256 `2ab547b1480f05b1c87c8c2b097ee644d989b0565e202b1f93e3bc3429c35511`. Artefacto ID `12267263467`, ZIP SHA-256 `3c64c48662e077389a8d330c4ba7be5c1fc109e71e144287e38bc768faae9f65`.
+- Certificado APK = keystore CI: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+
+### Pendiente, no marcar como PASS
+1. Probar desplazamiento de galería y miniaturas de limpieza en el Xiaomi real, revisar jank/ANR y medir RAM.
+2. Medir con conjuntos de 1.000 y 10.000 imágenes y proveedores SAF distintos.
+3. Probar permisos revocados, imágenes/PDF dañados y cambios de archivo durante la sesión.
+4. No afirmar validación sobre aproximadamente 200 GB sin medición física representativa.
+5. Al finalizar esta actualización documental, validar de nuevo el SHA final de `main` y descargar el artefacto perteneciente a esa ejecución, no uno anterior.
+
+**Estado:** cambio de código automatizado **PASS**; experiencia física/rendimiento a escala **PARTIAL**.
+
+---
+
 ## Continuidad · 2026-10-20 · optimización de galería y revisión comparativa
 
 ### Evidencia de código y CI

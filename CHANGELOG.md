@@ -1,3 +1,25 @@
+## Rendimiento de miniaturas SAF · 2026-10-20
+
+### Cambio de código
+- Commit: [`802e57952463a422567234c037bb3c8f906a14ce`](https://github.com/jonhararagi/archivero/commit/802e57952463a422567234c037bb3c8f906a14ce).
+- `GalleryThumbnail` y `FileThumbnail` ya no consultan `length()` y `lastModified()` durante la composición de Compose. La clave de caché y la consulta de metadatos se preparan desde `Dispatchers.IO`.
+- La lectura de nombre/tipo del documento en miniaturas del limpiador también se realiza en segundo plano. Los errores de proveedor al obtener nombre, tipo, longitud o modificación se manejan con valores seguros para evitar que un metadato inaccesible cierre la vista.
+- Se mantiene la caché LRU limitada a 24 MiB y el tamaño reducido de las miniaturas.
+
+### Validación CI del commit de código
+- GitHub Actions: [run 39430152866](https://github.com/jonhararagi/archivero/actions/runs/39430152866), **PASS** para SHA `802e57952463a422567234c037bb3c8f906a14ce`.
+- `testDebugUnitTest`: PASS. `assembleDebug`: PASS. Verificación de firma y publicación de artefacto: PASS.
+- Artefacto `archivero-debug-apk`, ID `12267263467`; ZIP descargado e integridad comprobada. ZIP SHA-256: `3c64c48662e077389a8d330c4ba7be5c1fc109e71e144287e38bc768faae9f65`.
+- APK debug: 21.265.703 bytes; SHA-256: `2ab547b1480f05b1c87c8c2b097ee644d989b0565e202b1f93e3bc3429c35511`.
+- SHA-256 del certificado de la APK y del keystore de CI coinciden: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+
+### Límites que permanecen abiertos
+- La CI no mide la fluidez real, los ANR ni el consumo de memoria en el Xiaomi.
+- Sigue pendiente un benchmark con 1.000 y 10.000 imágenes, proveedores SAF externos y la biblioteca real de aproximadamente 200 GB.
+- Estado: mejora de código + validación automatizada **PASS**; validación física y de escala **PARTIAL**.
+
+---
+
 ## Iteración de rendimiento y comparación · 2026-10-20
 
 ### Galería
