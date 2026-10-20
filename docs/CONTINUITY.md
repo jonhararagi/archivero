@@ -1,3 +1,27 @@
+## Continuidad · 2026-10-20 · optimización de galería y revisión comparativa
+
+### Evidencia de código y CI
+- Cambio funcional de galería: [commit `90a9b771b974df61f5a111d95dba93f8edd2af75`](https://github.com/jonhararagi/archivero/commit/90a9b771b974df61f5a111d95dba93f8edd2af75).
+- El filtrado de imágenes deduplica por URI y ordena dentro del trabajo de fondo; el visor reutiliza esa lista y no vuelve a ordenar al abrir una foto.
+- CI del SHA funcional: [run 39414605657](https://github.com/jonhararagi/archivero/actions/runs/39414605657), estado `success`. Pasaron `testDebugUnitTest`, `assembleDebug`, validación del certificado y publicación de artefacto.
+- Artefacto de ese run: ID `12260289796`, nombre `archivero-debug-apk`. APK: 21.265.703 bytes; SHA-256 `105c88e69b3519d0da04d1d5e8af19b73abe98c7bf68aa65f4e16dc3c4850571`. Certificado coincidente: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+- Los commits de documentación posteriores no cambian el código fuente Android. Antes de entregar un artefacto como correspondiente a la cabeza final de `main`, comprobar el run de CI ligado al SHA final y descargar su artefacto específico.
+
+### Investigación comparativa
+- Revisión añadida: [docs/COMPETITIVE_REVIEW.md](COMPETITIVE_REVIEW.md), creada en [commit e573c3d8](https://github.com/jonhararagi/archivero/commit/e573c3d8b8097ae1878c2e27ae66ea4d834cf6ec).
+- Se consultaron fuentes públicas de Files by Google, Solid Explorer, X-plore, Total Commander Android y CX File Explorer, además de documentación oficial de Android sobre SAF, ANR y uso de memoria de bitmaps.
+- El documento separa funciones documentadas, capacidades actuales de Archivero y lagunas. No proclama superioridad global sin benchmark medible.
+
+### Pendiente, no marcar como PASS
+- Prueba física en el Xiaomi: scroll de galerías amplias, tiempo de apertura de foto, zoom/pan, Atrás y retención de posición.
+- Benchmark reproducible con carpetas/conjuntos de 1.000 y 10.000 imágenes, consumo pico de RAM y medida del tiempo de apertura.
+- Verificación con proveedores SAF externos, permisos revocados y fallos de borrado.
+- Precisión del hash perceptual en un conjunto de fotos etiquetadas; su resultado sigue siendo sugerencia de similitud, no identidad exacta.
+- Rendimiento con la biblioteca real de aproximadamente 200 GB: no probado por la CI.
+- Estado honesto de esta iteración: optimización de ruta caliente y comparativa documental PASS en cuanto a entrega de código/documento; rendimiento físico y auditoría integral PARTIAL.
+
+---
+
 ## Estado en curso · 0.4.0 · galería fluida y limpieza inteligente · 2026-10-19
 
 - Base verificada: `fd8dd7272406977153f9ae0143cc57d45b0605d3`, CI PASS [39336780741](https://github.com/jonhararagi/archivero/actions/runs/39336780741).
