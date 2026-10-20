@@ -1,3 +1,19 @@
+## Iteración de rendimiento y comparación · 2026-10-20
+
+### Galería
+- El filtrado de imágenes deduplica por URI y ordena los resultados fuera del hilo visual. La apertura desde la cuadrícula reutiliza la lista que ya se preparó en segundo plano y evita volver a ordenar toda la galería al tocar una miniatura.
+- Código: [90a9b771b974df61f5a111d95dba93f8edd2af75](https://github.com/jonhararagi/archivero/commit/90a9b771b974df61f5a111d95dba93f8edd2af75).
+- CI de ese SHA: [run 39414605657](https://github.com/jonhararagi/archivero/actions/runs/39414605657), PASS para pruebas unitarias, `assembleDebug`, verificación de firma y publicación del artefacto.
+- La APK debug de esa ejecución mide 21.265.703 bytes y su SHA-256 es `105c88e69b3519d0da04d1d5e8af19b73abe98c7bf68aa65f4e16dc3c4850571`. Certificado del APK y keystore CI: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+- Pendiente: prueba física de respuesta, desplazamiento, zoom y memoria en el Xiaomi; no se afirma validación con 200 GB solo por pasar CI.
+
+### Comparativa funcional
+- Se añadió [docs/COMPETITIVE_REVIEW.md](docs/COMPETITIVE_REVIEW.md) con fuentes públicas y fechas consultadas para Files by Google, Solid Explorer, X-plore, Total Commander Android y CX File Explorer.
+- La comparativa separa funciones documentadas, funciones que Archivero ya tiene, lagunas actuales y criterios de benchmark. No declara superioridad general sin mediciones.
+- Documentación Android consultada para el análisis: SAF, ANR y memoria de bitmaps. Las pruebas físicas y comparaciones con conjuntos de datos representativos permanecen pendientes.
+
+---
+
 ## Versión 0.4.0 · galería visual y limpieza inteligente · 2026-10-19
 
 ### Navegación visual
