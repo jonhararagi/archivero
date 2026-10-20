@@ -1,3 +1,13 @@
+## Paginación y seguridad de proveedores · 2026-10-20
+
+- La enumeración por lotes para el sistema de archivos y árboles SAF conserva un límite de memoria al leer entradas, mientras que los proveedores no compatibles ya no pasan por `DocumentFile.listFiles()`, que materializa una matriz completa antes de aplicar el límite.
+- En ese caso, Archivero muestra el motivo y solicita volver a seleccionar la carpeta mediante el selector SAF, en lugar de arriesgar un consumo descontrolado de memoria o presentar una falsa paginación.
+- La vista de carpeta muestra el motivo real del error de enumeración en lugar de una explicación genérica de permisos.
+- Se amplían las pruebas de paginación local con páginas consecutivas, ausencia de repetidos, página final, offset fuera de rango y rechazo de parámetros no válidos.
+- Pendiente: pruebas instrumentadas con proveedores SAF reales y carpetas masivas en el dispositivo objetivo.
+
+---
+
 ## Evidencia de entrega 0.4.2 · 2026-10-20
 
 - SHA de código validado: `f2e1ff41e05ce5a04860b72d7a537b3c5b45504c`.

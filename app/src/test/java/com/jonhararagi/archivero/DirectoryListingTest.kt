@@ -39,6 +39,26 @@ class DirectoryListingTest {
         }
     }
 
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsZeroPageSize() {
+        val directory = Files.createTempDirectory("archivero-pages-invalid-limit").toFile()
+        try {
+            listFilesBounded(directory, limit = 0, offset = 0)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsNegativeOffset() {
+        val directory = Files.createTempDirectory("archivero-pages-invalid-offset").toFile()
+        try {
+            listFilesBounded(directory, limit = 2, offset = -1)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
     @Test
     fun listingBeyondTheEndIsEmptyAndNotTruncated() {
         val directory = Files.createTempDirectory("archivero-pages-empty").toFile()

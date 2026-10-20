@@ -1,3 +1,18 @@
+## Continuidad · límites seguros de paginación · 2026-10-20
+
+### Cambios sobre main
+- Se añadió `DirectoryListingTest.kt` para comprobar lotes consecutivos del sistema de archivos local, ausencia de URI repetidas, detección del último lote, offset fuera del final y validación de parámetros.
+- La primera ejecución de CI del test falló por una importación ausente de `java.io.File` en el test. Se corrigió en el commit `448d51743e5045f6fff436c3d010f63fdffc8f04`; la CI de ese SHA debe confirmarse por separado.
+- `listDocumentChildrenBounded` ya no llama a `DocumentFile.listFiles()` en proveedores fuera del sistema de archivos y árboles SAF. Esa API materializa los hijos antes de limitar la página; en directorios grandes podría elevar la memoria sin control. Ahora devuelve un error explícito y la UI recomienda volver a elegir la carpeta por SAF.
+- La pantalla muestra el mensaje real del proveedor para distinguir un árbol no compatible de un permiso revocado o un error genérico.
+- Los árboles SAF siguen usando un cursor con procesamiento acotado y el sistema de archivos local sigue usando `DirectoryStream`. El proveedor puede no ofrecer orden estable o soporte para saltos nativos; la implementación actual recorre los elementos previos para llegar al offset, sin mantenerlos en una lista en memoria.
+- No se ha validado este cambio en proveedores SAF de terceros ni en el Xiaomi físico. No declarar verificado el inventario de aproximadamente 200 GB.
+- TIMER de esta subiteración: la estimación original de 120–180 minutos es una previsión, no un tiempo real medido en el conector. Mantener el estado abierto hasta CI y pruebas físicas.
+
+**Estado provisional:** mitigación de memoria de respaldo + pruebas añadidas; pendiente CI para el SHA consolidado y pruebas de proveedor/dispositivo (**PARTIAL**).
+
+---
+
 ## Continuidad · verificación final de Archivero 0.4.2 · 2026-10-20
 
 - La ejecución de CI para el SHA `f2e1ff41e05ce5a04860b72d7a537b3c5b45504c` quedó **PASS** en [run 39487033724](https://github.com/jonhararagi/archivero/actions/runs/39487033724).

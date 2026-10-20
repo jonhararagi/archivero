@@ -217,6 +217,7 @@ fun ArchiveroApp() {
     var indexed by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
     var listedEntries by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
     var listingFailed by remember { mutableStateOf(false) }
+    var listingErrorMessage by remember { mutableStateOf("Comprueba los permisos de Android e inténtalo otra vez.") }
     var listingTruncated by remember { mutableStateOf(false) }
     var loadingMore by remember { mutableStateOf(false) }
     var hasScanned by remember { mutableStateOf(false) }
@@ -552,6 +553,7 @@ fun ArchiveroApp() {
         val requestedUri = currentUri
         val requestedRefresh = refresh
         listingFailed = false
+        listingErrorMessage = "Comprueba los permisos de Android e inténtalo otra vez."
         listingTruncated = false
         loadingMore = false
         listedEntries = emptyList()
@@ -573,6 +575,8 @@ fun ArchiveroApp() {
         listedEntries = listing?.entries ?: emptyList()
         listingTruncated = listing?.truncated ?: false
         listingFailed = result.isFailure
+        listingErrorMessage = result.exceptionOrNull()?.message
+            ?: "Comprueba los permisos de Android e inténtalo otra vez."
     }
     val entries = listedEntries
     var folderEntries by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
@@ -1349,7 +1353,7 @@ fun ArchiveroApp() {
                                 Text(if (loadingMore) "Cargando lote…" else "Cargar siguientes ${MAX_DIRECTORY_ENTRIES}")
                             }
                         }
-                        if (listingFailed) EmptyNotice("No se pudo leer esta carpeta", "Comprueba los permisos de Android.", Icons.Default.FolderOff)
+                        if (listingFailed) EmptyNotice("No se pudo leer esta carpeta", listingErrorMessage, Icons.Default.FolderOff)
                         else LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             items(folderEntries, key = { it.uri.toString() }) { file ->
                                 DocumentRow(file, {

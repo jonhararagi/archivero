@@ -85,12 +85,14 @@ internal fun listDocumentChildrenBounded(
         }
 
         else -> {
-            // Some non-tree providers expose only listFiles(), which may materialize the full
-            // result. File and SAF-tree locations use streaming pagination; see README for limits.
-            val all = directory.listFiles()
-            val page = all.drop(offset).take(limit)
-            truncated = all.size > offset + page.size
-            entries.addAll(page)
+            // DocumentFile.listFiles() materializes the full child array before callers can
+            // apply a limit. Refuse this uncommon path rather than risk an OOM in a huge folder.
+            // Ask the user to reselect the directory through the SAF tree picker so the cursor
+            // based, bounded path above can be used.
+            throw IOException(
+                "Este proveedor no permite enumerar esta carpeta por lotes de forma segura. " +
+                    "Vuelve a elegirla mediante «Seleccionar carpeta» para conceder acceso al árbol completo."
+            )
         }
     }
 
