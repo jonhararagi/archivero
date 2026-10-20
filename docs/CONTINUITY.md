@@ -1,3 +1,15 @@
+## Continuidad · verificación de artefacto tras actualizar documentación · 2026-10-20
+
+- SHA verificado de `main` en esa comprobación: `d0842575783646f21aebf3c9a7fb882901e1a7f7`.
+- CI del SHA anterior: [run 39430717291](https://github.com/jonhararagi/archivero/actions/runs/39430717291), **PASS** para pruebas unitarias, `assembleDebug`, comprobación de firma y publicación del artefacto.
+- La comparación con el commit funcional `802e57952463a422567234c037bb3c8f906a14ce` confirma que el commit `d084257` solo modifica `CHANGELOG.md` y este documento, sin cambios de código Android.
+- Artefacto exacto de esa ejecución: ID `12267088842`, tamaño del ZIP 20.395.922 bytes, ZIP SHA-256 `7690580aa5c57eceac1ddc1b7d3f8196493d0de7413db8791620ca00db2209f3`.
+- APK debug contenida: 21.265.703 bytes, SHA-256 `2ab547b1480f05b1c87c8c2b097ee644d989b0565e202b1f93e3bc3429c35511`. La suma coincidió con el archivo `.sha256` del artefacto y el ZIP pasó la prueba de integridad.
+- Certificado de APK y keystore CI coincidentes: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+- Esta entrada registra una comprobación histórica específica. Antes de una próxima entrega se debe volver a verificar la cabeza de `main` y su run, porque cualquier commit posterior requiere consultar su propia ejecución.
+
+---
+
 ## Continuidad · 2026-10-20 · metadatos de miniaturas fuera del hilo visual
 
 ### Entrega de código verificada
@@ -13,7 +25,7 @@
 2. Medir con conjuntos de 1.000 y 10.000 imágenes y proveedores SAF distintos.
 3. Probar permisos revocados, imágenes/PDF dañados y cambios de archivo durante la sesión.
 4. No afirmar validación sobre aproximadamente 200 GB sin medición física representativa.
-5. Al finalizar esta actualización documental, validar de nuevo el SHA final de `main` y descargar el artefacto perteneciente a esa ejecución, no uno anterior.
+5. Regla permanente para cada entrega: comprobar el SHA de `main` y utilizar únicamente el artefacto de la ejecución de CI asociada a ese mismo SHA; no reutilizar una APK anterior.
 
 **Estado:** cambio de código automatizado **PASS**; experiencia física/rendimiento a escala **PARTIAL**.
 
