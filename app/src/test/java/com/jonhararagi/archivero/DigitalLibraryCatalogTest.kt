@@ -349,6 +349,62 @@ class DigitalLibraryCatalogTest {
     }
 
     @Test
+    fun boundedFilteringReturnsTheSameFirstPageAsFullOrdering() {
+        val records = (0 until 5_000).reversed().map { index ->
+            LibraryRecord(
+                uri = "content://large/$index",
+                displayName = "Ficha %05d".format(index),
+                category = if (index % 2 == 0) "Imagen" else "Documento",
+                tags = listOf(if (index % 3 == 0) "anime" else "general"),
+                updatedAtMillis = index.toLong(),
+                project = if (index % 4 == 0) "KapiArt" else "Anime",
+                resourceKind = if (index % 2 == 0) "Original" else "Referencia"
+            )
+        }
+        val favorites = records.filter { it.uri.hashCode() % 11 == 0 }.mapTo(HashSet()) { it.uri }
+
+        listOf("Nombre", "Recientes", "Proyecto").forEach { sortMode ->
+            val expected = when (sortMode) {
+                "Recientes" -> records.sortedWith(
+                    compareByDescending<LibraryRecord> { it.uri in favorites }
+                        .thenByDescending { it.updatedAtMillis }
+                        .thenBy { it.displayName.lowercase(java.util.Locale.ROOT) }
+                        .thenBy { it.uri }
+                )
+                "Proyecto" -> records.sortedWith(
+                    compareByDescending<LibraryRecord> { it.uri in favorites }
+                        .thenBy { it.project.lowercase(java.util.Locale.ROOT) }
+                        .thenBy { it.displayName.lowercase(java.util.Locale.ROOT) }
+                        .thenBy { it.uri }
+                )
+                else -> records.sortedWith(
+                    compareByDescending<LibraryRecord> { it.uri in favorites }
+                        .thenBy { it.displayName.lowercase(java.util.Locale.ROOT) }
+                        .thenBy { it.uri }
+                )
+            }.take(37)
+
+            assertEquals(
+                expected,
+                filterLibraryRecords(
+                    records = records,
+                    query = "ficha",
+                    sortMode = sortMode,
+                    favorites = favorites,
+                    limit = 37
+                )
+            )
+        }
+
+        assertEquals(
+            records.filter { it.project == "KapiArt" }
+                .sortedBy { it.displayName.lowercase(java.util.Locale.ROOT) }
+                .take(19),
+            filterLibraryRecords(records, project = "kapiart", limit = 19)
+        )
+    }
+
+    @Test
     fun rejectsInvalidRecordsAndResultLimits() {
         val directory = Files.createTempDirectory("archivero-library-validation").toFile()
         try {

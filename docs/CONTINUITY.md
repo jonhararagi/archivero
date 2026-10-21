@@ -1,3 +1,17 @@
+## Continuidad · cola acotada para la búsqueda · 2026-10-21
+
+- Se reemplazó `filtrar todas → ordenar todas → tomar N` por una cola de prioridad acotada al límite de resultados. La complejidad de ordenamiento pasa de ordenar todas las coincidencias a mantener los mejores N con coste logarítmico por coincidencia; la lista final de N resultados sí se ordena normalmente.
+- Se preservan el orden de favoritos, las ordenaciones por Nombre/Recientes/Proyecto, todos los filtros, la ordenación estable por URI y el límite 10.000.
+- Se añadió test con 5.000 registros generados que compara las páginas superiores de las tres ordenaciones con una ordenación completa de referencia, más el caso de filtro de proyecto.
+- Esta prueba verifica equivalencia del resultado, no mide tiempo ni RAM en teléfono real. Benchmarks y jank en Xiaomi siguen pendientes.
+- CI del SHA nuevo debe confirmar tests, compilación, firma/hash y subida de APK antes de marcar PASS.
+
+### Última base validada
+- SHA `a4cded20629d8800dec4d556841fde9df1dc8253`: **PASS** en [run 39634053321](https://github.com/jonhararagi/archivero/actions/runs/39634053321), con artefacto `archivero-debug-apk` ID `12360063059`, ZIP de 20.572.760 bytes.
+- El PR #3 sigue en borrador, no fusionado. `main` no ha sido modificado directamente.
+
+---
+
 ## Continuidad · filtro de proyecto/colección · 2026-10-21
 
 - La biblioteca reutiliza `LibraryRecord.project` como colección/proyecto y ahora ofrece un selector en la fila de filtros.

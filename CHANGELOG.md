@@ -1,3 +1,12 @@
+## Búsqueda con selección acotada de resultados · 2026-10-21
+
+- `filterLibraryRecords` ya no ordena toda la lista coincidente para luego tomar 500/501 elementos: mantiene solo los mejores N elementos en una cola de prioridad acotada y devuelve esos resultados en orden.
+- Se mantiene la misma prioridad de favoritos, suborden por Nombre/Recientes/Proyecto, filtro de proyecto/colección y criterio determinista por URI.
+- Se añadió una prueba con 5.000 fichas generadas que compara las primeras 37 entradas en las tres ordenaciones con el orden completo de referencia, además de un caso con filtro por proyecto.
+- Es una optimización algorítmica verificada por tests, no un benchmark de rendimiento medido en un dispositivo. CI del nuevo commit pendiente.
+
+---
+
 ## Filtro de proyecto/colección · 2026-10-21
 
 - La barra de filtros ahora permite elegir cualquiera de los proyectos/colecciones ya usados por las fichas; la lista de opciones se construye en memoria, se deduplica sin distinguir mayúsculas/minúsculas y se ordena de forma determinista.

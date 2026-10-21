@@ -6,6 +6,7 @@ import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.Locale
+import java.util.PriorityQueue
 import java.util.Properties
 
 internal const val MAX_LIBRARY_SNAPSHOT_BYTES: Long = 64L * 1024L * 1024L
@@ -30,38 +31,47 @@ internal fun filterLibraryRecords(
     val categoryNeedle = category.trim().lowercase(Locale.ROOT)
     val kindNeedle = resourceKind.trim().lowercase(Locale.ROOT)
     val projectNeedle = project.trim().lowercase(Locale.ROOT)
-    val matches = records.asSequence().filter { record ->
+    val order = when (sortMode) {
+        "Recientes" -> compareByDescending<LibraryRecord> { it.uri in favorites }
+            .thenByDescending { it.updatedAtMillis }
+            .thenBy { it.displayName.lowercase(Locale.ROOT) }
+            .thenBy { it.uri }
+        "Proyecto" -> compareByDescending<LibraryRecord> { it.uri in favorites }
+            .thenBy { it.project.lowercase(Locale.ROOT) }
+            .thenBy { it.displayName.lowercase(Locale.ROOT) }
+            .thenBy { it.uri }
+        else -> compareByDescending<LibraryRecord> { it.uri in favorites }
+            .thenBy { it.displayName.lowercase(Locale.ROOT) }
+            .thenBy { it.uri }
+    }
+
+    // Keep only the best N matches in a bounded max-heap. This avoids sorting and allocating
+    // every matching record when the catalog is large and the screen needs only its first page.
+    val best = PriorityQueue<LibraryRecord>(limit, order.reversed())
+    records.forEach { record ->
         val searchable = sequenceOf(
             record.displayName, record.category, record.project, record.resourceKind,
             record.tags.joinToString(" "), record.notes, record.source,
             record.relatedUris.joinToString(" ")
         ).joinToString(" ").lowercase(Locale.ROOT)
-        (queryNeedle.isEmpty() || searchable.contains(queryNeedle)) &&
+        val matches = (queryNeedle.isEmpty() || searchable.contains(queryNeedle)) &&
             (categoryNeedle.isEmpty() || record.category.lowercase(Locale.ROOT).contains(categoryNeedle)) &&
             (kindNeedle.isEmpty() || record.resourceKind.lowercase(Locale.ROOT).contains(kindNeedle)) &&
             (projectNeedle.isEmpty() || record.project.trim().lowercase(Locale.ROOT) == projectNeedle) &&
             (!onlyFavorites || record.uri in favorites)
+        if (!matches) return@forEach
+
+        if (best.size < limit) {
+            best.add(record)
+        } else {
+            val worst = best.peek()
+            if (worst != null && order.compare(record, worst) < 0) {
+                best.poll()
+                best.add(record)
+            }
+        }
     }
-    val sorted = when (sortMode) {
-        "Recientes" -> matches.sortedWith(
-            compareByDescending<LibraryRecord> { it.uri in favorites }
-                .thenByDescending { it.updatedAtMillis }
-                .thenBy { it.displayName.lowercase(Locale.ROOT) }
-                .thenBy { it.uri }
-        )
-        "Proyecto" -> matches.sortedWith(
-            compareByDescending<LibraryRecord> { it.uri in favorites }
-                .thenBy { it.project.lowercase(Locale.ROOT) }
-                .thenBy { it.displayName.lowercase(Locale.ROOT) }
-                .thenBy { it.uri }
-        )
-        else -> matches.sortedWith(
-            compareByDescending<LibraryRecord> { it.uri in favorites }
-                .thenBy { it.displayName.lowercase(Locale.ROOT) }
-                .thenBy { it.uri }
-        )
-    }
-    return sorted.take(limit).toList()
+    return best.toList().sortedWith(order)
 }
 
 /**
