@@ -88,6 +88,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
+private const val MAX_LIBRARY_FAVORITES = 5_000
 private enum class Screen { HOME, TYPES, FOLDERS, CLEAN, LIBRARY }
 private enum class CleanupMode { SCREENSHOTS, DUPLICATES, SIMILAR_IMAGES, VIDEOS }
 private data class DuplicateGroup(val hash: String, val files: List<DocumentFile>)
@@ -201,6 +202,22 @@ fun ArchiveroApp() {
                 .orEmpty().split('\n').map { it.trim() }.filter { it.isNotEmpty() }.take(8)
         )
     }
+    var libraryFavoriteUris by remember(context) {
+        mutableStateOf(
+            context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
+                .getStringSet("library_favorites", emptySet())?.toSet().orEmpty()
+        )
+    }
+
+    fun reconcileLibraryFavorites(records: List<LibraryRecord>) {
+        val knownUris = records.mapTo(HashSet()) { it.uri }
+        val retained = libraryFavoriteUris.intersect(knownUris)
+        if (retained != libraryFavoriteUris) {
+            libraryFavoriteUris = retained
+            context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
+                .edit().putStringSet("library_favorites", retained).apply()
+        }
+    }
     var libraryEditDialog by remember { mutableStateOf(false) }
     var libraryEditUri by remember { mutableStateOf<String?>(null) }
     var libraryEditName by remember { mutableStateOf("") }
@@ -229,6 +246,7 @@ fun ArchiveroApp() {
             recordsResult.fold(
                 { records ->
                     libraryRecords = records
+                    reconcileLibraryFavorites(records)
                     libraryStorageError = null
                 },
                 { error -> libraryStorageError = error.message ?: "No se pudo leer el índice de biblioteca." }
@@ -279,7 +297,7 @@ fun ArchiveroApp() {
     var selectedKind by rememberSaveable { mutableStateOf(Kind.IMAGES.name) }
     var choosingKind by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
-    LaunchedEffect(query, libraryRecords, libraryCategoryFilter, libraryResourceKindFilter, librarySortMode) {
+    LaunchedEffect(query, libraryRecords, libraryCategoryFilter, libraryResourceKindFilter, librarySortMode, libraryFavoriteUris) {
         librarySearching = true
         delay(150)
         val matches = withContext(Dispatchers.Default) {
@@ -289,6 +307,7 @@ fun ArchiveroApp() {
                 category = libraryCategoryFilter,
                 resourceKind = libraryResourceKindFilter,
                 sortMode = librarySortMode,
+                favorites = libraryFavoriteUris,
                 limit = 501
             )
         }
@@ -522,10 +541,27 @@ fun ArchiveroApp() {
         scope.launch {
             val result = withContext(Dispatchers.IO) { runCatching { catalog.all() } }
             result.fold(
-                { records -> libraryRecords = records; libraryStorageError = null },
+                { records ->
+                    libraryRecords = records
+                    reconcileLibraryFavorites(records)
+                    libraryStorageError = null
+                },
                 { error -> libraryStorageError = error.message ?: "No se pudo leer el índice de biblioteca." }
             )
         }
+    }
+
+    fun toggleLibraryFavorite(uri: String) {
+        val next = libraryFavoriteUris.toMutableSet()
+        if (!next.add(uri)) {
+            next.remove(uri)
+        } else if (next.size > MAX_LIBRARY_FAVORITES) {
+            message = "La biblioteca admite hasta $MAX_LIBRARY_FAVORITES favoritos."
+            return
+        }
+        libraryFavoriteUris = next.toSet()
+        context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
+            .edit().putStringSet("library_favorites", next).apply()
     }
 
     fun rememberLibrarySearch() {
@@ -1935,6 +1971,8 @@ fun ArchiveroApp() {
                                                 grid = true,
                                                 transferRunning = libraryTransferRunning,
                                                 libraryRecordsByUri = libraryRecordsByUri,
+                                                isFavorite = record.uri in libraryFavoriteUris,
+                                                onToggleFavorite = { toggleLibraryFavorite(record.uri) },
                                                 onOpen = { document ->
                                                     requestOpen(document, listOf(document))
                                                 },
@@ -1994,6 +2032,8 @@ fun ArchiveroApp() {
                                                 grid = false,
                                                 transferRunning = libraryTransferRunning,
                                                 libraryRecordsByUri = libraryRecordsByUri,
+                                                isFavorite = record.uri in libraryFavoriteUris,
+                                                onToggleFavorite = { toggleLibraryFavorite(record.uri) },
                                                 onOpen = { document ->
                                                     requestOpen(document, listOf(document))
                                                 },
@@ -2854,6 +2894,8 @@ private fun LibraryRecordCard(
     grid: Boolean,
     transferRunning: Boolean,
     libraryRecordsByUri: Map<String, LibraryRecord>,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
     onOpen: (DocumentFile) -> Unit,
     onEdit: (DocumentFile?) -> Unit,
     onRemove: () -> Unit
@@ -2892,6 +2934,17 @@ private fun LibraryRecordCard(
                         ) {
                             Icon(Icons.Default.BrokenImage, null, Modifier.size(34.dp))
                         }
+                    }
+                    IconButton(
+                        onClick = onToggleFavorite,
+                        modifier = Modifier.align(Alignment.TopEnd).padding(2.dp)
+                            .size(34.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                    ) {
+                        Icon(
+                            if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
+                            contentDescription = if (isFavorite) "Quitar de favoritos" else "Añadir a favoritos",
+                            tint = if (isFavorite) Color(0xFFFFD166) else Color.White
+                        )
                     }
                 }
                 Text(record.displayName, fontWeight = FontWeight.Bold, maxLines = 2)
@@ -2964,6 +3017,13 @@ private fun LibraryRecordCard(
                         Text("Procedencia: " + record.source, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onToggleFavorite) {
+                            Icon(
+                                if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
+                                contentDescription = if (isFavorite) "Quitar de favoritos" else "Añadir a favoritos",
+                                tint = if (isFavorite) Color(0xFFE4A11B) else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         TextButton(
                             enabled = document != null && details.state == LibraryResourceState.AVAILABLE,
                             onClick = { document?.let(onOpen) },

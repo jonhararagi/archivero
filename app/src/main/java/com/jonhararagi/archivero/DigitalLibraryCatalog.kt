@@ -20,6 +20,7 @@ internal fun filterLibraryRecords(
     category: String = "",
     resourceKind: String = "",
     sortMode: String = "Nombre",
+    favorites: Set<String> = emptySet(),
     limit: Int = 500
 ): List<LibraryRecord> {
     require(limit in 1..10_000) { "El límite de resultados no es válido." }
@@ -38,17 +39,20 @@ internal fun filterLibraryRecords(
     }
     val sorted = when (sortMode) {
         "Recientes" -> matches.sortedWith(
-            compareByDescending<LibraryRecord> { it.updatedAtMillis }
+            compareByDescending<LibraryRecord> { it.uri in favorites }
+                .thenByDescending { it.updatedAtMillis }
                 .thenBy { it.displayName.lowercase(Locale.ROOT) }
                 .thenBy { it.uri }
         )
         "Proyecto" -> matches.sortedWith(
-            compareBy<LibraryRecord> { it.project.lowercase(Locale.ROOT) }
+            compareByDescending<LibraryRecord> { it.uri in favorites }
+                .thenBy { it.project.lowercase(Locale.ROOT) }
                 .thenBy { it.displayName.lowercase(Locale.ROOT) }
                 .thenBy { it.uri }
         )
         else -> matches.sortedWith(
-            compareBy<LibraryRecord> { it.displayName.lowercase(Locale.ROOT) }
+            compareByDescending<LibraryRecord> { it.uri in favorites }
+                .thenBy { it.displayName.lowercase(Locale.ROOT) }
                 .thenBy { it.uri }
         )
     }

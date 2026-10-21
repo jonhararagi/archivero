@@ -230,6 +230,13 @@ class DigitalLibraryCatalogTest {
         assertEquals(listOf("Akari", "Mika", "Zorro"), filterLibraryRecords(records, sortMode = "Recientes").map { it.displayName })
         assertEquals(listOf("Akari", "Zorro", "Mika"), filterLibraryRecords(records, sortMode = "Proyecto").map { it.displayName })
         assertEquals(1, filterLibraryRecords(records, limit = 1).size)
+        assertEquals(
+            listOf("Mika", "Zorro", "Akari"),
+            filterLibraryRecords(
+                records,
+                favorites = setOf("content://library/1", "content://library/3")
+            ).map { it.displayName }
+        )
         assertTrue(filterLibraryRecords(records, query = "no-existe").isEmpty())
     }
 
