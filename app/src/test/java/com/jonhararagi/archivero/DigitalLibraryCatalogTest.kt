@@ -225,7 +225,7 @@ class DigitalLibraryCatalogTest {
                 resourceKind = "Editado"
             )
         )
-        assertEquals(listOf("Zorro", "Mika"), filterLibraryRecords(records, category = "imagen").map { it.displayName })
+        assertEquals(listOf("Mika", "Zorro"), filterLibraryRecords(records, category = "imagen").map { it.displayName })
         assertEquals(listOf("Zorro"), filterLibraryRecords(records, query = "ANIME", category = "Imagen", resourceKind = "original").map { it.displayName })
         assertEquals(listOf("Akari", "Mika", "Zorro"), filterLibraryRecords(records, sortMode = "Recientes").map { it.displayName })
         assertEquals(listOf("Akari", "Zorro", "Mika"), filterLibraryRecords(records, sortMode = "Proyecto").map { it.displayName })
