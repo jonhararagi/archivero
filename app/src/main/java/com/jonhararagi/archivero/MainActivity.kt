@@ -189,6 +189,7 @@ fun ArchiveroApp() {
     var visibleLibraryRecords by remember { mutableStateOf<List<LibraryRecord>>(emptyList()) }
     var libraryMatchesTruncated by remember { mutableStateOf(false) }
     var librarySearching by remember { mutableStateOf(false) }
+    var libraryGridView by rememberSaveable { mutableStateOf(true) }
     var libraryEditDialog by remember { mutableStateOf(false) }
     var libraryEditUri by remember { mutableStateOf<String?>(null) }
     var libraryEditName by remember { mutableStateOf("") }
@@ -1784,94 +1785,131 @@ fun ArchiveroApp() {
                             } else if (visibleLibraryRecords.isEmpty()) {
                                 EmptyNotice("Sin coincidencias", "Prueba con otro nombre, etiqueta, nota o fuente.", Icons.Default.SearchOff)
                             } else {
-                                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    items(visibleLibraryRecords, key = { it.uri }) { record ->
-                                        Card(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            shape = RoundedCornerShape(18.dp)
-                                        ) {
-                                            Column(
-                                                Modifier.fillMaxWidth().padding(12.dp),
-                                                verticalArrangement = Arrangement.spacedBy(5.dp)
-                                            ) {
-                                                Text(record.displayName, fontWeight = FontWeight.Bold)
-                                                Text(
-                                                    record.category,
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    color = MaterialTheme.colorScheme.primary
-                                                )
-                                                if (record.tags.isNotEmpty()) {
-                                                    Text("Etiquetas: " + record.tags.joinToString(" · "), style = MaterialTheme.typography.bodySmall)
-                                                }
-                                                if (record.notes.isNotBlank()) Text(record.notes, style = MaterialTheme.typography.bodySmall)
-                                                if (record.source.isNotBlank()) {
-                                                    Text("Procedencia: " + record.source, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                }
-                                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                    TextButton(onClick = {
-                                                        val document = libraryDocument(context, record.uri)
-                                                        if (document != null && runCatching { document.exists() }.getOrDefault(false)) {
-                                                            requestOpen(document, listOf(document))
-                                                        } else {
-                                                            message = "El registro se conserva, pero Android no permite acceder al archivo. Comprueba el permiso o vuelve a elegir su ubicación."
-                                                        }
-                                                    }) {
-                                                        Icon(Icons.Default.OpenInNew, null)
-                                                        Spacer(Modifier.width(4.dp))
-                                                        Text("Abrir")
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    TextButton(onClick = { libraryGridView = false }, enabled = libraryGridView) {
+                                        Icon(Icons.Default.ViewList, null)
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Lista")
+                                    }
+                                    TextButton(onClick = { libraryGridView = true }, enabled = !libraryGridView) {
+                                        Icon(Icons.Default.GridView, null)
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Cuadrícula")
+                                    }
+                                }
+                                if (libraryGridView) {
+                                    LazyVerticalGrid(
+                                        columns = GridCells.Adaptive(164.dp),
+                                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                                        contentPadding = PaddingValues(bottom = 12.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        gridItems(visibleLibraryRecords, key = { it.uri }) { record ->
+                                            LibraryRecordCard(
+                                                record = record,
+                                                grid = true,
+                                                transferRunning = libraryTransferRunning,
+                                                onOpen = { document ->
+                                                    requestOpen(document, listOf(document))
+                                                },
+                                                onEdit = { document ->
+                                                    if (document != null) {
+                                                        editLibraryMetadata(document)
+                                                    } else {
+                                                        libraryEditUri = record.uri
+                                                        libraryEditName = record.displayName
+                                                        libraryEditCategory = record.category
+                                                        libraryEditTags = record.tags.joinToString(", ")
+                                                        libraryEditNotes = record.notes
+                                                        libraryEditSource = record.source
+                                                        libraryEditDialog = true
                                                     }
-                                                    TextButton(onClick = {
-                                                        val document = libraryDocument(context, record.uri)
-                                                        if (document != null) {
-                                                            editLibraryMetadata(document)
-                                                        } else {
-                                                            libraryEditUri = record.uri
-                                                            libraryEditName = record.displayName
-                                                            libraryEditCategory = record.category
-                                                            libraryEditTags = record.tags.joinToString(", ")
-                                                            libraryEditNotes = record.notes
-                                                            libraryEditSource = record.source
-                                                            libraryEditDialog = true
-                                                        }
-                                                    }) {
-                                                        Icon(Icons.Default.Edit, null)
-                                                        Spacer(Modifier.width(4.dp))
-                                                        Text("Editar ficha")
-                                                    }
-                                                    TextButton(
-                                                        enabled = !libraryTransferRunning,
-                                                        onClick = {
-                                                            val catalog = libraryCatalog
-                                                            if (catalog == null) {
-                                                                message = "El índice de biblioteca no está disponible."
-                                                            } else {
-                                                                libraryTransferRunning = true
-                                                                scope.launch {
-                                                                    val result = withContext(Dispatchers.IO) {
-                                                                        runCatching { catalog.removeMetadata(record.uri) }
-                                                                    }
-                                                                    libraryTransferRunning = false
-                                                                    result.fold(
-                                                                        { removed ->
-                                                                            if (removed) {
-                                                                                refreshLibrary()
-                                                                                message = "Se quitó la ficha. El archivo físico no se borró."
-                                                                            } else {
-                                                                                message = "La ficha ya no estaba en el catálogo."
-                                                                            }
-                                                                        },
-                                                                        { error -> message = "No se pudo quitar la ficha: ${error.message ?: "error de almacenamiento"}" }
-                                                                    )
-                                                                }
+                                                },
+                                                onRemove = {
+                                                    val catalog = libraryCatalog
+                                                    if (catalog == null) {
+                                                        message = "El índice de biblioteca no está disponible."
+                                                    } else {
+                                                        libraryTransferRunning = true
+                                                        scope.launch {
+                                                            val result = withContext(Dispatchers.IO) {
+                                                                runCatching { catalog.removeMetadata(record.uri) }
                                                             }
+                                                            libraryTransferRunning = false
+                                                            result.fold(
+                                                                { removed ->
+                                                                    if (removed) {
+                                                                        refreshLibrary()
+                                                                        message = "Se quitó la ficha. El archivo físico no se borró."
+                                                                    } else {
+                                                                        message = "La ficha ya no estaba en el catálogo."
+                                                                    }
+                                                                },
+                                                                { error -> message = "No se pudo quitar la ficha: ${error.message ?: "error de almacenamiento"}" }
+                                                            )
                                                         }
-                                                    ) {
-                                                        Icon(Icons.Default.BookmarkRemove, null)
-                                                        Spacer(Modifier.width(4.dp))
-                                                        Text("Quitar ficha")
                                                     }
                                                 }
-                                            }
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    LazyColumn(
+                                        Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        items(visibleLibraryRecords, key = { it.uri }) { record ->
+                                            LibraryRecordCard(
+                                                record = record,
+                                                grid = false,
+                                                transferRunning = libraryTransferRunning,
+                                                onOpen = { document ->
+                                                    requestOpen(document, listOf(document))
+                                                },
+                                                onEdit = { document ->
+                                                    if (document != null) {
+                                                        editLibraryMetadata(document)
+                                                    } else {
+                                                        libraryEditUri = record.uri
+                                                        libraryEditName = record.displayName
+                                                        libraryEditCategory = record.category
+                                                        libraryEditTags = record.tags.joinToString(", ")
+                                                        libraryEditNotes = record.notes
+                                                        libraryEditSource = record.source
+                                                        libraryEditDialog = true
+                                                    }
+                                                },
+                                                onRemove = {
+                                                    val catalog = libraryCatalog
+                                                    if (catalog == null) {
+                                                        message = "El índice de biblioteca no está disponible."
+                                                    } else {
+                                                        libraryTransferRunning = true
+                                                        scope.launch {
+                                                            val result = withContext(Dispatchers.IO) {
+                                                                runCatching { catalog.removeMetadata(record.uri) }
+                                                            }
+                                                            libraryTransferRunning = false
+                                                            result.fold(
+                                                                { removed ->
+                                                                    if (removed) {
+                                                                        refreshLibrary()
+                                                                        message = "Se quitó la ficha. El archivo físico no se borró."
+                                                                    } else {
+                                                                        message = "La ficha ya no estaba en el catálogo."
+                                                                    }
+                                                                },
+                                                                { error -> message = "No se pudo quitar la ficha: ${error.message ?: "error de almacenamiento"}" }
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            )
                                         }
                                     }
                                 }
@@ -2535,6 +2573,215 @@ private fun ImageGalleryGrid(
             }
         }
     }
+}
+
+private enum class LibraryResourceState { LOADING, AVAILABLE, NOT_FOUND, NO_ACCESS }
+
+private data class LibraryResourceDetails(
+    val state: LibraryResourceState = LibraryResourceState.LOADING,
+    val mimeType: String? = null,
+    val sizeBytes: Long? = null,
+    val modifiedMillis: Long? = null,
+    val width: Int? = null,
+    val height: Int? = null
+)
+
+/**
+ * A virtualized, metadata-aware catalog card. All potentially blocking document-provider queries
+ * and image bounds reads happen in a LaunchedEffect on Dispatchers.IO.
+ */
+@Composable
+private fun LibraryRecordCard(
+    record: LibraryRecord,
+    grid: Boolean,
+    transferRunning: Boolean,
+    onOpen: (DocumentFile) -> Unit,
+    onEdit: (DocumentFile?) -> Unit,
+    onRemove: () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val document = remember(context, record.uri) { libraryDocument(context, record.uri) }
+    var details by remember(record.uri) { mutableStateOf(LibraryResourceDetails()) }
+
+    LaunchedEffect(record.uri, document) {
+        details = LibraryResourceDetails()
+        details = withContext(Dispatchers.IO) {
+            inspectLibraryResource(context, record.uri, document)
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp)
+    ) {
+        if (grid) {
+            Column(
+                Modifier.fillMaxWidth().padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    Modifier.fillMaxWidth().height(116.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (document != null) {
+                        FileThumbnail(file = document, size = 104)
+                    } else {
+                        Box(
+                            Modifier.size(104.dp).clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.BrokenImage, null, Modifier.size(34.dp))
+                        }
+                    }
+                }
+                Text(record.displayName, fontWeight = FontWeight.Bold, maxLines = 2)
+                Text(record.category, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                LibraryTechnicalDetails(details)
+                if (record.tags.isNotEmpty()) {
+                    Text("Etiquetas: " + record.tags.joinToString(" · "), style = MaterialTheme.typography.bodySmall, maxLines = 3)
+                }
+                if (record.notes.isNotBlank()) Text(record.notes, style = MaterialTheme.typography.bodySmall, maxLines = 3)
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(
+                        enabled = document != null && details.state == LibraryResourceState.AVAILABLE,
+                        onClick = { document?.let(onOpen) },
+                        contentPadding = PaddingValues(horizontal = 6.dp)
+                    ) { Text("Abrir") }
+                    TextButton(onClick = { onEdit(document) }, contentPadding = PaddingValues(horizontal = 6.dp)) { Text("Editar") }
+                    IconButton(onClick = onRemove, enabled = !transferRunning) {
+                        Icon(Icons.Default.BookmarkRemove, "Quitar ficha")
+                    }
+                }
+            }
+        } else {
+            Row(
+                Modifier.fillMaxWidth().padding(11.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                if (document != null) {
+                    FileThumbnail(file = document, size = 72)
+                } else {
+                    Box(
+                        Modifier.size(72.dp).clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.BrokenImage, null, Modifier.size(28.dp))
+                    }
+                }
+                Spacer(Modifier.width(11.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text(record.displayName, fontWeight = FontWeight.Bold, maxLines = 2)
+                    Text(record.category, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    LibraryTechnicalDetails(details)
+                    if (record.tags.isNotEmpty()) {
+                        Text("Etiquetas: " + record.tags.joinToString(" · "), style = MaterialTheme.typography.bodySmall, maxLines = 2)
+                    }
+                    if (record.notes.isNotBlank()) Text(record.notes, style = MaterialTheme.typography.bodySmall, maxLines = 2)
+                    if (record.source.isNotBlank()) {
+                        Text("Procedencia: " + record.source, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(
+                            enabled = document != null && details.state == LibraryResourceState.AVAILABLE,
+                            onClick = { document?.let(onOpen) },
+                            contentPadding = PaddingValues(horizontal = 8.dp)
+                        ) { Icon(Icons.Default.OpenInNew, null); Spacer(Modifier.width(3.dp)); Text("Abrir") }
+                        TextButton(
+                            onClick = { onEdit(document) },
+                            contentPadding = PaddingValues(horizontal = 8.dp)
+                        ) { Icon(Icons.Default.Edit, null); Spacer(Modifier.width(3.dp)); Text("Editar") }
+                        TextButton(
+                            onClick = onRemove,
+                            enabled = !transferRunning,
+                            contentPadding = PaddingValues(horizontal = 8.dp)
+                        ) { Icon(Icons.Default.BookmarkRemove, null); Spacer(Modifier.width(3.dp)); Text("Quitar ficha") }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryTechnicalDetails(details: LibraryResourceDetails) {
+    when (details.state) {
+        LibraryResourceState.LOADING -> Text(
+            "Consultando metadatos…",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        LibraryResourceState.NOT_FOUND -> Text(
+            "Recurso no encontrado. La ficha se conserva.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error
+        )
+        LibraryResourceState.NO_ACCESS -> Text(
+            "Sin acceso al recurso. Revisa los permisos.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error
+        )
+        LibraryResourceState.AVAILABLE -> {
+            val detailsLine = buildList {
+                details.mimeType?.takeIf { it.isNotBlank() }?.let(::add)
+                details.sizeBytes?.let { add(formatBytes(it)) }
+                if (details.width != null && details.height != null) add("${details.width} × ${details.height} px")
+                details.modifiedMillis?.let {
+                    add("Modificado " + SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(it)))
+                }
+            }
+            if (detailsLine.isNotEmpty()) {
+                Text(
+                    detailsLine.joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3
+                )
+            } else {
+                Text("Metadatos técnicos no disponibles", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+private fun inspectLibraryResource(
+    context: Context,
+    rawUri: String,
+    document: DocumentFile?
+): LibraryResourceDetails {
+    if (document == null) return LibraryResourceDetails(state = LibraryResourceState.NO_ACCESS)
+    val exists = runCatching { document.exists() }
+    if (exists.isFailure) return LibraryResourceDetails(state = LibraryResourceState.NO_ACCESS)
+    if (exists.getOrDefault(false).not()) return LibraryResourceDetails(state = LibraryResourceState.NOT_FOUND)
+
+    val mimeType = runCatching { document.type }.getOrNull()
+    val size = runCatching { document.length() }.getOrDefault(-1L).takeIf { it >= 0L }
+    val modified = runCatching { document.lastModified() }.getOrDefault(0L).takeIf { it > 0L }
+    val name = runCatching { document.name }.getOrNull().orEmpty()
+    val extension = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
+    val isImage = mimeType?.startsWith("image/", ignoreCase = true) == true || extension in Kind.IMAGES.extensions
+    var width: Int? = null
+    var height: Int? = null
+    if (isImage) {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        val dimensionRead = runCatching {
+            val uri = Uri.parse(rawUri)
+            if (uri.scheme == "file") BitmapFactory.decodeFile(uri.path, bounds)
+            else context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+            if (bounds.outWidth > 0 && bounds.outHeight > 0) bounds.outWidth to bounds.outHeight else null
+        }.getOrNull()
+        width = dimensionRead?.first
+        height = dimensionRead?.second
+    }
+    return LibraryResourceDetails(
+        state = LibraryResourceState.AVAILABLE,
+        mimeType = mimeType ?: extension.takeIf { it.isNotBlank() }?.uppercase(Locale.ROOT),
+        sizeBytes = size,
+        modifiedMillis = modified,
+        width = width,
+        height = height
+    )
 }
 
 @Composable
