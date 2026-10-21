@@ -40,7 +40,7 @@ La sección **Biblioteca** permite crear fichas para archivos existentes sin cop
 - Los conflictos de importación se rechazan de forma predeterminada y un índice malformado se informa sin reemplazarlo silenciosamente.
 - La lista visual muestra como máximo 500 fichas por vez para conservar una interfaz manejable; la búsqueda permite acotar los resultados.
 
-La importación y exportación de instantáneas está disponible en la capa interna del catálogo; falta exponer los selectores de archivos correspondientes en la interfaz.
+La interfaz incluye selectores Android para importar y exportar instantáneas. El catálogo limita cada instantánea a 64 MiB, valida el contenido antes de importarlo y rechaza URI en conflicto por defecto; una importación fallida deja intacto el índice activo.
 
 ## Correcciones de fiabilidad recientes
 
