@@ -1,3 +1,12 @@
+## Auditoría manual de acceso a recursos · 2026-10-21
+
+- Se añadió una revisión explícita de todas las fichas activas para comprobar visibilidad y bandera de lectura del proveedor Android. La operación es cancelable, informa del progreso y conserva muestras acotadas para no retener un informe gigante en memoria.
+- Se distinguen recursos legibles, URI que el proveedor no muestra y URI sin acceso o lectura. «No visible» se presenta con cautela porque un permiso revocado o un proveedor distinto puede ocultar un archivo sin que se haya borrado.
+- El análisis consulta metadatos del proveedor; no lee el contenido de los archivos, no corrige URI, no elimina fichas y no borra recursos físicos.
+- Se añadieron pruebas unitarias del acumulador, recuentos y límite de muestras. CI de esta nueva cabeza pendiente.
+
+---
+
 ## Papelera recuperable de la Biblioteca · 2026-10-21
 
 - La acción «Mover a papelera» deja de quitar una ficha de forma irreversible del índice: guarda sus metadatos y fecha de retirada en el mismo archivo local, con opción de restaurar.

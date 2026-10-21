@@ -162,7 +162,7 @@ private data class Disk(val used: Long, val total: Long) {
     }
 }
 
-private fun libraryDocument(context: Context, rawUri: String): DocumentFile? = runCatching {
+internal fun libraryDocument(context: Context, rawUri: String): DocumentFile? = runCatching {
     val uri = Uri.parse(rawUri)
     if (uri.scheme == "file") {
         val path = uri.path?.takeIf { it.isNotBlank() } ?: return@runCatching null
@@ -1927,11 +1927,21 @@ fun ArchiveroApp() {
                                 modifier = Modifier.weight(1f)
                             )
                         }
-                        LibraryRelationshipAuditButton(
-                            records = libraryRecords,
-                            enabled = libraryCatalog != null && !libraryTransferRunning,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            LibraryRelationshipAuditButton(
+                                records = libraryRecords,
+                                enabled = libraryCatalog != null && !libraryTransferRunning,
+                                modifier = Modifier.weight(1f)
+                            )
+                            LibraryResourceAccessAuditButton(
+                                records = libraryRecords,
+                                enabled = libraryCatalog != null && !libraryTransferRunning,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                         if (libraryTransferRunning) {
                             Text("Procesando instantánea de metadatos…", style = MaterialTheme.typography.bodySmall)
                         }
