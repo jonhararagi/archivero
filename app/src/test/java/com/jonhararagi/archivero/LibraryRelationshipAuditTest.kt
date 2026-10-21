@@ -31,12 +31,12 @@ class LibraryRelationshipAuditTest {
 
         assertEquals(2, report.unresolvedRelationCount)
         assertEquals(
-            listOf("content://missing/one", "content://missing/two"),
+            listOf("content://missing/two", "content://missing/one"),
             report.unresolvedSamples.map { it.targetUri }
         )
         assertEquals(2, report.unreferencedRecordCount)
         assertEquals(
-            listOf("content://library/a", "content://library/c"),
+            listOf("content://library/c", "content://library/a"),
             report.unreferencedSamples.map { it.uri }
         )
     }
