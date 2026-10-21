@@ -1,0 +1,147 @@
+package com.jonhararagi.archivero
+
+import java.io.File
+import java.io.IOException
+import java.nio.file.Files
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class DigitalLibraryCatalogTest {
+    @Test
+    fun persistsMetadataAndSearchesAcrossNameTagsNotesAndSource() {
+        val directory = Files.createTempDirectory("archivero-library-search").toFile()
+        try {
+            val file = File(directory, "catalog.properties")
+            val catalog = DigitalLibraryCatalog(file)
+            catalog.upsert(
+                LibraryRecord(
+                    uri = "content://demo/anime/42",
+                    displayName = "  Referencia - cabello azul  ",
+                    category = "Imagen",
+                    tags = listOf("Anime", "cabello azul", "anime", ""),
+                    notes = "Paleta para personaje principal",
+                    source = "https://example.invalid/referencia",
+                    updatedAtMillis = 123L
+                )
+            )
+
+            val restored = DigitalLibraryCatalog(file)
+            assertEquals("Referencia - cabello azul", restored.get("content://demo/anime/42")?.displayName)
+            assertEquals(listOf("Anime", "cabello azul"), restored.get("content://demo/anime/42")?.tags)
+            assertEquals(1, restored.search(query = "PERSONAJE").size)
+            assertEquals(1, restored.search(query = "example.invalid").size)
+            assertEquals(1, restored.search(category = "imagen", requiredTags = setOf("anime", "cabello azul")).size)
+            assertTrue(restored.search(requiredTags = setOf("anime", "paisaje")).isEmpty())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun removeMetadataDoesNotDeleteTheReferencedPhysicalFile() {
+        val directory = Files.createTempDirectory("archivero-library-remove").toFile()
+        try {
+            val physicalFile = File(directory, "important.txt")
+            physicalFile.writeText("keep this content")
+            val catalog = DigitalLibraryCatalog(File(directory, "catalog.properties"))
+            val uri = physicalFile.toURI().toString()
+            catalog.upsert(LibraryRecord(uri, physicalFile.name, "TXT", notes = "Test"))
+            
+            assertTrue(catalog.removeMetadata(uri))
+            assertFalse(catalog.removeMetadata(uri))
+            assertTrue("Quitar la ficha no debe borrar el archivo físico.", physicalFile.exists())
+            assertEquals("keep this content", physicalFile.readText())
+            assertNull(catalog.get(uri))
+            assertTrue(DigitalLibraryCatalog(File(directory, "catalog.properties")).all().isEmpty())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun snapshotRoundTripWorksAndCollisionsAreRejectedWithoutMutation() {
+        val directory = Files.createTempDirectory("archivero-library-backup").toFile()
+        try {
+            val active = DigitalLibraryCatalog(File(directory, "active.properties"))
+            val record = LibraryRecord(
+                "content://demo/item/1", "Guía de color", "Documento",
+                tags = listOf("colores", "anime"), notes = "Notas",
+                source = "https://example.invalid", updatedAtMillis = 456L
+            )
+            active.upsert(record)
+            val backup = File(directory, "export.properties")
+            active.exportSnapshot(backup)
+
+            val restored = DigitalLibraryCatalog(File(directory, "restored.properties"))
+            assertEquals(1, restored.importSnapshot(backup))
+            assertEquals(record, restored.get(record.uri))
+            assertEquals(1, restored.all().size)
+
+            val before = restored.all()
+            try {
+                restored.importSnapshot(backup)
+                throw AssertionError("La importación con colisión debía rechazarse.")
+            } catch (_: IOException) {
+                // Expected: don't overwrite metadata silently.
+            }
+            assertEquals(before, restored.all())
+            assertEquals(1, restored.importSnapshot(backup, replaceExisting = true))
+            assertEquals(before, restored.all())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun corruptImportFailsWithoutReplacingTheExistingCatalog() {
+        val directory = Files.createTempDirectory("archivero-library-corrupt").toFile()
+        try {
+            val catalogFile = File(directory, "catalog.properties")
+            val catalog = DigitalLibraryCatalog(catalogFile)
+            val keep = LibraryRecord("content://demo/keep", "Mantener", "Documento")
+            catalog.upsert(keep)
+
+            val corrupt = File(directory, "corrupt.properties")
+            corrupt.writeText("schema.version=1\nrecords.count=1\nrecord.0.uri=content://incomplete\n")
+            try {
+                catalog.importSnapshot(corrupt)
+                throw AssertionError("La importación incompleta debía rechazarse.")
+            } catch (_: IOException) {
+                // Expected: validation must finish before any active-catalog write.
+            }
+
+            assertEquals(listOf(keep), catalog.all())
+            assertEquals(listOf(keep), DigitalLibraryCatalog(catalogFile).all())
+            assertNotNull(catalog.get(keep.uri))
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun rejectsInvalidRecordsAndResultLimits() {
+        val directory = Files.createTempDirectory("archivero-library-validation").toFile()
+        try {
+            val catalog = DigitalLibraryCatalog(File(directory, "catalog.properties"))
+            try {
+                catalog.upsert(LibraryRecord("content://demo/empty-name", " ", "Imagen"))
+                throw AssertionError("El nombre vacío debía rechazarse.")
+            } catch (_: IllegalArgumentException) {
+                // Expected.
+            }
+            try {
+                catalog.search(limit = 0)
+                throw AssertionError("El límite cero debía rechazarse.")
+            } catch (_: IllegalArgumentException) {
+                // Expected.
+            }
+            assertTrue(catalog.all().isEmpty())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+}
