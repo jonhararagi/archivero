@@ -220,26 +220,6 @@ fun ArchiveroApp() {
         libraryCatalogLoading = false
     }
 
-    LaunchedEffect(query, libraryRecords) {
-        librarySearching = true
-        delay(150)
-        val needle = query.trim().lowercase(Locale.ROOT)
-        val matches = withContext(Dispatchers.Default) {
-            libraryRecords.asSequence()
-                .filter { record ->
-                    needle.isEmpty() || sequenceOf(
-                        record.displayName, record.category, record.tags.joinToString(" "),
-                        record.notes, record.source
-                    ).any { it.lowercase(Locale.ROOT).contains(needle) }
-                }
-                .take(501)
-                .toList()
-        }
-        visibleLibraryRecords = matches.take(500)
-        libraryMatchesTruncated = matches.size > 500
-        librarySearching = false
-    }
-
     val savedPaletteName = context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).getString("palette", null)
     // Cyberpunk is the first-run identity; preserve any palette the user explicitly selected.
     val initialPaletteName = savedPaletteName ?: Palette.CIBERPUNK.name
@@ -279,6 +259,26 @@ fun ArchiveroApp() {
     var selectedKind by rememberSaveable { mutableStateOf(Kind.IMAGES.name) }
     var choosingKind by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
+    LaunchedEffect(query, libraryRecords) {
+        librarySearching = true
+        delay(150)
+        val needle = query.trim().lowercase(Locale.ROOT)
+        val matches = withContext(Dispatchers.Default) {
+            libraryRecords.asSequence()
+                .filter { record ->
+                    needle.isEmpty() || sequenceOf(
+                        record.displayName, record.category, record.tags.joinToString(" "),
+                        record.notes, record.source
+                    ).any { it.lowercase(Locale.ROOT).contains(needle) }
+                }
+                .take(501)
+                .toList()
+        }
+        visibleLibraryRecords = matches.take(500)
+        libraryMatchesTruncated = matches.size > 500
+        librarySearching = false
+    }
+
     var refresh by remember { mutableIntStateOf(0) }
     var indexed by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
     var listedEntries by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
