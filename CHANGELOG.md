@@ -1,3 +1,13 @@
+## Agrupación visual más estricta y liberación segura de bitmaps · 2026-10-21
+
+- El agrupador de similitud ya no trata cualquier cadena de coincidencias como un solo grupo: ahora cada pareja dentro de un grupo debe cumplir el umbral de distancia perceptual. Se ordenan previamente las huellas/URI para obtener una partición reproducible con la misma entrada, aunque llegue en otro orden.
+- Se añaden pruebas para el caso engañoso A↔B↔C donde A y C exceden el umbral, para determinismo y umbrales fuera de rango.
+- El análisis conserva la cancelación en vez de absorber una `CancellationException` como si fuera una imagen ilegible. La decodificación reduce el riesgo de retener bitmaps si el escalado o la lectura de píxeles fallan.
+- Referencias de diseño consultadas: [Hydrus Network](https://github.com/hydrusnetwork/hydrus) destaca organización por etiquetas, colecciones grandes y privacidad local; [digiKam](https://github.com/KDE/digikam) combina etiquetas, metadatos y búsqueda por múltiples criterios; [Tropy](https://github.com/tropy/tropy) se orienta a describir fotos de investigación para reencontrar fuentes. Archivero adopta principios compatibles, no su código ni dependencias pesadas.
+- CI pendiente para la nueva revisión de este lote.
+
+---
+
 ## Búsqueda perceptual de imágenes dentro de Biblioteca · 2026-10-21
 
 - Se integra en Biblioteca el acceso «Buscar fotos parecidas en fichas visibles», reutilizando el detector perceptual local existente.

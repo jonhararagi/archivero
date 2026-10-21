@@ -1,3 +1,16 @@
+## Continuidad · evitar cadenas engañosas en similitud visual · 2026-10-21
+
+- Rama autorizada: `feature/archivero-digital-library-001`; cabeza base `69993f34cdd979344db3e39aefa94681432aa200`. No modificar `main`, no crear ramas duplicadas ni fusionar PR #3.
+- Hallazgo: `groupSimilarImageHashes` usaba componentes conectados (single-link); A podía agruparse con C solo porque ambas eran parecidas a B, aunque A y C estuvieran más lejos del umbral.
+- Corrección: partición greedy deterministic complete-link: todos los pares de un grupo cumplen `maxDistance`. Ordena por hash y URI para que el resultado no dependa del orden de entrada. El algoritmo sigue siendo O(n²), como la implementación anterior; no se declara una mejora de velocidad.
+- Pruebas: extremos no encadenados (0, 15, 255 con umbral 4), independencia frente al orden de entrada y validación del rango -1/65.
+- Se evita capturar `CancellationException` dentro del hash de imagen y se garantiza `recycle()` de bitmaps ante fallo de escalado o recorrido de píxeles.
+- Investigación de repos públicos: [Hydrus Network](https://github.com/hydrusnetwork/hydrus) (etiquetas/privacidad), [digiKam](https://github.com/KDE/digikam) (búsqueda con criterios combinables y metadatos), [Tropy](https://github.com/tropy/tropy) (descripción de fotos y recuperación de fuentes). Se toman patrones de producto, sin incorporar librerías o código externo.
+- CI aún pendiente para la cabeza que añade esta corrección. No declarar PASS hasta comprobar pruebas, APK, firma/hash y artefacto.
+- TIMER estimado: 30–60 minutos de agente, no tiempo medido en dispositivo. Se conserva debajo todo el historial de continuidad.
+
+---
+
 ## Continuidad · búsqueda perceptual dentro de Biblioteca · 2026-10-21
 
 - **Último commit funcional verificado:** `81516cbed5ea1a473162f687c139db714841ddd2`.

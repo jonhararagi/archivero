@@ -39,6 +39,54 @@ class ImageSimilarityTest {
     }
 
     @Test
+    fun doesNotChainTogetherDistantEndpointsThroughAnIntermediateImage() {
+        val groups = groupSimilarImageHashes(
+            listOf(
+                ImageHashSample("endpoint-a", 0L),
+                ImageHashSample("middle", 0b1111L),
+                ImageHashSample("endpoint-c", 0b11111111L)
+            ),
+            maxDistance = 4
+        )
+
+        assertEquals(1, groups.size)
+        assertEquals(setOf("endpoint-a", "middle"), groups.single().map { it.uri }.toSet())
+        assertEquals(8, perceptualHashDistance(0L, 0b11111111L))
+    }
+
+    @Test
+    fun groupingIsDeterministicRegardlessOfInputOrder() {
+        val samples = listOf(
+            ImageHashSample("late", 0b11111110L),
+            ImageHashSample("first", 0L),
+            ImageHashSample("middle", 0b1111L),
+            ImageHashSample("near-first", 1L)
+        )
+
+        val forward = groupSimilarImageHashes(samples, maxDistance = 4)
+            .map { it.map(ImageHashSample::uri) }
+        val reverse = groupSimilarImageHashes(samples.reversed(), maxDistance = 4)
+            .map { it.map(ImageHashSample::uri) }
+
+        assertEquals(forward, reverse)
+    }
+
+    @Test
+    fun rejectsInvalidSimilarityThresholds() {
+        listOf(-1, 65).forEach { threshold ->
+            try {
+                groupSimilarImageHashes(
+                    listOf(ImageHashSample("a", 0L), ImageHashSample("b", 0L)),
+                    maxDistance = threshold
+                )
+                throw AssertionError("El umbral inválido debía rechazarse.")
+            } catch (_: IllegalArgumentException) {
+                // Expected.
+            }
+        }
+    }
+
+    @Test
     fun summaryWarnsWhenCandidateLimitMakesResultsPartial() {
         val summary = similarImageScanSummary(
             SimilarImageScanResult(groups = emptyList(), scanned = 2_500, unreadable = 3, truncated = true)
