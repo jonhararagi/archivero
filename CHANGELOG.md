@@ -1,3 +1,12 @@
+## Asignación de proyecto/colección por lotes · 2026-10-21
+
+- La Biblioteca incorpora una acción para asignar el mismo proyecto/colección a varias fichas visibles, con selección, vista previa de los valores anteriores y un único guardado del índice.
+- Se conservan etiquetas, notas, procedencia, tipo de recurso y relaciones. Solo cambian el campo `project` y la marca temporal de las fichas cuya asignación varía.
+- El catálogo valida nombre y todas las URI antes de escribir. Una URI inexistente o nombre inválido rechaza el lote completo, sin cambios parciales en memoria ni disco.
+- Pruebas nuevas cubren asignación/persistencia, preservación de metadatos, operación sin cambios, URI inexistente y nombres vacíos, con controles o demasiado largos. La CI de la nueva cabeza debe validarlo.
+
+---
+
 ## Auditoría manual de acceso a recursos · 2026-10-21
 
 - Se añadió una revisión explícita de todas las fichas activas para comprobar visibilidad y bandera de lectura del proveedor Android. La operación es cancelable, informa del progreso y conserva muestras acotadas para no retener un informe gigante en memoria.

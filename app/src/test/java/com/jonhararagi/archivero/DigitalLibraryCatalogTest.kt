@@ -72,6 +72,98 @@ class DigitalLibraryCatalogTest {
     }
 
     @Test
+    fun bulkProjectAssignmentPersistsAndPreservesOtherMetadata() {
+        val directory = Files.createTempDirectory("archivero-library-bulk-project").toFile()
+        try {
+            val file = File(directory, "catalog.properties")
+            val catalog = DigitalLibraryCatalog(file)
+            val firstUri = "content://bulk/project-first"
+            val secondUri = "content://bulk/project-second"
+            catalog.upsert(
+                LibraryRecord(
+                    firstUri, "Primera", "Imagen",
+                    tags = listOf("anime"), notes = "mantener",
+                    source = "https://example.invalid/ref", project = "Antiguo",
+                    resourceKind = "Original", relatedUris = listOf("content://related/1"),
+                    updatedAtMillis = 10L
+                )
+            )
+            catalog.upsert(
+                LibraryRecord(secondUri, "Segunda", "Documento", project = "Sin proyecto", updatedAtMillis = 20L)
+            )
+
+            val changed = catalog.assignProjectToRecords(listOf(firstUri, secondUri), "  KapiArt  ")
+
+            assertEquals(2, changed)
+            assertEquals("KapiArt", catalog.get(firstUri)?.project)
+            assertEquals("KapiArt", catalog.get(secondUri)?.project)
+            assertEquals(listOf("anime"), catalog.get(firstUri)?.tags)
+            assertEquals("mantener", catalog.get(firstUri)?.notes)
+            assertEquals("https://example.invalid/ref", catalog.get(firstUri)?.source)
+            assertEquals("Original", catalog.get(firstUri)?.resourceKind)
+            assertEquals(listOf("content://related/1"), catalog.get(firstUri)?.relatedUris)
+
+            val reopened = DigitalLibraryCatalog(file)
+            assertEquals("KapiArt", reopened.get(firstUri)?.project)
+            assertEquals("KapiArt", reopened.get(secondUri)?.project)
+            assertEquals(0, reopened.assignProjectToRecords(listOf(firstUri, secondUri), "KapiArt"))
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun bulkProjectAssignmentWithMissingUriDoesNotPartiallyChangeCatalog() {
+        val directory = Files.createTempDirectory("archivero-library-bulk-project-missing").toFile()
+        try {
+            val file = File(directory, "catalog.properties")
+            val catalog = DigitalLibraryCatalog(file)
+            val existingUri = "content://bulk/project-existing"
+            catalog.upsert(LibraryRecord(existingUri, "Existente", "Documento", project = "Original"))
+
+            try {
+                catalog.assignProjectToRecords(
+                    listOf(existingUri, "content://bulk/project-missing"),
+                    "Nueva colección"
+                )
+                throw AssertionError("El lote con una URI inexistente debía rechazarse.")
+            } catch (_: IllegalArgumentException) {
+                // Expected: validation must finish before catalog writes.
+            }
+
+            assertEquals("Original", catalog.get(existingUri)?.project)
+            assertEquals("Original", DigitalLibraryCatalog(file).get(existingUri)?.project)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun bulkProjectAssignmentRejectsInvalidNameWithoutChangingRecords() {
+        val directory = Files.createTempDirectory("archivero-library-bulk-project-invalid").toFile()
+        try {
+            val file = File(directory, "catalog.properties")
+            val catalog = DigitalLibraryCatalog(file)
+            val uri = "content://bulk/project-invalid"
+            catalog.upsert(LibraryRecord(uri, "Existente", "Imagen", project = "Conservar"))
+
+            val invalidNames = listOf("", " ", "nombre\u0001inválido", "x".repeat(257))
+            invalidNames.forEach { invalid ->
+                try {
+                    catalog.assignProjectToRecords(listOf(uri), invalid)
+                    throw AssertionError("Un nombre de proyecto inválido debía rechazarse.")
+                } catch (_: IllegalArgumentException) {
+                    // Expected.
+                }
+                assertEquals("Conservar", catalog.get(uri)?.project)
+            }
+            assertEquals("Conservar", DigitalLibraryCatalog(file).get(uri)?.project)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun bulkTaggingWithMissingUriDoesNotPartiallyChangeCatalog() {
         val directory = Files.createTempDirectory("archivero-library-bulk-missing").toFile()
         try {

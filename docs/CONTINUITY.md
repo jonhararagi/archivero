@@ -1,3 +1,14 @@
+## Continuidad · asignación de proyecto/colección por lotes · 2026-10-21
+
+- Base funcional/documental verificada antes de este lote: SHA `ec8fdb47f2f2dc9644a1a31e5dbfcc127b76dfa5`, [run 39640755743](https://github.com/jonhararagi/archivero/actions/runs/39640755743) **PASS**, artefacto `archivero-debug-apk` ID `12364547619`, ZIP 20.631.102 bytes.
+- Nuevo método de catálogo previsto en `DigitalLibraryCatalog.kt`: `assignProjectToRecords`. Valida selección URI, existencia de todas las fichas y nombre destino antes de una sola escritura; preserva los otros campos.
+- Nuevo editor Compose `LibraryBulkProjectEditor.kt`: limita la selección a resultados visibles (máximo 500), permite «Todas/Ninguna» y presenta vista previa del proyecto actual a destino antes de aplicar.
+- Tests añadidos para guardado/reapertura, preservación de tags/notas/fuente/tipo/relaciones, idempotencia (cero cambios) y rechazo atómico de URI ausentes y nombres inválidos.
+- Esta nueva cabeza requiere CI completa para aprobarse. No hubo modificaciones directas a `main` ni merge del PR #3.
+- La continuidad histórica extensa se conserva debajo de esta entrada.
+
+---
+
 ## Continuidad · auditoría manual de acceso a recursos · 2026-10-21
 
 - Última cabeza funcional verificada: SHA `c21b4512f3058da56753f435d90e947329d548c1`, [run 39640308153](https://github.com/jonhararagi/archivero/actions/runs/39640308153) **PASS** (tests, APK debug, firma/hash y subida).

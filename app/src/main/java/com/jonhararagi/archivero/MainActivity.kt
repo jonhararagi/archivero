@@ -1927,6 +1927,20 @@ fun ArchiveroApp() {
                                 modifier = Modifier.weight(1f)
                             )
                         }
+                        LibraryBulkProjectEditor(
+                            records = visibleLibraryRecords,
+                            catalog = libraryCatalog,
+                            enabled = libraryCatalog != null && !libraryTransferRunning,
+                            onUpdated = { changedCount, projectName ->
+                                refreshLibrary()
+                                message = if (changedCount == 0) {
+                                    "Las fichas seleccionadas ya pertenecían a «$projectName»; no se modificó el índice."
+                                } else {
+                                    "Se asignó «$projectName» a $changedCount ficha(s). Los archivos físicos no se movieron."
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
                         Row(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)

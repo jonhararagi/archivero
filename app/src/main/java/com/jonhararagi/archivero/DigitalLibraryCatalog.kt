@@ -233,6 +233,45 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
         return changedRecords.size
     }
 
+    /**
+     * Assigns one existing project/collection name to several existing fichas in a single write.
+     * Validation is completed before the snapshot changes, so one missing URI or invalid name
+     * cannot leave a partially assigned batch.
+     */
+    @Synchronized
+    @Throws(IOException::class)
+    fun assignProjectToRecords(uris: Collection<String>, projectName: String): Int {
+        require(uris.isNotEmpty()) { "Selecciona al menos una ficha." }
+        val targets = uris.map(::validateUri).distinct()
+        require(targets.size <= MAX_RECORDS) { "La selección supera el límite de fichas." }
+
+        val normalizedProject = projectName.trim()
+        require(normalizedProject.isNotEmpty()) { "El nombre del proyecto o colección no puede estar vacío." }
+        require(
+            normalizedProject.length <= MAX_PROJECT_LENGTH &&
+                normalizedProject.none(Char::isISOControl)
+        ) { "El nombre del proyecto supera el límite o contiene caracteres de control." }
+
+        val missing = targets.filterNot { it in records }
+        require(missing.isEmpty()) {
+            "No se puede aplicar el lote: ${missing.size} ficha(s) ya no existen en el catálogo."
+        }
+
+        val changedAt = System.currentTimeMillis().coerceAtLeast(0L)
+        val changedRecords = targets.mapNotNull { uri ->
+            val current = records.getValue(uri)
+            if (current.project == normalizedProject) null
+            else normalizeRecord(current.copy(project = normalizedProject, updatedAtMillis = changedAt))
+        }
+        if (changedRecords.isEmpty()) return 0
+
+        val updated = LinkedHashMap(records)
+        changedRecords.forEach { updated[it.uri] = it }
+        persist(storageFile, updated.values, trashedRecords.values)
+        records = updated
+        return changedRecords.size
+    }
+
     /** Moves a ficha to the recoverable metadata trash. The physical file is never touched. */
     @Synchronized
     @Throws(IOException::class)
