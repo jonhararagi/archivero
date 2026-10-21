@@ -1,3 +1,13 @@
+## Papelera recuperable de la Biblioteca · 2026-10-21
+
+- La acción «Mover a papelera» deja de quitar una ficha de forma irreversible del índice: guarda sus metadatos y fecha de retirada en el mismo archivo local, con opción de restaurar.
+- El esquema pasa de V2 a V3. Sigue leyendo V1 y V2 y agrega `trash.count` más las fichas retiradas. Biblioteca y papelera se escriben en la misma instantánea temporal con reemplazo atómico cuando el sistema lo admite.
+- La importación/exportación incluye elementos en papelera. Se mantienen los conflictos URI por defecto, se rechazan duplicados entre activos y papelera, y un reingreso manual de la misma URI devuelve esa ficha a la biblioteca activa.
+- «Eliminar ficha» desde la papelera exige confirmación y elimina solamente metadatos. La ruta no borra ni mueve archivos físicos.
+- Se añadieron pruebas de recuperación tras reabrir el catálogo, exportación/importación con elementos en papelera, reingreso de la misma URI y borrado permanente de metadatos sin tocar el archivo real. CI de esta cabeza pendiente.
+
+---
+
 ## Auditoría de integridad de relaciones · 2026-10-21
 
 - Se añadió un reporte local que busca relaciones cuyo destino no tiene ficha en el catálogo y fichas que no reciben enlaces de otras fichas.

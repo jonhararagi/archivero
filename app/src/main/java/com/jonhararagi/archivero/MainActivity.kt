@@ -187,6 +187,8 @@ fun ArchiveroApp() {
     var libraryCatalogLoading by remember(context) { mutableStateOf(true) }
     var libraryStorageError by remember { mutableStateOf<String?>(null) }
     var libraryRecords by remember { mutableStateOf<List<LibraryRecord>>(emptyList()) }
+    var libraryTrashRecords by remember { mutableStateOf<List<TrashedLibraryRecord>>(emptyList()) }
+    var libraryTrashDialog by remember { mutableStateOf(false) }
     var visibleLibraryRecords by remember { mutableStateOf<List<LibraryRecord>>(emptyList()) }
     var libraryMatchesTruncated by remember { mutableStateOf(false) }
     var librarySearching by remember { mutableStateOf(false) }
@@ -212,8 +214,12 @@ fun ArchiveroApp() {
         )
     }
 
-    fun reconcileLibraryFavorites(records: List<LibraryRecord>) {
+    fun reconcileLibraryFavorites(
+        records: List<LibraryRecord>,
+        trashed: List<TrashedLibraryRecord> = emptyList()
+    ) {
         val knownUris = records.mapTo(HashSet()) { it.uri }
+        trashed.forEach { knownUris.add(it.record.uri) }
         val retained = libraryFavoriteUris.intersect(knownUris)
         if (retained != libraryFavoriteUris) {
             libraryFavoriteUris = retained
@@ -245,11 +251,14 @@ fun ArchiveroApp() {
             libraryStorageError = catalogResult.exceptionOrNull()?.message ?: "No se pudo abrir el índice de biblioteca."
         } else {
             libraryCatalog = catalog
-            val recordsResult = withContext(Dispatchers.IO) { runCatching { catalog.all() } }
+            val recordsResult = withContext(Dispatchers.IO) {
+                runCatching { catalog.all() to catalog.trashed() }
+            }
             recordsResult.fold(
-                { records ->
+                { (records, trash) ->
                     libraryRecords = records
-                    reconcileLibraryFavorites(records)
+                    libraryTrashRecords = trash
+                    reconcileLibraryFavorites(records, trash)
                     libraryStorageError = null
                 },
                 { error -> libraryStorageError = error.message ?: "No se pudo leer el índice de biblioteca." }
@@ -552,14 +561,63 @@ fun ArchiveroApp() {
     fun refreshLibrary() {
         val catalog = libraryCatalog ?: return
         scope.launch {
-            val result = withContext(Dispatchers.IO) { runCatching { catalog.all() } }
+            val result = withContext(Dispatchers.IO) {
+                runCatching { catalog.all() to catalog.trashed() }
+            }
             result.fold(
-                { records ->
+                { (records, trash) ->
                     libraryRecords = records
-                    reconcileLibraryFavorites(records)
+                    libraryTrashRecords = trash
+                    reconcileLibraryFavorites(records, trash)
                     libraryStorageError = null
                 },
                 { error -> libraryStorageError = error.message ?: "No se pudo leer el índice de biblioteca." }
+            )
+        }
+    }
+
+    fun restoreLibraryRecord(uri: String) {
+        val catalog = libraryCatalog ?: run {
+            message = "El índice de biblioteca no está disponible."
+            return
+        }
+        libraryTransferRunning = true
+        scope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { catalog.restoreMetadata(uri) } }
+            libraryTransferRunning = false
+            result.fold(
+                { restored ->
+                    refreshLibrary()
+                    message = if (restored) {
+                        "Ficha restaurada en la Biblioteca. El archivo físico no se movió."
+                    } else {
+                        "La ficha ya no estaba en la papelera."
+                    }
+                },
+                { error -> message = "No se pudo restaurar la ficha: ${error.message ?: "error de almacenamiento"}" }
+            )
+        }
+    }
+
+    fun purgeLibraryRecord(uri: String) {
+        val catalog = libraryCatalog ?: run {
+            message = "El índice de biblioteca no está disponible."
+            return
+        }
+        libraryTransferRunning = true
+        scope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { catalog.purgeTrashedMetadata(uri) } }
+            libraryTransferRunning = false
+            result.fold(
+                { removed ->
+                    refreshLibrary()
+                    message = if (removed) {
+                        "Ficha eliminada permanentemente de la papelera. El archivo físico no se borró."
+                    } else {
+                        "La ficha ya no estaba en la papelera."
+                    }
+                },
+                { error -> message = "No se pudo quitar la ficha de la papelera: ${error.message ?: "error de almacenamiento"}" }
             )
         }
     }
@@ -708,7 +766,7 @@ fun ArchiveroApp() {
                     result.fold(
                         { count ->
                             refreshLibrary()
-                            message = "Importación completada: $count ficha(s). Los conflictos se rechazan sin sobrescribir metadatos."
+                            message = "Importación completada: $count entrada(s) de biblioteca/papelera. Los conflictos se rechazan sin sobrescribir metadatos."
                         },
                         { error -> message = "No se importó la biblioteca: ${error.message ?: "archivo inválido o conflicto"}. La biblioteca activa se conserva." }
                     )
@@ -1827,6 +1885,23 @@ fun ArchiveroApp() {
                                 Text("Importar")
                             }
                         }
+                        OutlinedButton(
+                            onClick = { libraryTrashDialog = true },
+                            enabled = libraryCatalog != null && !libraryTransferRunning,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.DeleteOutline, contentDescription = null)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Papelera (${libraryTrashRecords.size})")
+                        }
+                        LibraryTrashDialog(
+                            isOpen = libraryTrashDialog,
+                            records = libraryTrashRecords,
+                            transferRunning = libraryTransferRunning,
+                            onDismiss = { libraryTrashDialog = false },
+                            onRestore = { uri -> restoreLibraryRecord(uri) },
+                            onPurge = { uri -> purgeLibraryRecord(uri) }
+                        )
                         Row(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -2090,14 +2165,14 @@ fun ArchiveroApp() {
                                                         libraryTransferRunning = true
                                                         scope.launch {
                                                             val result = withContext(Dispatchers.IO) {
-                                                                runCatching { catalog.removeMetadata(record.uri) }
+                                                                runCatching { catalog.trashMetadata(record.uri) }
                                                             }
                                                             libraryTransferRunning = false
                                                             result.fold(
                                                                 { removed ->
                                                                     if (removed) {
                                                                         refreshLibrary()
-                                                                        message = "Se quitó la ficha. El archivo físico no se borró."
+                                                                        message = "Ficha movida a la Papelera. Puedes restaurarla; el archivo físico no se borró."
                                                                     } else {
                                                                         message = "La ficha ya no estaba en el catálogo."
                                                                     }
@@ -2151,14 +2226,14 @@ fun ArchiveroApp() {
                                                         libraryTransferRunning = true
                                                         scope.launch {
                                                             val result = withContext(Dispatchers.IO) {
-                                                                runCatching { catalog.removeMetadata(record.uri) }
+                                                                runCatching { catalog.trashMetadata(record.uri) }
                                                             }
                                                             libraryTransferRunning = false
                                                             result.fold(
                                                                 { removed ->
                                                                     if (removed) {
                                                                         refreshLibrary()
-                                                                        message = "Se quitó la ficha. El archivo físico no se borró."
+                                                                        message = "Ficha movida a la Papelera. Puedes restaurarla; el archivo físico no se borró."
                                                                     } else {
                                                                         message = "La ficha ya no estaba en el catálogo."
                                                                     }
@@ -3062,7 +3137,7 @@ private fun LibraryRecordCard(
                     ) { Text("Abrir") }
                     TextButton(onClick = { onEdit(document) }, contentPadding = PaddingValues(horizontal = 6.dp)) { Text("Editar") }
                     IconButton(onClick = onRemove, enabled = !transferRunning) {
-                        Icon(Icons.Default.BookmarkRemove, "Quitar ficha")
+                        Icon(Icons.Default.BookmarkRemove, "Mover a papelera")
                     }
                 }
             }

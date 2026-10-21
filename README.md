@@ -48,9 +48,11 @@ La sección **Biblioteca** crea fichas locales para recursos existentes sin copi
 - La vista presenta hasta 500 resultados a la vez para mantener controlada la carga visual. El filtrado se ejecuta fuera del hilo de interfaz y ahora mantiene una cola acotada de los mejores resultados, evitando ordenar toda la coincidencia para mostrar solo la primera página.
 - Marca fichas como **favoritas** con la estrella; los favoritos quedan por delante de los demás dentro del orden elegido. Es independiente de los favoritos musicales. Los favoritos se guardan localmente, se limitan a 5.000 y se limpian del historial si se quita la ficha del catálogo.
 
+Las fichas retiradas con «Mover a papelera» quedan recuperables tras cerrar y volver a abrir la aplicación. Desde **Papelera** puedes restaurarlas o eliminar permanentemente solo sus metadatos con confirmación. Esta acción nunca borra el archivo físico. Las instantáneas de biblioteca incluyen los elementos de la papelera para que las exportaciones conserven esa información.
+
 El índice local está versionado y se actualiza mediante un archivo temporal con reemplazo atómico cuando el sistema de archivos lo admite. Las instantáneas se pueden importar/exportar desde los selectores de Android y tienen un límite de 64 MiB. Una importación inválida o con URI en conflicto se rechaza por defecto, sin sobrescribir silenciosamente la biblioteca activa.
 
-El esquema V2 añade proyecto, tipo de recurso y relaciones, y sigue leyendo fichas del esquema V1: las fichas antiguas conservan sus datos y reciben valores predeterminados para los campos nuevos; se convierten al esquema actual cuando se guardan.
+El esquema V3 conserva proyecto, tipo de recurso y relaciones, añade la Papelera recuperable de metadatos y sigue leyendo fichas de los esquemas V1/V2: las fichas antiguas conservan sus datos y reciben valores predeterminados para los campos nuevos; se convierten al esquema actual cuando se guardan.
 
 ## Correcciones de fiabilidad recientes
 
