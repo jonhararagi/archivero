@@ -4,6 +4,7 @@
 - Se distinguen recursos legibles, URI que el proveedor no muestra y URI sin acceso o lectura. «No visible» se presenta con cautela porque un permiso revocado o un proveedor distinto puede ocultar un archivo sin que se haya borrado.
 - El análisis consulta metadatos del proveedor; no lee el contenido de los archivos, no corrige URI, no elimina fichas y no borra recursos físicos.
 - Se añadieron pruebas unitarias del acumulador, recuentos y límite de muestras. La primera CI [run 39639788751](https://github.com/jonhararagi/archivero/actions/runs/39639788751) falló al compilar porque `FolderSearch` no existe en los iconos Compose instalados; se reemplaza por `Search` antes de reintentar. No se publicó APK en el run fallido.
+- Corrección validada: [run 39640308153](https://github.com/jonhararagi/archivero/actions/runs/39640308153), SHA `c21b4512f3058da56753f435d90e947329d548c1`: **PASS** en tests, APK debug, firma/hash y subida. Artefacto `archivero-debug-apk` ID `12363234364`, ZIP de 20.631.102 bytes.
 
 ---
 

@@ -1,13 +1,16 @@
 ## Continuidad · auditoría manual de acceso a recursos · 2026-10-21
 
-- Base validada: SHA `3e59e626a66a76067b419ce22e4ecfd5ee0f5324`, [run 39638828860](https://github.com/jonhararagi/archivero/actions/runs/39638828860) **PASS** (tests, APK debug, firma/hash y subida).
-- Artefacto de esa ejecución: `archivero-debug-apk`, ID `12363882327`, ZIP de 20.614.651 bytes, no expirado en la comprobación.
+- Última cabeza funcional verificada: SHA `c21b4512f3058da56753f435d90e947329d548c1`, [run 39640308153](https://github.com/jonhararagi/archivero/actions/runs/39640308153) **PASS** (tests, APK debug, firma/hash y subida).
+- Base de la iteración anterior: SHA `3e59e626a66a76067b419ce22e4ecfd5ee0f5324`, [run 39638828860](https://github.com/jonhararagi/archivero/actions/runs/39638828860) **PASS** (incluye la prueba de migración V2→V3).
+- Artefacto de la última cabeza verificada: `archivero-debug-apk`, ID `12363234364`, ZIP de 20.631.102 bytes, no expirado en la comprobación.
+- Artefacto de la base anterior: `archivero-debug-apk`, ID `12363882327`, ZIP de 20.614.651 bytes.
 - Nuevo componente `LibraryResourceAccessAudit.kt`: acción manual, cancelable y fuera del hilo principal que recorre la biblioteca activa y consulta `DocumentFile.exists()`/`canRead()`; no abre ni copia contenido.
 - Estados: accesible, no visible para el proveedor, y sin acceso/lectura. «No visible» es deliberadamente cauteloso: un proveedor puede ocultar una URI tras cambios de permisos, así que no se etiqueta como archivo borrado.
 - Muestras separadas acotadas a 100 por defecto, contadores completos, progreso cada 50 fichas y cancelación cooperativa. El acumulador puro tiene pruebas para los tres estados, biblioteca vacía y límite de muestra inválido.
 - Integración de UI: el nuevo botón comparte la fila con la auditoría de relaciones, usa el mismo resolver `libraryDocument` y no modifica ningún archivo ni ficha.
 - Incidencia real: [run 39639788751](https://github.com/jonhararagi/archivero/actions/runs/39639788751), SHA `d78f61d7ba14af9fdcc2d2c648f7de20012504f5`, **FAIL** en `compileDebugKotlin`: `LibraryResourceAccessAudit.kt` tenía una referencia a `FolderSearch` no incluida en los iconos Compose. No se generó APK en esa ejecución. Se cambia a `Icons.Default.Search` y se vuelve a lanzar CI.
-- La CI de la nueva cabeza corregida debe pasar el test nuevo, la migración V2→V3, la APK, la firma/hash y la subida antes de declarar PASS.
+- La primera CI del lote falló por el icono `FolderSearch` no disponible: [run 39639788751](https://github.com/jonhararagi/archivero/actions/runs/39639788751), SHA `d78f61d7ba14af9fdcc2d2c648f7de20012504f5`, **FAIL** en `compileDebugKotlin`; no se publicó APK.
+- Corrección comprobada: [run 39640308153](https://github.com/jonhararagi/archivero/actions/runs/39640308153), SHA `c21b4512f3058da56753f435d90e947329d548c1`, **PASS** en pruebas unitarias, compilación APK, firma/hash y subida. Artefacto `archivero-debug-apk` ID `12363234364`, ZIP de 20.631.102 bytes.
 
 ---
 
