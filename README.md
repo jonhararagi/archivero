@@ -39,6 +39,7 @@ La sección **Biblioteca** crea fichas locales para recursos existentes sin copi
 - Usa vistas de **cuadrícula** y **lista**, miniaturas de la caché compartida y metadatos técnicos disponibles: formato/MIME, tamaño, fecha de modificación y dimensiones de imágenes cuando Android puede leerlas.
 - Los tipos de recurso distinguen explícitamente entre **Sin clasificar**, **Original**, **Derivado**, **Editado**, **Generado**, **Referencia** y **Personaje**. No se inventan datos cuando un proveedor no devuelve metadatos.
 - Combina búsqueda con filtros de categoría y tipo. Ordena por **Nombre**, **Recientes** o **Proyecto**. Las últimas ocho búsquedas se guardan en preferencias locales y pueden borrarse desde la pantalla Biblioteca.
+- El chip **Solo favoritos** reduce los resultados a las fichas marcadas sin perder los filtros de texto, categoría o tipo; al desactivarlo vuelve la búsqueda completa.
 - Las fichas pueden vincular hasta 100 recursos. Las referencias solo guardan URI/identificadores: no duplican archivos. Las relaciones cuyo recurso ya no está indexado se indican como pendientes, y la ficha se conserva.
 - **Quitar ficha** elimina solo los metadatos; no borra el archivo físico. Si una URI está ausente o Android ya no permite acceder, se avisa sin borrar el registro.
 - La vista presenta hasta 500 resultados a la vez para mantener controlada la carga visual. El filtrado se ejecuta fuera del hilo de interfaz.

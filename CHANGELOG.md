@@ -1,3 +1,12 @@
+## Filtro de favoritos · 2026-10-21
+
+- Se añadió el chip **Solo favoritos** a la barra de filtros de la Biblioteca. Es combinable con texto, categoría y tipo de recurso, y permite volver al conjunto completo al desactivarlo.
+- La función pura `filterLibraryRecords` incorpora `onlyFavorites`; el test verifica selección vacía sin favoritos y el subconjunto esperado cuando hay fichas marcadas.
+- GitHub Actions [run 39627829320](https://github.com/jonhararagi/archivero/actions/runs/39627829320), SHA `3f8c725f08cb0d68309bcedd2138eeb36c7fd892`: **PASS** en tests, APK, firma/hash y subida del artefacto.
+- Artefacto `archivero-debug-apk`, ID `12357562577`, ZIP de 20.517.818 bytes. Aún no se ha probado visualmente en el Xiaomi.
+
+---
+
 ## Favoritos de biblioteca · ordenación con prioridad · 2026-10-21
 
 - Cada ficha de Biblioteca tiene una estrella para marcar/quitar el favorito desde cuadrícula o lista. Los favoritos son independientes del reproductor musical y se guardan localmente en preferencias.

@@ -1,38 +1,32 @@
-## Continuidad · favoritos de biblioteca y ordenación · 2026-10-21
+## Continuidad · filtro Solo favoritos · 2026-10-21
 
-### Rama y estado de integración
+### Rama e integración
 - Rama: `feature/archivero-digital-library-001`.
-- PR #3: https://github.com/jonhararagi/archivero/pull/3. Sigue abierto en borrador y no está fusionado; `main` no se modificó directamente.
-- SHA de código validado: `d89f6db6dcc55354997cd5754bdccf37f1cf167a`.
-- GitHub Actions [run 39627115115](https://github.com/jonhararagi/archivero/actions/runs/39627115115): **PASS** en `testDebugUnitTest`, `assembleDebug`, verificación de firma/hash y publicación de artefacto.
-- Artefacto `archivero-debug-apk`, ID `12358276807`, ZIP de 20.516.295 bytes. La suma/hash y la subida están completas.
+- PR #3: https://github.com/jonhararagi/archivero/pull/3. Continúa abierto en borrador, no fusionado; no se modificó `main` directamente.
+- SHA de código validado: `3f8c725f08cb0d68309bcedd2138eeb36c7fd892`.
+- GitHub Actions [run 39627829320](https://github.com/jonhararagi/archivero/actions/runs/39627829320): **PASS** para pruebas unitarias, compilación del APK, verificación de firma/hash y publicación del artefacto.
+- Artefacto `archivero-debug-apk`, ID `12357562577`, ZIP de 20.517.818 bytes.
 
-### Incremento de favoritos
-- Se añadió una estrella a las fichas de Biblioteca, disponible en cuadrícula y lista. Usa preferencias locales independientes de los favoritos musicales.
-- El filtro `filterLibraryRecords` recibe el conjunto de favoritos y los ordena antes de los demás, manteniendo el suborden elegido (Nombre, Recientes o Proyecto).
-- Límite defensivo de 5.000 favoritos; un exceso no reemplaza el conjunto guardado.
-- Al volver a cargar el catálogo, el conjunto de favoritos se reconcilia contra las fichas existentes. Se limpian URI de fichas quitadas del índice sin borrar archivos físicos.
-- Prueba añadida para verificar prioridad de favoritos y orden alfabético determinista.
-- Este SHA pasó la CI completa. La cabeza posterior de solo documentación debe volver a pasar su propia CI antes de considerar que esa cabeza exacta está verificada.
+### Incremento nuevo
+- El chip **Solo favoritos** agrega un filtro booleano combinable con la búsqueda, categoría y tipo de recurso.
+- El filtro devuelve únicamente URI presentes en las preferencias locales de favoritos; desactivarlo restaura los resultados que satisfacen el resto de filtros.
+- Pruebas de catálogo cubren el orden de favoritos, la selección solo de favoritos y el caso vacío cuando no hay favoritos.
+- El catálogo visual ya acumula fichas V2, relaciones, cuadrícula/lista, metadatos técnicos, ordenación, últimas ocho búsquedas, favoritos y exportación/importación de metadatos limitadas a 64 MiB.
 
-### Estado funcional consolidado
-- Catálogo local versionado con lectura compatible V1→V2; nombre, categoría, tags, notas, procedencia, proyecto/tipo de recurso y hasta 100 URI relacionadas.
-- Grid/lista, miniaturas de caché acotada, MIME/tamaño/fecha/dimensiones cuando estén disponibles, filtros combinables, búsqueda reciente local, ordenación, favoritos y exportación/importación de instantáneas de metadatos de hasta 64 MiB.
-- Operaciones de catálogo se ejecutan fuera del hilo de interfaz; máximo 500 resultados visibles y 5.000 favoritos.
-- Quitar ficha elimina solo los metadatos. Las URI ausentes o que Android no deja abrir se conservan y se señalan; no se inventan procedencias ni dimensiones.
+### Historial CI
+- SHA `bfb02d5e...`: fallo de compilación por compatibilidad del buscador.
+- SHA `ade41baa...`: compilación OK pero fallo de una expectativa de orden alfabético de la prueba.
+- SHA `e0d5ea7b...`: PASS con filtros combinados/migración V1→V2 y artefacto.
+- SHA `d89f6db6...`: PASS con favoritos de biblioteca y orden de prioridad.
+- SHA `3f8c725f...`: PASS añadiendo `onlyFavorites`.
+- Los fallos intermedios permanecen documentados; no se presentan como entregas válidas.
 
-### Incidentes de CI conservados
-1. `d91684b992b3770cc58b725870cdcac5f1e44ca5`: error por `query` referenciada antes de su declaración; se corrigió en `f7daab88...`.
-2. `bfb02d5ec66f02e9566df12d65a0684ea9edcde3`: error de firma de `SearchBox`; se corrigió en `ade41baa...`.
-3. `ade41baa...`: compiló, pero una expectativa del orden alfabético falló; se corrigió en `e0d5ea7b...`.
-4. `e0d5ea7b...`: PASS de pruebas, APK, firma/hash y artefacto. El último código con favoritos `d89f6db6...` también tiene CI completa PASS.
-
-### Pruebas físicas y límites abiertos
-- No se han ejecutado pruebas manuales de UI/permisos en el Xiaomi, ni pruebas con variedad de proveedores SAF.
-- Falta medir tiempos, memoria/jank y comportamiento en 1.000/10.000 imágenes y la biblioteca real de aproximadamente 200 GB.
-- La exportación es de metadatos/URI, no de los bytes de los recursos.
-- **Estado:** favoritos de biblioteca + pruebas automatizadas **PASS en CI**; validación física y escalabilidad real **PARTIAL**.
-- **TIMER** estimado de este lote de favoritos: 1–2 horas de ingeniería; no es tiempo real medido.
+### Límites
+- Sin prueba manual en el Xiaomi ni en proveedores SAF externos.
+- Pendientes benchmarks reproducibles con 1.000/10.000 imágenes y biblioteca real de aproximadamente 200 GB; CI no demuestra jank, uso de memoria ni escalabilidad física.
+- Quitar una ficha elimina solo metadatos; exportar la biblioteca no copia los bytes de recursos.
+- **Estado:** código y pruebas automatizadas **PASS**; pruebas físicas/escalabilidad **PARTIAL**.
+- **TIMER** del lote “Solo favoritos”: estimado 1–2 horas, no duración real medida.
 
 
 ---
