@@ -30,6 +30,18 @@ Los archivos se procesan localmente. La aplicación no tiene una función de sub
 - La limpieza no elimina archivos automáticamente. El usuario revisa y marca elementos y confirma la acción. En los grupos de duplicados, se exige conservar al menos una copia.
 - Mensajes de error cuando Android o un proveedor de documentos no permite leer, crear o eliminar un elemento.
 
+## Biblioteca digital local
+
+La sección **Biblioteca** permite crear fichas para archivos existentes sin copiarlos a una carpeta nueva. Cada ficha guarda nombre visible, categoría, etiquetas, notas y procedencia opcional; la búsqueda consulta esos metadatos. El índice se conserva en el almacenamiento privado de Archivero y admite etiquetas normalizadas, instantáneas de metadatos y validación antes de importar.
+
+- Abre el menú contextual de un archivo y elige **Añadir a biblioteca** para crear su ficha.
+- Busca por nombre, categoría, etiqueta, nota o procedencia desde la sección Biblioteca.
+- **Quitar ficha** elimina únicamente los metadatos del catálogo; no borra el archivo físico.
+- Los conflictos de importación se rechazan de forma predeterminada y un índice malformado se informa sin reemplazarlo silenciosamente.
+- La lista visual muestra como máximo 500 fichas por vez para conservar una interfaz manejable; la búsqueda permite acotar los resultados.
+
+La importación y exportación de instantáneas está disponible en la capa interna del catálogo; falta exponer los selectores de archivos correspondientes en la interfaz.
+
 ## Correcciones de fiabilidad recientes
 
 La revisión encontró y corrigió errores en las operaciones con archivos: ahora copiar/mover/comprimir/extraer se realizan fuera del hilo visual, las copias parciales se limpian cuando es posible, y la extracción ZIP valida rutas, impide sobrescrituras y limita el tamaño descomprimido. Mover un archivo a la carpeta donde ya está se rechaza para evitar duplicados confusos.

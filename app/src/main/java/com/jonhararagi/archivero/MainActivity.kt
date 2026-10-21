@@ -1151,7 +1151,7 @@ fun ArchiveroApp() {
         ) { padding ->
             Column(Modifier.fillMaxSize().then(if (screen == Screen.HOME && rootUri != null) Modifier.verticalScroll(rememberScrollState()) else Modifier).padding(padding).padding(horizontal = 16.dp)) {
                 Spacer(Modifier.height(8.dp))
-                if (rootUri == null) {
+                if (rootUri == null && screen != Screen.LIBRARY) {
                     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                         Box(
                             modifier = Modifier.width(180.dp).height(200.dp)
@@ -1701,7 +1701,7 @@ fun ArchiveroApp() {
                                         }
                                     }
                                 }
-                                if (libraryRecords.size > 500) {
+                                if (visibleLibraryRecords.size == 500 && libraryRecords.size > 500) {
                                     Text(
                                         "La vista está limitada a 500 fichas para mantener fluida la pantalla. Usa la búsqueda para acotar resultados.",
                                         style = MaterialTheme.typography.bodySmall,
