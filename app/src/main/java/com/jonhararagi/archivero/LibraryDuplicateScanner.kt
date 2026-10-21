@@ -99,7 +99,7 @@ internal fun LibraryDuplicateScanner(
 
                     // Hash only positive-sized resources whose sizes collide. A size match alone
                     // never counts as a duplicate.
-                    val candidates = potentialDuplicateCandidates(sized) { it.value.uri }
+                    val candidates = potentialDuplicateCandidates(sized) { it.uri }
                     withContext(Dispatchers.Main) {
                         progressText = if (candidates.isEmpty()) {
                             "No hay archivos accesibles del mismo tamaño para comparar."

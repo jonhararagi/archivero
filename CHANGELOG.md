@@ -1,3 +1,11 @@
+## Corrección de selector del escáner · 2026-10-21
+
+- La ejecución de CI [39632036037](https://github.com/jonhararagi/archivero/actions/runs/39632036037), para SHA `8074cadfb5e5d8ad8ad1db7904df55658afc0114`, falló en `compileDebugKotlin`.
+- Causa observada en el log: el selector entregado a `potentialDuplicateCandidates` intentaba leer `value` de un `LibraryRecord`. Se cambia a `it.uri`, coherente con la firma real de la función reutilizada.
+- El fallo permanece registrado. La corrección requiere pasar una nueva CI antes de marcar la función como válida.
+
+---
+
 ## Duplicados exactos dentro de la Biblioteca · 2026-10-21
 
 - Se añadió una acción independiente para analizar los recursos ya catalogados y detectar copias exactas por tamaño positivo + SHA-256 del contenido completo.

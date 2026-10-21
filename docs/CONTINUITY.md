@@ -1,3 +1,12 @@
+## Incidencia de compilación · escáner de duplicados · 2026-10-21
+
+- CI [run 39632036037](https://github.com/jonhararagi/archivero/actions/runs/39632036037), SHA `8074cadfb5e5d8ad8ad1db7904df55658afc0114`: **FAIL** en `Run local unit tests`, durante `compileDebugKotlin`; no se produjo APK en esa ejecución.
+- Log observado: `LibraryDuplicateScanner.kt:102`, tipo del selector no inferible y referencia a `value` no resuelta. La función `potentialDuplicateCandidates` recibe el propio `LibraryRecord` en el selector, así que la corrección usa `it.uri`.
+- La errata sintáctica del test del primer commit también fue detectada y corregida en el commit siguiente; el historial se conserva y no se presenta ninguno de esos commits como entrega validada.
+- SHA que precede a esta corrección: `cad339f76275c44ec42bfb986fabb86aab8d5613`. La nueva cabeza y su CI deben verificarse antes de declarar PASS.
+
+---
+
 ## Continuidad · escáner de duplicados exactos para Biblioteca · 2026-10-21
 
 ### Implementación preparada
