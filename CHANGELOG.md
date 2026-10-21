@@ -1,3 +1,15 @@
+## Biblioteca digital local y búsqueda fuera del hilo visual · 2026-10-21
+
+- Se añadió una sección de Biblioteca donde los recursos existentes pueden tener nombre visible, categoría, etiquetas, notas y procedencia sin copiar ni mover el archivo original.
+- El catálogo local valida importaciones, rechaza URI en conflicto por defecto, limita instantáneas a 64 MiB y conserva el índice anterior ante errores de lectura/validación.
+- Los selectores de documentos Android permiten importar/exportar una instantánea de metadatos.
+- La carga y persistencia del catálogo se movieron a `Dispatchers.IO`; la búsqueda usa debounce y `Dispatchers.Default`, muestra como máximo 500 fichas y no ordena toda la biblioteca en el hilo visual en cada cambio.
+- Pruebas de catálogo añadidas para persistencia, búsqueda por metadatos, etiquetas, exportación/importación, conflictos, archivos corruptos/sobredimensionados y no borrar el recurso al quitar su ficha.
+- CI: [run 39620283829](https://github.com/jonhararagi/archivero/actions/runs/39620283829), SHA `f7daab88136ce21ea94477919e3bd2e119fe3246`, **PASS**: pruebas unitarias, compilación, firma/hash y publicación del artefacto `archivero-debug-apk` (ID `12354766201`).
+- Limitación: todavía no se han realizado pruebas manuales en el Xiaomi, con proveedores SAF externos, ni benchmarks con 1.000/10.000 imágenes o la biblioteca de aproximadamente 200 GB. No declarar validada esa escala.
+
+---
+
 ## Paginación y seguridad de proveedores · 2026-10-20
 
 - La enumeración por lotes para el sistema de archivos y árboles SAF conserva un límite de memoria al leer entradas, mientras que los proveedores no compatibles ya no pasan por `DocumentFile.listFiles()`, que materializa una matriz completa antes de aplicar el límite.
