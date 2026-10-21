@@ -6,7 +6,8 @@
 - Estados: accesible, no visible para el proveedor, y sin acceso/lectura. «No visible» es deliberadamente cauteloso: un proveedor puede ocultar una URI tras cambios de permisos, así que no se etiqueta como archivo borrado.
 - Muestras separadas acotadas a 100 por defecto, contadores completos, progreso cada 50 fichas y cancelación cooperativa. El acumulador puro tiene pruebas para los tres estados, biblioteca vacía y límite de muestra inválido.
 - Integración de UI: el nuevo botón comparte la fila con la auditoría de relaciones, usa el mismo resolver `libraryDocument` y no modifica ningún archivo ni ficha.
-- La CI de la nueva cabeza deberá pasar el test nuevo, la migración V2→V3, la APK, la firma/hash y la subida antes de declarar PASS.
+- Incidencia real: [run 39639788751](https://github.com/jonhararagi/archivero/actions/runs/39639788751), SHA `d78f61d7ba14af9fdcc2d2c648f7de20012504f5`, **FAIL** en `compileDebugKotlin`: `LibraryResourceAccessAudit.kt` tenía una referencia a `FolderSearch` no incluida en los iconos Compose. No se generó APK en esa ejecución. Se cambia a `Icons.Default.Search` y se vuelve a lanzar CI.
+- La CI de la nueva cabeza corregida debe pasar el test nuevo, la migración V2→V3, la APK, la firma/hash y la subida antes de declarar PASS.
 
 ---
 

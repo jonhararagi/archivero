@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FolderSearch
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -175,7 +175,7 @@ internal fun LibraryResourceAccessAuditButton(
         modifier = modifier
     ) {
         if (scanning) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-        else androidx.compose.material3.Icon(Icons.Default.FolderSearch, contentDescription = null)
+        else androidx.compose.material3.Icon(Icons.Default.Search, contentDescription = null)
         Spacer(Modifier.size(6.dp))
         Text(if (scanning) "Cancelar revisión" else "Revisar acceso")
     }
