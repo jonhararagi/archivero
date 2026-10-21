@@ -36,7 +36,7 @@ class LibraryDuplicateScannerTest {
                 LibraryHashEntry(" ", 12L, "a".repeat(64)),
                 LibraryHashEntry("content://library/a", -1L, "a".repeat(64)),
                 LibraryHashEntry("content://library/b", 12L, "wrong"),
-                LibraryHashEntry("content://library/c", 12L, "c".repeat(64)
+                LibraryHashEntry("content://library/c", 12L, "c".repeat(64))
             )
         )
 
