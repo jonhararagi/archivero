@@ -24,6 +24,23 @@ internal data class SimilarImageScanResult(
     val truncated: Boolean
 )
 
+/** User-facing summary that never treats perceptual similarity as proof of duplication. */
+internal fun similarImageScanSummary(result: SimilarImageScanResult): String {
+    val base = when {
+        result.truncated ->
+            "Análisis parcial: se alcanzó el límite de candidatas (${result.scanned})."
+        result.groups.isEmpty() ->
+            "No se encontraron grupos de fotos parecidas en ${result.scanned} candidatas."
+        else ->
+            "Se encontraron ${result.groups.size} grupos de fotos parecidas en ${result.scanned} candidatas."
+    }
+    return if (result.unreadable > 0) {
+        "$base ${result.unreadable} recurso(s) no se pudieron leer o inspeccionar."
+    } else {
+        base
+    }
+}
+
 internal val RASTER_IMAGE_EXTENSIONS = setOf(
     "jpg", "jpeg", "jpe", "jfif", "jps", "png", "webp", "gif", "bmp",
     "heic", "heif", "avif", "tif", "tiff"

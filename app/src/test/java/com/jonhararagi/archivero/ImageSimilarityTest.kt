@@ -39,6 +39,42 @@ class ImageSimilarityTest {
     }
 
     @Test
+    fun summaryWarnsWhenCandidateLimitMakesResultsPartial() {
+        val summary = similarImageScanSummary(
+            SimilarImageScanResult(groups = emptyList(), scanned = 2_500, unreadable = 3, truncated = true)
+        )
+
+        assertTrue(summary.contains("Análisis parcial"))
+        assertTrue(summary.contains("(2500)"))
+        assertTrue(summary.contains("3 recurso(s)"))
+    }
+
+    @Test
+    fun summaryDescribesVisualSimilarityWithoutCallingItExactDuplication() {
+        val summary = similarImageScanSummary(
+            SimilarImageScanResult(
+                groups = listOf(SimilarImageGroup(10L, emptyList())),
+                scanned = 2,
+                unreadable = 0,
+                truncated = false
+            )
+        )
+
+        assertTrue(summary.contains("fotos parecidas"))
+        assertTrue(!summary.contains("duplicados exactos"))
+    }
+
+    @Test
+    fun summaryReportsNoGroupsClearly() {
+        val summary = similarImageScanSummary(
+            SimilarImageScanResult(groups = emptyList(), scanned = 4, unreadable = 0, truncated = false)
+        )
+
+        assertTrue(summary.contains("No se encontraron grupos"))
+        assertTrue(summary.contains("4 candidatas"))
+    }
+
+    @Test
     fun handlesEmptyOrSingleSampleLists() {
         assertTrue(groupSimilarImageHashes(emptyList()).isEmpty())
         assertTrue(groupSimilarImageHashes(listOf(ImageHashSample("only", 42L))).isEmpty())

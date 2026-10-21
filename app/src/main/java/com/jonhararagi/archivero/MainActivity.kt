@@ -1927,6 +1927,11 @@ fun ArchiveroApp() {
                                 modifier = Modifier.weight(1f)
                             )
                         }
+                        LibrarySimilarImageScanner(
+                            records = visibleLibraryRecords,
+                            enabled = libraryCatalog != null && !libraryTransferRunning,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                         LibraryBulkProjectEditor(
                             records = visibleLibraryRecords,
                             catalog = libraryCatalog,
