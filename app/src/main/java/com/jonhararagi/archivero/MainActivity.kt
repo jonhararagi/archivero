@@ -182,14 +182,13 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun ArchiveroApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val libraryCatalogResult = remember(context) {
-        runCatching { DigitalLibraryCatalog(File(context.filesDir, "digital-library.properties")) }
-    }
-    val libraryCatalog = libraryCatalogResult.getOrNull()
-    var libraryStorageError by remember {
-        mutableStateOf(libraryCatalogResult.exceptionOrNull()?.message)
-    }
-    var libraryRecords by remember { mutableStateOf(libraryCatalog?.all().orEmpty()) }
+    var libraryCatalog by remember(context) { mutableStateOf<DigitalLibraryCatalog?>(null) }
+    var libraryCatalogLoading by remember(context) { mutableStateOf(true) }
+    var libraryStorageError by remember { mutableStateOf<String?>(null) }
+    var libraryRecords by remember { mutableStateOf<List<LibraryRecord>>(emptyList()) }
+    var visibleLibraryRecords by remember { mutableStateOf<List<LibraryRecord>>(emptyList()) }
+    var libraryMatchesTruncated by remember { mutableStateOf(false) }
+    var librarySearching by remember { mutableStateOf(false) }
     var libraryEditDialog by remember { mutableStateOf(false) }
     var libraryEditUri by remember { mutableStateOf<String?>(null) }
     var libraryEditName by remember { mutableStateOf("") }
@@ -198,6 +197,49 @@ fun ArchiveroApp() {
     var libraryEditNotes by remember { mutableStateOf("") }
     var libraryEditSource by remember { mutableStateOf("") }
     var libraryTransferRunning by remember { mutableStateOf(false) }
+
+    LaunchedEffect(context) {
+        libraryCatalogLoading = true
+        val catalogResult = withContext(Dispatchers.IO) {
+            runCatching { DigitalLibraryCatalog(File(context.filesDir, "digital-library.properties")) }
+        }
+        val catalog = catalogResult.getOrNull()
+        if (catalog == null) {
+            libraryStorageError = catalogResult.exceptionOrNull()?.message ?: "No se pudo abrir el índice de biblioteca."
+        } else {
+            libraryCatalog = catalog
+            val recordsResult = withContext(Dispatchers.IO) { runCatching { catalog.all() } }
+            recordsResult.fold(
+                { records ->
+                    libraryRecords = records
+                    libraryStorageError = null
+                },
+                { error -> libraryStorageError = error.message ?: "No se pudo leer el índice de biblioteca." }
+            )
+        }
+        libraryCatalogLoading = false
+    }
+
+    LaunchedEffect(query, libraryRecords) {
+        librarySearching = true
+        delay(150)
+        val needle = query.trim().lowercase(Locale.ROOT)
+        val matches = withContext(Dispatchers.Default) {
+            libraryRecords.asSequence()
+                .filter { record ->
+                    needle.isEmpty() || sequenceOf(
+                        record.displayName, record.category, record.tags.joinToString(" "),
+                        record.notes, record.source
+                    ).any { it.lowercase(Locale.ROOT).contains(needle) }
+                }
+                .take(501)
+                .toList()
+        }
+        visibleLibraryRecords = matches.take(500)
+        libraryMatchesTruncated = matches.size > 500
+        librarySearching = false
+    }
+
     val savedPaletteName = context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).getString("palette", null)
     // Cyberpunk is the first-run identity; preserve any palette the user explicitly selected.
     val initialPaletteName = savedPaletteName ?: Palette.CIBERPUNK.name
@@ -455,9 +497,13 @@ fun ArchiveroApp() {
 
     fun refreshLibrary() {
         val catalog = libraryCatalog ?: return
-        runCatching { catalog.all() }
-            .onSuccess { libraryRecords = it; libraryStorageError = null }
-            .onFailure { libraryStorageError = it.message ?: "No se pudo leer el índice de biblioteca." }
+        scope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { catalog.all() } }
+            result.fold(
+                { records -> libraryRecords = records; libraryStorageError = null },
+                { error -> libraryStorageError = error.message ?: "No se pudo leer el índice de biblioteca." }
+            )
+        }
     }
     LaunchedEffect(sleepTimerMinutes, mediaController) {
         val minutes = sleepTimerMinutes
@@ -1699,29 +1745,32 @@ fun ArchiveroApp() {
                             Text("Procesando instantánea de metadatos…", style = MaterialTheme.typography.bodySmall)
                         }
                         SearchBox(query) { query = it }
-                        if (libraryStorageError != null) {
+                        if (libraryCatalogLoading) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 18.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(10.dp))
+                                Text("Cargando índice de biblioteca…")
+                            }
+                        } else if (libraryStorageError != null) {
                             EmptyNotice(
                                 "Índice de biblioteca no disponible",
                                 "No se ha recreado ni sobrescrito el índice existente. Detalle: ${libraryStorageError}",
                                 Icons.Default.Warning
                             )
                         } else {
-                            val needle = query.trim().lowercase(Locale.ROOT)
-                            val visibleLibraryRecords = libraryRecords.asSequence()
-                                .filter { record ->
-                                    needle.isEmpty() || sequenceOf(
-                                        record.displayName, record.category, record.tags.joinToString(" "),
-                                        record.notes, record.source
-                                    ).any { it.lowercase(Locale.ROOT).contains(needle) }
-                                }
-                                .sortedWith(
-                                    compareBy<LibraryRecord> { it.displayName.lowercase(Locale.ROOT) }
-                                        .thenBy { it.uri }
+                            if (librarySearching) {
+                                Text(
+                                    "Buscando en etiquetas, notas y metadatos…",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                .take(500)
-                                .toList()
+                            }
                             Text(
-                                "${visibleLibraryRecords.size} ficha(s) visibles · almacenamiento local",
+                                "${if (libraryMatchesTruncated) "500+" else visibleLibraryRecords.size.toString()} ficha(s) visibles · almacenamiento local",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(vertical = 6.dp)
@@ -1789,18 +1838,34 @@ fun ArchiveroApp() {
                                                         Spacer(Modifier.width(4.dp))
                                                         Text("Editar ficha")
                                                     }
-                                                    TextButton(onClick = {
-                                                        val result = runCatching {
-                                                            libraryCatalog?.removeMetadata(record.uri)
-                                                                ?: throw IOException("El índice de biblioteca no está disponible.")
+                                                    TextButton(
+                                                        enabled = !libraryTransferRunning,
+                                                        onClick = {
+                                                            val catalog = libraryCatalog
+                                                            if (catalog == null) {
+                                                                message = "El índice de biblioteca no está disponible."
+                                                            } else {
+                                                                libraryTransferRunning = true
+                                                                scope.launch {
+                                                                    val result = withContext(Dispatchers.IO) {
+                                                                        runCatching { catalog.removeMetadata(record.uri) }
+                                                                    }
+                                                                    libraryTransferRunning = false
+                                                                    result.fold(
+                                                                        { removed ->
+                                                                            if (removed) {
+                                                                                refreshLibrary()
+                                                                                message = "Se quitó la ficha. El archivo físico no se borró."
+                                                                            } else {
+                                                                                message = "La ficha ya no estaba en el catálogo."
+                                                                            }
+                                                                        },
+                                                                        { error -> message = "No se pudo quitar la ficha: ${error.message ?: "error de almacenamiento"}" }
+                                                                    )
+                                                                }
+                                                            }
                                                         }
-                                                        result.onSuccess {
-                                                            refreshLibrary()
-                                                            message = "Se quitó la ficha. El archivo físico no se borró."
-                                                        }.onFailure {
-                                                            message = "No se pudo quitar la ficha: ${it.message ?: "error de almacenamiento"}"
-                                                        }
-                                                    }) {
+                                                    ) {
                                                         Icon(Icons.Default.BookmarkRemove, null)
                                                         Spacer(Modifier.width(4.dp))
                                                         Text("Quitar ficha")
@@ -2045,34 +2110,47 @@ fun ArchiveroApp() {
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                val catalog = libraryCatalog
-                val uri = libraryEditUri
-                if (catalog == null || uri == null) {
-                    message = "No se pudo guardar la ficha porque el índice no está disponible. No se modificó el archivo."
-                } else {
-                    val result = runCatching {
-                        catalog.upsert(
-                            LibraryRecord(
-                                uri = uri,
-                                displayName = libraryEditName,
-                                category = libraryEditCategory,
-                                tags = libraryEditTags.split(",").map { it.trim() }.filter { it.isNotEmpty() },
-                                notes = libraryEditNotes,
-                                source = libraryEditSource,
-                                updatedAtMillis = System.currentTimeMillis()
+            TextButton(
+                enabled = !libraryTransferRunning,
+                onClick = {
+                    val catalog = libraryCatalog
+                    val uri = libraryEditUri
+                    if (catalog == null || uri == null) {
+                        message = "No se pudo guardar la ficha porque el índice no está disponible. No se modificó el archivo."
+                    } else {
+                        libraryTransferRunning = true
+                        scope.launch {
+                            val result = withContext(Dispatchers.IO) {
+                                runCatching {
+                                    catalog.upsert(
+                                        LibraryRecord(
+                                            uri = uri,
+                                            displayName = libraryEditName,
+                                            category = libraryEditCategory,
+                                            tags = libraryEditTags.split(",").map { it.trim() }.filter { it.isNotEmpty() },
+                                            notes = libraryEditNotes,
+                                            source = libraryEditSource,
+                                            updatedAtMillis = System.currentTimeMillis()
+                                        )
+                                    )
+                                }
+                            }
+                            libraryTransferRunning = false
+                            result.fold(
+                                {
+                                    refreshLibrary()
+                                    libraryEditDialog = false
+                                    message = "Ficha guardada en la biblioteca local. El archivo original no se modificó."
+                                },
+                                { error -> message = "No se pudo guardar la ficha: ${error.message ?: "comprueba los campos y el almacenamiento"}" }
                             )
-                        )
-                    }
-                    result.onSuccess {
-                        refreshLibrary()
-                        libraryEditDialog = false
-                        message = "Ficha guardada en la biblioteca local. El archivo original no se modificó."
-                    }.onFailure {
-                        message = "No se pudo guardar la ficha: ${it.message ?: "comprueba los campos y el almacenamiento"}"
+                        }
                     }
                 }
-            }) { Text("Guardar ficha") }
+            ) {
+                if (libraryTransferRunning) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                else Text("Guardar ficha")
+            }
         },
         dismissButton = { TextButton(onClick = { libraryEditDialog = false }) { Text("Cancelar") } }
     )
