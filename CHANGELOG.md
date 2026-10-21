@@ -1,3 +1,12 @@
+## Auditoría de integridad de relaciones · 2026-10-21
+
+- Se añadió un reporte local que busca relaciones cuyo destino no tiene ficha en el catálogo y fichas que no reciben enlaces de otras fichas.
+- Los registros sin enlaces entrantes se marcan como informativos, porque pueden ser recursos independientes legítimos. No se eliminan ni alteran registros.
+- La auditoría se ejecuta fuera del hilo visual, coopera con la cancelación y limita las muestras a 100 filas por categoría aunque el catálogo tenga muchos vínculos.
+- Se añadieron pruebas para URI objetivo sin ficha, enlaces válidos, fichas independientes, URI duplicadas y límite de muestras. CI del nuevo SHA pendiente.
+
+---
+
 ## Búsqueda con selección acotada de resultados · 2026-10-21
 
 - `filterLibraryRecords` ya no ordena toda la lista coincidente para luego tomar 500/501 elementos: mantiene solo los mejores N elementos en una cola de prioridad acotada y devuelve esos resultados en orden.

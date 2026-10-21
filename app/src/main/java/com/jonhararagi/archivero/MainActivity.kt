@@ -1852,6 +1852,11 @@ fun ArchiveroApp() {
                                 modifier = Modifier.weight(1f)
                             )
                         }
+                        LibraryRelationshipAuditButton(
+                            records = libraryRecords,
+                            enabled = libraryCatalog != null && !libraryTransferRunning,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                         if (libraryTransferRunning) {
                             Text("Procesando instantánea de metadatos…", style = MaterialTheme.typography.bodySmall)
                         }

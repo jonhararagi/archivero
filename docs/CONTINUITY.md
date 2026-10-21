@@ -1,3 +1,15 @@
+## Continuidad · auditoría de relaciones y URI sin ficha · 2026-10-21
+
+- Nuevo componente `LibraryRelationshipAudit.kt` con la función pura `auditLibraryRelationships` y un reporte Compose invocado desde Biblioteca.
+- Diferencia dos situaciones: relaciones dirigidas a URI que no están en el catálogo (posibles referencias sin ficha) y fichas que no reciben enlaces entrantes (informativo; pueden ser elementos independientes).
+- El reporte trabaja con metadatos del catálogo solamente. No verifica existencia física ni permiso SAF de cada destino, no repara URI y no modifica fichas o archivos.
+- Complejidad de análisis lineal en el número de fichas más relaciones; muestra acotada a 100 filas por apartado (total exacto calculado), ejecución en `Dispatchers.Default` y comprobación de cancelación por lotes.
+- Tests añadidos para destinos ausentes, destino enlazado, registros independientes, URI duplicadas y límite de muestra. CI del commit nuevo pendiente.
+- Última base validada: SHA `f7a720bda5f7d00c45eb926ce32d61cef620d850`, [run 39634548741](https://github.com/jonhararagi/archivero/actions/runs/39634548741) **PASS**, artefacto `archivero-debug-apk` ID `12360583047`, ZIP de 20.573.162 bytes.
+- PR #3 sigue abierto en borrador y `main` no ha sido modificado directamente.
+
+---
+
 ## Continuidad · cola acotada para la búsqueda · 2026-10-21
 
 - Se reemplazó `filtrar todas → ordenar todas → tomar N` por una cola de prioridad acotada al límite de resultados. La complejidad de ordenamiento pasa de ordenar todas las coincidencias a mantener los mejores N con coste logarítmico por coincidencia; la lista final de N resultados sí se ordena normalmente.
