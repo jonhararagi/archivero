@@ -3,7 +3,7 @@
 - La Biblioteca incorpora una acción para asignar el mismo proyecto/colección a varias fichas visibles, con selección, vista previa de los valores anteriores y un único guardado del índice.
 - Se conservan etiquetas, notas, procedencia, tipo de recurso y relaciones. Solo cambian el campo `project` y la marca temporal de las fichas cuya asignación varía.
 - El catálogo valida nombre y todas las URI antes de escribir. Una URI inexistente o nombre inválido rechaza el lote completo, sin cambios parciales en memoria ni disco.
-- Pruebas nuevas cubren asignación/persistencia, preservación de metadatos, operación sin cambios, URI inexistente y nombres vacíos, con controles o demasiado largos. La CI de la nueva cabeza debe validarlo.
+- Pruebas nuevas cubren asignación/persistencia, preservación de metadatos, operación sin cambios, URI inexistente y nombres vacíos, con controles o demasiado largos. CI [run 39641539041](https://github.com/jonhararagi/archivero/actions/runs/39641539041), SHA `215043d5a72295463e165a7064c65775c80f62d7`: **PASS** en tests, APK, firma/hash y subida. Artefacto `archivero-debug-apk` ID `12364384559`, ZIP de 20.647.933 bytes.
 
 ---
 

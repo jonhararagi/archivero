@@ -1,10 +1,12 @@
 ## Continuidad · asignación de proyecto/colección por lotes · 2026-10-21
 
-- Base funcional/documental verificada antes de este lote: SHA `ec8fdb47f2f2dc9644a1a31e5dbfcc127b76dfa5`, [run 39640755743](https://github.com/jonhararagi/archivero/actions/runs/39640755743) **PASS**, artefacto `archivero-debug-apk` ID `12364547619`, ZIP 20.631.102 bytes.
+- **Última cabeza funcional verificada antes de este refresco documental:** SHA `215043d5a72295463e165a7064c65775c80f62d7`, [run 39641539041](https://github.com/jonhararagi/archivero/actions/runs/39641539041) **PASS**, artefacto `archivero-debug-apk` ID `12364384559`, ZIP 20.647.933 bytes.
+- Base documental anterior: SHA `ec8fdb47f2f2dc9644a1a31e5dbfcc127b76dfa5`, [run 39640755743](https://github.com/jonhararagi/archivero/actions/runs/39640755743) **PASS**, artefacto ID `12364547619`, ZIP 20.631.102 bytes.
 - Nuevo método de catálogo previsto en `DigitalLibraryCatalog.kt`: `assignProjectToRecords`. Valida selección URI, existencia de todas las fichas y nombre destino antes de una sola escritura; preserva los otros campos.
 - Nuevo editor Compose `LibraryBulkProjectEditor.kt`: limita la selección a resultados visibles (máximo 500), permite «Todas/Ninguna» y presenta vista previa del proyecto actual a destino antes de aplicar.
 - Tests añadidos para guardado/reapertura, preservación de tags/notas/fuente/tipo/relaciones, idempotencia (cero cambios) y rechazo atómico de URI ausentes y nombres inválidos.
-- Esta nueva cabeza requiere CI completa para aprobarse. No hubo modificaciones directas a `main` ni merge del PR #3.
+- CI [run 39641539041](https://github.com/jonhararagi/archivero/actions/runs/39641539041), SHA `215043d5a72295463e165a7064c65775c80f62d7`: **PASS**. Tests, compilación de APK, firma/hash y subida de artefacto terminaron correctamente.
+- No hubo modificaciones directas a `main` ni merge del PR #3; el PR sigue en borrador.
 - La continuidad histórica extensa se conserva debajo de esta entrada.
 
 ---
