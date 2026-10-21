@@ -4,8 +4,10 @@
 - Diferencia dos situaciones: relaciones dirigidas a URI que no están en el catálogo (posibles referencias sin ficha) y fichas que no reciben enlaces entrantes (informativo; pueden ser elementos independientes).
 - El reporte trabaja con metadatos del catálogo solamente. No verifica existencia física ni permiso SAF de cada destino, no repara URI y no modifica fichas o archivos.
 - Complejidad de análisis lineal en el número de fichas más relaciones; muestra acotada a 100 filas por apartado (total exacto calculado), ejecución en `Dispatchers.Default` y comprobación de cancelación por lotes.
-- Tests añadidos para destinos ausentes, destino enlazado, registros independientes, URI duplicadas y límite de muestra. CI del commit nuevo pendiente.
-- Última base validada: SHA `f7a720bda5f7d00c45eb926ce32d61cef620d850`, [run 39634548741](https://github.com/jonhararagi/archivero/actions/runs/39634548741) **PASS**, artefacto `archivero-debug-apk` ID `12360583047`, ZIP de 20.573.162 bytes.
+- Tests añadidos para destinos ausentes, destino enlazado, registros independientes, URI duplicadas y límite de muestra. CI [run 39635472592](https://github.com/jonhararagi/archivero/actions/runs/39635472592), SHA `210e43570f39e38b1843844ec02b1ca9f43f9d9e`: **PASS** en tests, build de APK debug, verificación de firma/hash y subida del artefacto ID `12360483934` (20.590.366 bytes).
+- Última base funcional validada antes del refresco documental: SHA `210e43570f39e38b1843844ec02b1ca9f43f9d9e`, [run 39635472592](https://github.com/jonhararagi/archivero/actions/runs/39635472592) **PASS**, artefacto `archivero-debug-apk` ID `12360483934`, ZIP de 20.590.366 bytes.
+- Historial de auditoría conservado: [run 39635345291](https://github.com/jonhararagi/archivero/actions/runs/39635345291) falló en una aserción de orden alfabético en `LibraryRelationshipAuditTest`; el test se corrigió en SHA `210e43570f39e38b1843844ec02b1ca9f43f9d9e` y la nueva ejecución quedó **PASS**.
+- Lotes previos con validación completa: escáner de duplicados [run 39632563122](https://github.com/jonhararagi/archivero/actions/runs/39632563122); etiquetas por lotes [run 39633408582](https://github.com/jonhararagi/archivero/actions/runs/39633408582); filtro de proyecto/colección [run 39634053321](https://github.com/jonhararagi/archivero/actions/runs/39634053321); búsqueda acotada [run 39634548741](https://github.com/jonhararagi/archivero/actions/runs/39634548741).
 - PR #3 sigue abierto en borrador y `main` no ha sido modificado directamente.
 
 ---

@@ -3,7 +3,7 @@
 - Se añadió un reporte local que busca relaciones cuyo destino no tiene ficha en el catálogo y fichas que no reciben enlaces de otras fichas.
 - Los registros sin enlaces entrantes se marcan como informativos, porque pueden ser recursos independientes legítimos. No se eliminan ni alteran registros.
 - La auditoría se ejecuta fuera del hilo visual, coopera con la cancelación y limita las muestras a 100 filas por categoría aunque el catálogo tenga muchos vínculos.
-- Se añadieron pruebas para URI objetivo sin ficha, enlaces válidos, fichas independientes, URI duplicadas y límite de muestras. CI del nuevo SHA pendiente.
+- Se añadieron pruebas para URI objetivo sin ficha, enlaces válidos, fichas independientes, URI duplicadas y límite de muestras. CI [run 39635472592](https://github.com/jonhararagi/archivero/actions/runs/39635472592), SHA `210e43570f39e38b1843844ec02b1ca9f43f9d9e`: **PASS** en tests, APK, firma/hash y artefacto ID `12360483934` (20.590.366 bytes). El run anterior [39635345291](https://github.com/jonhararagi/archivero/actions/runs/39635345291) falló en una expectativa de orden de las muestras; se ajustó la expectativa para que coincida con el orden alfabético del reporte.
 
 ---
 
@@ -12,7 +12,7 @@
 - `filterLibraryRecords` ya no ordena toda la lista coincidente para luego tomar 500/501 elementos: mantiene solo los mejores N elementos en una cola de prioridad acotada y devuelve esos resultados en orden.
 - Se mantiene la misma prioridad de favoritos, suborden por Nombre/Recientes/Proyecto, filtro de proyecto/colección y criterio determinista por URI.
 - Se añadió una prueba con 5.000 fichas generadas que compara las primeras 37 entradas en las tres ordenaciones con el orden completo de referencia, además de un caso con filtro por proyecto.
-- Es una optimización algorítmica verificada por tests, no un benchmark de rendimiento medido en un dispositivo. CI del nuevo commit pendiente.
+- Es una optimización algorítmica verificada por tests, no un benchmark de rendimiento medido en un dispositivo. CI [run 39634548741](https://github.com/jonhararagi/archivero/actions/runs/39634548741), SHA `f7a720bda5f7d00c45eb926ce32d61cef620d850`: **PASS** en tests, APK, firma/hash y artefacto ID `12360583047` (20.573.162 bytes).
 
 ---
 
@@ -21,7 +21,7 @@
 - La barra de filtros ahora permite elegir cualquiera de los proyectos/colecciones ya usados por las fichas; la lista de opciones se construye en memoria, se deduplica sin distinguir mayúsculas/minúsculas y se ordena de forma determinista.
 - El filtro de proyecto se combina con texto, categoría, tipo y Solo favoritos. No introduce una migración ni inventa nuevas colecciones.
 - Se añadieron pruebas para un filtro de proyecto aislado y para una combinación de proyecto, nombre/etiqueta, categoría y tipo.
-- Validación de CI de esta nueva cabeza pendiente.
+- CI [run 39634053321](https://github.com/jonhararagi/archivero/actions/runs/39634053321), SHA `a4cded20629d8800dec4d556841fde9df1dc8253`: **PASS**, artefacto ID `12360063059` (20.572.760 bytes).
 
 ---
 
@@ -30,7 +30,7 @@
 - Se añadió una operación para seleccionar hasta 500 fichas visibles del filtro actual, revisar nombres/etiquetas que se van a cambiar y añadir varias etiquetas con una sola escritura del catálogo.
 - Las etiquetas existentes se conservan; entradas repetidas se normalizan sin distinguir mayúsculas/minúsculas. Si una URI ya no existe, una etiqueta no es válida o alguna ficha superaría el límite de 100, se rechaza el lote completo antes de persistir.
 - Los cambios se hacen solo en metadatos; los archivos físicos no se mueven ni se modifican.
-- Se añadieron pruebas de persistencia, deduplicación de etiquetas, operación sin cambios, URI inexistente y límite que asegura rollback completo en memoria y disco. CI de este commit pendiente.
+- Se añadieron pruebas de persistencia, deduplicación de etiquetas, operación sin cambios, URI inexistente y límite que asegura rollback completo en memoria y disco. CI [run 39633408582](https://github.com/jonhararagi/archivero/actions/runs/39633408582), SHA `5880a532f0f7c87709c7f7828643c89ced478bc0`: **PASS**, artefacto ID `12360152672` (20.566.079 bytes).
 
 ---
 
