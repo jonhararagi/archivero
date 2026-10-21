@@ -1,3 +1,12 @@
+## Etiquetado por lotes con vista previa · 2026-10-21
+
+- Se añadió una operación para seleccionar hasta 500 fichas visibles del filtro actual, revisar nombres/etiquetas que se van a cambiar y añadir varias etiquetas con una sola escritura del catálogo.
+- Las etiquetas existentes se conservan; entradas repetidas se normalizan sin distinguir mayúsculas/minúsculas. Si una URI ya no existe, una etiqueta no es válida o alguna ficha superaría el límite de 100, se rechaza el lote completo antes de persistir.
+- Los cambios se hacen solo en metadatos; los archivos físicos no se mueven ni se modifican.
+- Se añadieron pruebas de persistencia, deduplicación de etiquetas, operación sin cambios, URI inexistente y límite que asegura rollback completo en memoria y disco. CI de este commit pendiente.
+
+---
+
 ## Corrección de selector del escáner · 2026-10-21
 
 - La ejecución de CI [39632036037](https://github.com/jonhararagi/archivero/actions/runs/39632036037), para SHA `8074cadfb5e5d8ad8ad1db7904df55658afc0114`, falló en `compileDebugKotlin`.

@@ -139,6 +139,56 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
         return normalized
     }
 
+    /**
+     * Adds tags to multiple existing entries in one catalog transaction.
+     *
+     * All URIs and tags are validated before the persisted snapshot is replaced. If a URI is
+     * missing, a tag is invalid, or any target would exceed the tag limit, no entry is written.
+     * Returns the number of entries whose tag set actually changed.
+     */
+    @Synchronized
+    @Throws(IOException::class)
+    fun addTagsToRecords(uris: Collection<String>, tagsToAdd: List<String>): Int {
+        require(uris.isNotEmpty()) { "Selecciona al menos una ficha." }
+        val targets = uris.map(::validateUri).distinct()
+        require(targets.size <= MAX_RECORDS) { "La selección supera el límite de fichas." }
+        val additions = normalizeTags(tagsToAdd)
+        require(additions.isNotEmpty()) { "Escribe al menos una etiqueta nueva." }
+
+        val missing = targets.filterNot { it in records }
+        require(missing.isEmpty()) {
+            "No se puede aplicar el lote: ${missing.size} ficha(s) ya no existen en el catálogo."
+        }
+
+        val changedAt = System.currentTimeMillis().coerceAtLeast(0L)
+        val changedRecords = ArrayList<LibraryRecord>()
+        targets.forEach { uri ->
+            val current = records.getValue(uri)
+            val mergedTags = current.tags.toMutableList()
+            val seen = mergedTags.mapTo(HashSet()) { it.lowercase(Locale.ROOT) }
+            additions.forEach { tag ->
+                if (seen.add(tag.lowercase(Locale.ROOT))) {
+                    require(mergedTags.size < MAX_TAGS) {
+                        "La operación excedería el límite de $MAX_TAGS etiquetas en la ficha '${current.displayName}'."
+                    }
+                    mergedTags.add(tag)
+                }
+            }
+            if (mergedTags != current.tags) {
+                changedRecords += normalizeRecord(
+                    current.copy(tags = mergedTags, updatedAtMillis = changedAt)
+                )
+            }
+        }
+
+        if (changedRecords.isEmpty()) return 0
+        val updated = LinkedHashMap(records)
+        changedRecords.forEach { updated[it.uri] = it }
+        persist(storageFile, updated.values)
+        records = updated
+        return changedRecords.size
+    }
+
     /** Removes a catalog entry only. It never calls ContentResolver or deletes a physical file. */
     @Synchronized
     fun removeMetadata(uri: String): Boolean {

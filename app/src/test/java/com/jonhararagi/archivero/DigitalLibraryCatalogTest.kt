@@ -44,6 +44,92 @@ class DigitalLibraryCatalogTest {
     }
 
     @Test
+    fun bulkTaggingMergesCaseInsensitivelyAndPersists() {
+        val directory = Files.createTempDirectory("archivero-library-bulk-tags").toFile()
+        try {
+            val file = File(directory, "catalog.properties")
+            val catalog = DigitalLibraryCatalog(file)
+            val firstUri = "content://bulk/first"
+            val secondUri = "content://bulk/second"
+            catalog.upsert(LibraryRecord(firstUri, "Primera", "Imagen", tags = listOf("Anime"), updatedAtMillis = 10L))
+            catalog.upsert(LibraryRecord(secondUri, "Segunda", "Imagen", tags = listOf("Paisaje"), updatedAtMillis = 20L))
+
+            val changed = catalog.addTagsToRecords(
+                listOf(firstUri, secondUri),
+                listOf("cabello azul", "anime", "cabello azul")
+            )
+
+            assertEquals(2, changed)
+            assertEquals(listOf("Anime", "cabello azul"), catalog.get(firstUri)?.tags)
+            assertEquals(listOf("Paisaje", "cabello azul", "anime"), catalog.get(secondUri)?.tags)
+            val restored = DigitalLibraryCatalog(file)
+            assertEquals(listOf("Anime", "cabello azul"), restored.get(firstUri)?.tags)
+            assertEquals(listOf("Paisaje", "cabello azul", "anime"), restored.get(secondUri)?.tags)
+            assertEquals(0, restored.addTagsToRecords(listOf(firstUri, secondUri), listOf("ANIME", "CABELLO AZUL")))
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun bulkTaggingWithMissingUriDoesNotPartiallyChangeCatalog() {
+        val directory = Files.createTempDirectory("archivero-library-bulk-missing").toFile()
+        try {
+            val file = File(directory, "catalog.properties")
+            val catalog = DigitalLibraryCatalog(file)
+            val existingUri = "content://bulk/existing"
+            catalog.upsert(LibraryRecord(existingUri, "Existente", "Documento"))
+
+            try {
+                catalog.addTagsToRecords(listOf(existingUri, "content://bulk/missing"), listOf("revisar"))
+                throw AssertionError("El lote con una URI inexistente debía rechazarse.")
+            } catch (_: IllegalArgumentException) {
+                // Expected. The operation is atomic with respect to catalog metadata.
+            }
+
+            assertTrue(catalog.get(existingUri)?.tags.orEmpty().isEmpty())
+            assertTrue(DigitalLibraryCatalog(file).get(existingUri)?.tags.orEmpty().isEmpty())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun bulkTaggingLimitFailureDoesNotWriteEarlierTargets() {
+        val directory = Files.createTempDirectory("archivero-library-bulk-limit").toFile()
+        try {
+            val file = File(directory, "catalog.properties")
+            val catalog = DigitalLibraryCatalog(file)
+            val firstUri = "content://bulk/would-change"
+            val fullUri = "content://bulk/full"
+            catalog.upsert(LibraryRecord(firstUri, "Primera", "Imagen"))
+            catalog.upsert(
+                LibraryRecord(
+                    fullUri,
+                    "Completa",
+                    "Imagen",
+                    tags = (1..100).map { "tag-$it" }
+                )
+            )
+
+            try {
+                catalog.addTagsToRecords(listOf(firstUri, fullUri), listOf("tag-nueva"))
+                throw AssertionError("El límite de 100 etiquetas debía rechazar todo el lote.")
+            } catch (_: IllegalArgumentException) {
+                // Expected. No partially updated snapshot is written.
+            }
+
+            assertTrue(catalog.get(firstUri)?.tags.orEmpty().isEmpty())
+            assertEquals(100, catalog.get(fullUri)?.tags?.size)
+            val restored = DigitalLibraryCatalog(file)
+            assertTrue(restored.get(firstUri)?.tags.orEmpty().isEmpty())
+            assertEquals(100, restored.get(fullUri)?.tags?.size)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun removeMetadataDoesNotDeleteTheReferencedPhysicalFile() {
         val directory = Files.createTempDirectory("archivero-library-remove").toFile()
         try {

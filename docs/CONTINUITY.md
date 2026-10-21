@@ -1,3 +1,24 @@
+## Continuidad · etiquetado por lotes con vista previa · 2026-10-21
+
+### Incremento en esta iteración
+- El catálogo incorpora `addTagsToRecords`: valida todas las URI, verifica que cada ficha exista y prepara los cambios antes de reemplazar el archivo de metadatos. La escritura se realiza una sola vez, no una vez por cada ficha.
+- El lote añade etiquetas sin borrar las anteriores. Los duplicados se comparan sin distinguir mayúsculas/minúsculas. Se devuelven cuántas fichas cambiaron; si todas ya tenían las etiquetas, no se escribe nada.
+- La interfaz selecciona las fichas visibles del filtro actual (máximo 500), muestra una vista previa de hasta tres fichas y permite seleccionar todas o ninguna antes de aplicar.
+- Pruebas unitarias verifican merge/deduplicación, persistencia, lote con URI inexistente y fallo por superar 100 etiquetas. Los dos últimos casos confirman que una validación fallida no persiste cambios parciales.
+- La ejecución de CI para la cabeza actual debe confirmar que el nuevo editor Compose compila y que las pruebas pasan. No marcar el lote como PASS hasta ver CI completa.
+
+### Incidentes de CI y corrección del escáner
+- [Run 39631967956](https://github.com/jonhararagi/archivero/actions/runs/39631967956), SHA `e93995a91db85151ba00c6f898693fec672ba545`: **FAIL**. El primer commit de escáner contenía también un error sintáctico en un test; quedó corregido en el siguiente commit.
+- [Run 39632036037](https://github.com/jonhararagi/archivero/actions/runs/39632036037), SHA `8074cadfb5e5d8ad8ad1db7904df55658afc0114): **FAIL** en `compileDebugKotlin`, selector de `potentialDuplicateCandidates` intentaba acceder a `value` de `LibraryRecord`.
+- [Run 39632182856](https://github.com/jonhararagi/archivero/actions/runs/39632182856), SHA `cad339f76275c44ec42bfb986fabb86aab8d5613`: **FAIL** por el mismo selector incorrecto.
+- Corrección comprobada: [run 39632563122](https://github.com/jonhararagi/archivero/actions/runs/39632563122), SHA `1844be99791f77372f63e4ef37f0199610727343): **PASS** en tests, compilación Android, verificación de firma/hash y subida del artefacto. ID del artefacto `12360830085`, ZIP de 20.539.989 bytes.
+
+### Integración y límites
+- PR #3 permanece abierto en borrador: https://github.com/jonhararagi/archivero/pull/3. No se modificó `main` ni se fusionó el PR.
+- No se probó aún en un Xiaomi ni con proveedores SAF externos. Los benchmarks de 1.000/10.000 imágenes y biblioteca de unos 200 GB siguen pendientes.
+
+---
+
 ## Incidencia de compilación · escáner de duplicados · 2026-10-21
 
 - CI [run 39632036037](https://github.com/jonhararagi/archivero/actions/runs/39632036037), SHA `8074cadfb5e5d8ad8ad1db7904df55658afc0114`: **FAIL** en `Run local unit tests`, durante `compileDebugKotlin`; no se produjo APK en esa ejecución.

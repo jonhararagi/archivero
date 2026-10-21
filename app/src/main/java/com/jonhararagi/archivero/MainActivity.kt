@@ -1816,12 +1816,31 @@ fun ArchiveroApp() {
                                 Text("Importar")
                             }
                         }
-                        LibraryDuplicateScanner(
-                            records = libraryRecords,
-                            recordsByUri = libraryRecordsByUri,
-                            enabled = libraryCatalog != null && !libraryTransferRunning,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            LibraryBulkTagEditor(
+                                records = visibleLibraryRecords,
+                                catalog = libraryCatalog,
+                                enabled = libraryCatalog != null && !libraryTransferRunning,
+                                onUpdated = { changedCount, tags ->
+                                    refreshLibrary()
+                                    message = if (changedCount == 0) {
+                                        "Las fichas seleccionadas ya tenían esas etiquetas; no se modificó el índice."
+                                    } else {
+                                        "Se añadieron ${tags.joinToString(", ")} a ${changedCount} ficha(s). Los archivos originales no se modificaron."
+                                    }
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                            LibraryDuplicateScanner(
+                                records = libraryRecords,
+                                recordsByUri = libraryRecordsByUri,
+                                enabled = libraryCatalog != null && !libraryTransferRunning,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                         if (libraryTransferRunning) {
                             Text("Procesando instantánea de metadatos…", style = MaterialTheme.typography.bodySmall)
                         }
