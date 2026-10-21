@@ -32,15 +32,20 @@ Los archivos se procesan localmente. La aplicación no tiene una función de sub
 
 ## Biblioteca digital local
 
-La sección **Biblioteca** permite crear fichas para archivos existentes sin copiarlos a una carpeta nueva. Cada ficha guarda nombre visible, categoría, etiquetas, notas y procedencia opcional; la búsqueda consulta esos metadatos. El índice se conserva en el almacenamiento privado de Archivero y admite etiquetas normalizadas, instantáneas de metadatos y validación antes de importar.
+La sección **Biblioteca** crea fichas locales para recursos existentes sin copiar, mover ni eliminar el archivo original. Cada ficha puede guardar nombre visible, categoría, etiquetas, notas, procedencia, proyecto/colección, tipo de recurso y relaciones con otras fichas.
 
-- Abre el menú contextual de un archivo y elige **Añadir a biblioteca** para crear su ficha.
-- Busca por nombre, categoría, etiqueta, nota o procedencia desde la sección Biblioteca.
-- **Quitar ficha** elimina únicamente los metadatos del catálogo; no borra el archivo físico.
-- Los conflictos de importación se rechazan de forma predeterminada y un índice malformado se informa sin reemplazarlo silenciosamente.
-- La lista visual muestra como máximo 500 fichas por vez para conservar una interfaz manejable; la búsqueda permite acotar los resultados.
+- Abre el menú contextual de un archivo y elige **Añadir a biblioteca** para crear o editar su ficha.
+- Busca por nombre, categoría, etiquetas, notas, procedencia, proyecto, tipo o identificadores de recursos relacionados.
+- Usa vistas de **cuadrícula** y **lista**, miniaturas de la caché compartida y metadatos técnicos disponibles: formato/MIME, tamaño, fecha de modificación y dimensiones de imágenes cuando Android puede leerlas.
+- Los tipos de recurso distinguen explícitamente entre **Sin clasificar**, **Original**, **Derivado**, **Editado**, **Generado**, **Referencia** y **Personaje**. No se inventan datos cuando un proveedor no devuelve metadatos.
+- Combina búsqueda con filtros de categoría y tipo. Ordena por **Nombre**, **Recientes** o **Proyecto**. Las últimas ocho búsquedas se guardan en preferencias locales y pueden borrarse desde la pantalla Biblioteca.
+- Las fichas pueden vincular hasta 100 recursos. Las referencias solo guardan URI/identificadores: no duplican archivos. Las relaciones cuyo recurso ya no está indexado se indican como pendientes, y la ficha se conserva.
+- **Quitar ficha** elimina solo los metadatos; no borra el archivo físico. Si una URI está ausente o Android ya no permite acceder, se avisa sin borrar el registro.
+- La vista presenta hasta 500 resultados a la vez para mantener controlada la carga visual. El filtrado se ejecuta fuera del hilo de interfaz.
 
-La interfaz incluye selectores Android para importar y exportar instantáneas. El catálogo limita cada instantánea a 64 MiB, valida el contenido antes de importarlo y rechaza URI en conflicto por defecto; una importación fallida deja intacto el índice activo.
+El índice local está versionado y se actualiza mediante un archivo temporal con reemplazo atómico cuando el sistema de archivos lo admite. Las instantáneas se pueden importar/exportar desde los selectores de Android y tienen un límite de 64 MiB. Una importación inválida o con URI en conflicto se rechaza por defecto, sin sobrescribir silenciosamente la biblioteca activa.
+
+El esquema V2 añade proyecto, tipo de recurso y relaciones, y sigue leyendo fichas del esquema V1: las fichas antiguas conservan sus datos y reciben valores predeterminados para los campos nuevos; se convierten al esquema actual cuando se guardan.
 
 ## Correcciones de fiabilidad recientes
 

@@ -1,35 +1,37 @@
-## Continuidad · biblioteca digital local y búsqueda segura · 2026-10-21
+## Continuidad · biblioteca visual V2, relaciones y filtros · 2026-10-21
 
-### Rama y entrega
-- Rama de trabajo: `feature/archivero-digital-library-001`.
-- PR #3 en borrador: https://github.com/jonhararagi/archivero/pull/3. No fusionado; `main` no se modificó directamente.
-- Código validado por CI en SHA `f7daab88136ce21ea94477919e3bd2e119fe3246`.
-- GitHub Actions [run 39620283829](https://github.com/jonhararagi/archivero/actions/runs/39620283829): **PASS** para `testDebugUnitTest`, `assembleDebug`, comprobación de certificado/SHA y publicación del artefacto.
-- Artefacto `archivero-debug-apk`, ID `12354766201`, ZIP de 20.452.678 bytes. El paso de verificación de firma/hash y la subida finalizaron correctamente.
+### Rama y estado de integración
+- Repositorio: `jonhararagi/archivero`.
+- Rama autorizada: `feature/archivero-digital-library-001`.
+- PR #3: https://github.com/jonhararagi/archivero/pull/3, abierto en borrador. **No fusionado**; no se editó `main` directamente.
+- SHA de código y pruebas validados: `e0d5ea7b173d795c2ecc7e5629efd8fc2f143614`.
+- GitHub Actions [run 39625852877](https://github.com/jonhararagi/archivero/actions/runs/39625852877): **PASS**. Pasaron `testDebugUnitTest`, `assembleDebug`, verificación de firma/hash y subida del artefacto.
+- Artefacto: `archivero-debug-apk`, ID `12356454794`, ZIP de 20.513.480 bytes, aún no expirado al comprobarlo.
 
-### Cambios incluidos
-- `DigitalLibraryCatalog.kt`: catálogo local de metadatos sin dependencias nuevas. Una ficha guarda URI, nombre visible, categoría, etiquetas, notas, procedencia y fecha.
-- Los metadatos se persisten en un archivo versionado dentro del almacenamiento privado de la app, con escritura temporal y reemplazo atómico cuando el sistema de archivos lo admite. Si el índice existente está dañado o no es compatible, la apertura falla de forma explícita en lugar de sustituirlo por un catálogo vacío.
-- Se normalizan y deduplican etiquetas sin distinguir mayúsculas/minúsculas. La búsqueda cubre nombre, categoría, etiquetas, notas y procedencia.
-- La pantalla Biblioteca permite añadir/editar fichas desde el menú contextual, abrir el recurso, buscar en el catálogo y quitar una ficha. Quitar una ficha no elimina ni mueve el archivo físico.
-- Importación y exportación de instantáneas desde selectores de documentos Android. Se limita el tamaño de instantánea a 64 MiB; los URI en conflicto se rechazan por defecto. Una importación inválida o excesiva deja intacto el índice activo.
-- Carga/lectura/escritura del catálogo usan `Dispatchers.IO`; el filtro se ejecuta en `Dispatchers.Default` con debounce y solo materializa hasta 501 coincidencias para mostrar 500 como máximo.
-- `DigitalLibraryCatalogTest.kt` cubre persistencia/reapertura, etiquetas, búsqueda, exportación/importación, conflictos, archivo corrupto, límites de tamaño y la garantía de que quitar la ficha no borra el archivo.
+### Funcionalidad incluida
+- `DigitalLibraryCatalog.kt` guarda localmente URI, nombre visible, categoría, etiquetas, notas, procedencia, fecha, proyecto, tipo de recurso y relaciones.
+- Migración V1→V2 compatible: las fichas antiguas conservan nombre, categoría, etiquetas, notas, procedencia y fecha; los campos nuevos reciben valores predeterminados. La próxima escritura serializa en V2.
+- La UI permite añadir/editar fichas desde el menú contextual, importar/exportar instantáneas Android de hasta 64 MiB, consultar metadatos técnicos y usar cuadrícula/lista con miniaturas de la caché limitada existente.
+- Tipos explícitos: Sin clasificar, Original, Derivado, Editado, Generado, Referencia y Personaje. Proyecto/colección y hasta 100 URI relacionadas por ficha, con deduplicación y eliminación de autorreferencias.
+- Los recursos ausentes o sin permiso no se borran del catálogo. Quitar ficha elimina metadatos únicamente, nunca el archivo físico.
+- Filtros combinables de texto, categoría y tipo de recurso; orden por nombre, recientes o proyecto; historial local de las últimas ocho búsquedas, con borrado explícito.
+- La lectura/escritura va en `Dispatchers.IO`; el filtrado en `Dispatchers.Default` con debounce. La vista muestra como máximo 500 resultados.
 
-### Incidente de CI corregido
-- El SHA intermedio `d91684b992b3770cc58b725870cdcac5f1e44ca5` falló en compilación: el efecto de búsqueda hacía referencia a `query` antes de la declaración de ese estado.
-- Se movió el efecto debajo de la declaración (`f7daab88136ce21ea94477919e3bd2e119fe3246`). En la CI posterior, todas las etapas principales pasaron.
-- No borrar este antecedente del registro: el resultado de PASS corresponde al SHA corregido, no al SHA fallido.
+### Incidentes y correcciones que deben conservarse en el historial
+1. `d91684b992b3770cc58b725870cdcac5f1e44ca5`: falló compilación porque el efecto usaba `query` antes de declararse. Se corrigió en `f7daab88136ce21ea94477919e3bd2e119fe3246`; CI pasó.
+2. `bfb02d5ec66f02e9566df12d65a0684ea9edcde3`: CI falló por llamadas existentes `SearchBox(query) { ... }` incompatibles con el orden nuevo de parámetros. Se corrigió la firma en `ade41baa25aa44dd71caf97587e2474e4e44c1c9`.
+3. Run [39625522152](https://github.com/jonhararagi/archivero/actions/runs/39625522152), SHA `ade41baa...`: las pruebas ejecutaron 39 casos y falló la expectativa de orden alfabético, no la compilación. Se corrigió el test de nombre para esperar orden alfabético en `e0d5ea7b...`.
+4. Run [39625852877](https://github.com/jonhararagi/archivero/actions/runs/39625852877), SHA `e0d5ea7b...`: **PASS** de pruebas, APK, firma/hash y artefacto. Este es el SHA al que corresponde el PASS descrito arriba.
 
-### Límites pendientes
-1. No se ha ejecutado todavía en el Xiaomi físico ni se ha hecho una prueba instrumentada de los selectores SAF con varios proveedores.
-2. La vista presenta 500 fichas como máximo por vez; falta medir la carga y búsqueda con una biblioteca grande real.
-3. El catálogo exporta metadatos, no los archivos a los que apuntan las URI. La validez de esas URI depende de los permisos Android que sigan vigentes.
-4. Siguen pendientes pruebas de restauración en dispositivo, errores de proveedor, 1.000/10.000 imágenes y el almacenamiento real de aproximadamente 200 GB.
-5. La CI confirma tests, compilación y artefacto, pero no reemplaza la prueba visual/manual en Android.
+### Límites que continúan abiertos
+- No se ha probado manualmente la nueva pantalla en el Xiaomi ni con diferentes proveedores SAF; las URI persistidas pueden dejar de estar accesibles si Android revoca el permiso o se mueve el recurso.
+- Las pruebas automatizadas no miden jank, memoria en teléfono real ni tiempos de apertura.
+- Faltan benchmarks reproducibles con 1.000 y 10.000 imágenes y con la biblioteca real de aproximadamente 200 GB. No declarar esa escala validada.
+- La exportación incluye metadatos/URI, no los bytes de los archivos originales.
+- La estimación TIMER inicial del lote fue de 2–4 horas de ingeniería; es una previsión, no una duración real medida.
 
-**Estado:** catálogo y pantalla de biblioteca, instantáneas limitadas y tests automatizados **PASS en CI**; validación física y escalabilidad real **PARTIAL**.  
-**TIMER:** la estimación inicial del lote fue de 2–4 horas de ingeniería; no se presenta como duración real medida.
+**Estado:** catálogo visual, V2, relaciones, filtros e historial local **PASS en CI**; validación física, proveedores SAF y escalabilidad grande **PARTIAL**.
+
 
 ---
 

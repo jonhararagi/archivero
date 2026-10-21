@@ -1,3 +1,18 @@
+## Biblioteca visual, relaciones y filtros combinados · 2026-10-21
+
+- La sección Biblioteca ahora ofrece cuadrícula/lista, miniaturas reutilizadas de la caché existente y metadatos técnicos disponibles: MIME/extensión, tamaño, fecha de modificación y dimensiones de imágenes cuando Android puede consultarlas.
+- El esquema del catálogo pasa de V1 a V2 con campos de proyecto/colección, tipo de recurso y hasta 100 URI relacionadas. La carga sigue siendo compatible con V1, conserva los campos antiguos y asigna valores predeterminados a los campos nuevos.
+- Las fichas distinguen recursos originales, derivados, editados, generados, referencias y personajes sin inventar procedencias ni etiquetas. Las URI que ya no se pueden abrir se conservan y se muestran con un estado de acceso explícito.
+- Se agregaron filtros combinables de texto, categoría y tipo de recurso, orden por nombre/recientes/proyecto e historial local de las últimas ocho búsquedas con opción para borrarlo.
+- La búsqueda de fichas incorpora proyecto, tipo y relaciones; filtrado, consulta de metadatos y almacenamiento continúan fuera del hilo visual, y la pantalla limita la lista a 500 resultados.
+- Pruebas: migración V1→V2 conservando notas y etiquetas; normalización de relaciones; filtros combinados, orden estable y límite de resultados. La expectativa de orden alfabético se corrigió tras la ejecución que la detectó.
+- GitHub Actions [run 39625852877](https://github.com/jonhararagi/archivero/actions/runs/39625852877), SHA `e0d5ea7b173d795c2ecc7e5629efd8fc2f143614`: **PASS** en `testDebugUnitTest`, `assembleDebug`, comprobación de firma/hash y publicación del artefacto.
+- Artefacto `archivero-debug-apk`, ID `12356454794`, ZIP de 20.513.480 bytes.
+- Historial de fallos no ocultado: `bfb02d5e...` falló por compatibilidad de la firma de SearchBox; `ade41baa...` compiló pero tuvo una expectativa de ordenación de test incorrecta. Las correcciones están incluidas en la cabeza PASS.
+- Pendiente: prueba visual/manual en el Xiaomi, permisos y proveedores SAF externos, benchmark con 1.000/10.000 imágenes y comprobación de la biblioteca real de aproximadamente 200 GB. CI no demuestra fluidez física ni escala real.
+
+---
+
 ## Biblioteca digital local y búsqueda fuera del hilo visual · 2026-10-21
 
 - Se añadió una sección de Biblioteca donde los recursos existentes pueden tener nombre visible, categoría, etiquetas, notas y procedencia sin copiar ni mover el archivo original.
