@@ -1,3 +1,17 @@
+## Búsqueda perceptual de imágenes dentro de Biblioteca · 2026-10-21
+
+- Se integra en Biblioteca el acceso «Buscar fotos parecidas en fichas visibles», reutilizando el detector perceptual local existente.
+- Analiza el conjunto filtrado actual, con límite de interfaz de 500 fichas visibles, trabajo fuera del hilo visual, cancelación y hasta 100 grupos/20 nombres por grupo.
+- La interfaz explica que la similitud visual no confirma duplicación exacta. La operación solo lee miniaturas y metadatos necesarios; no modifica fichas ni archivos físicos. El resumen identifica análisis parciales y recursos no legibles.
+- Se añadieron pruebas unitarias para resultados vacíos, grupos similares y estados parciales con recursos inaccesibles.
+- **CI PASS del código funcional:** [run 39647800495](https://github.com/jonhararagi/archivero/actions/runs/39647800495), SHA `81516cbed5ea1a473162f687c139db714841ddd2`. Completaron correctamente `testDebugUnitTest`, `assembleDebug`, verificación de firma/hash y subida.
+- **Artefacto verificado:** `archivero-debug-apk`, ID `12368157254`, ZIP de 20.662.550 bytes, `expired=false`.
+- No se ha probado en el Xiaomi físico; CI no sustituye la comprobación de permisos/proveedores Android reales.
+- TIMER estimado para este lote: 30–60 minutos de agente, no una medición del tiempo real.
+- La rama sigue siendo `feature/archivero-digital-library-001`; PR #3 permanece abierto en borrador y sin fusionar en `main`.
+
+---
+
 ## Asignación de proyecto/colección por lotes · 2026-10-21
 
 - La Biblioteca incorpora una acción para asignar el mismo proyecto/colección a varias fichas visibles, con selección, vista previa de los valores anteriores y un único guardado del índice.

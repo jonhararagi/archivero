@@ -1,3 +1,17 @@
+## Continuidad · búsqueda perceptual dentro de Biblioteca · 2026-10-21
+
+- **Último commit funcional verificado:** `81516cbed5ea1a473162f687c139db714841ddd2`.
+- **CI PASS:** [run 39647800495](https://github.com/jonhararagi/archivero/actions/runs/39647800495), mismo SHA. Pruebas unitarias, APK de depuración, firma/hash y subida del artefacto terminaron correctamente.
+- **Artefacto:** `archivero-debug-apk`, ID `12368157254`, ZIP 20.662.550 bytes, no expirado al consultar Actions.
+- Se añade `LibrarySimilarImageScanner.kt`: analiza solo las fichas actualmente visibles tras aplicar filtros, utilizando `findSimilarImages` y la huella perceptual ya existente. No se duplicó el algoritmo ni se añadió ninguna dependencia.
+- La interfaz se puede cancelar, ejecuta el trabajo de lectura en IO y muestra hasta 100 grupos y 20 nombres por grupo. Advierte que la semejanza es una pista de revisión, no confirmación de duplicado; ningún archivo ni ficha se elimina o modifica.
+- `ImageSimilarity.kt` incluye un resumen de estado compartido y `ImageSimilarityTest.kt` cubre estados vacíos, resultados parecidos y aviso de límite/recursos ilegibles.
+- `README.md` y `CHANGELOG.md` explican la nueva función y los límites. La continuidad histórica extensa se conserva debajo de esta entrada.
+- PR #3 continúa abierto, en borrador y sin fusionar. No se escribió en `main`.
+- TIMER estimado del lote: 30–60 minutos de agente, sin medición de rendimiento en dispositivo.
+
+---
+
 ## Continuidad · asignación de proyecto/colección por lotes · 2026-10-21
 
 - **Última cabeza funcional verificada:** SHA `215043d5a72295463e165a7064c65775c80f62d7`, [run 39642066619](https://github.com/jonhararagi/archivero/actions/runs/39642066619) **PASS**, artefacto `archivero-debug-apk` ID `12365273553`, ZIP 20.647.933 bytes.
