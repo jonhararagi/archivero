@@ -6,7 +6,7 @@
 - Pruebas: extremos no encadenados (0, 15, 255 con umbral 4), independencia frente al orden de entrada y validación del rango -1/65.
 - Se evita capturar `CancellationException` dentro del hash de imagen y se garantiza `recycle()` de bitmaps ante fallo de escalado o recorrido de píxeles.
 - Investigación de repos públicos: [Hydrus Network](https://github.com/hydrusnetwork/hydrus) (etiquetas/privacidad), [digiKam](https://github.com/KDE/digikam) (búsqueda con criterios combinables y metadatos), [Tropy](https://github.com/tropy/tropy) (descripción de fotos y recuperación de fuentes). Se toman patrones de producto, sin incorporar librerías o código externo.
-- CI aún pendiente para la cabeza que añade esta corrección. No declarar PASS hasta comprobar pruebas, APK, firma/hash y artefacto.
+- **CI PASS:** [run 39656468147](https://github.com/jonhararagi/archivero/actions/runs/39656468147), SHA `e619ba846b5f2b75ef2f4273868589125745e6df`. `testDebugUnitTest`, `assembleDebug`, firma/hash y subida completados correctamente. Artefacto `archivero-debug-apk`, ID `12372620604`, ZIP 20.662.905 bytes, no expirado; digest SHA-256 del ZIP `4fd7b2a0c061102c3bfe84ce21c4ffe46d027f37db755863bcc19f88f045f397`.
 - TIMER estimado: 30–60 minutos de agente, no tiempo medido en dispositivo. Se conserva debajo todo el historial de continuidad.
 
 ---

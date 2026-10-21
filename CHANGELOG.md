@@ -4,7 +4,7 @@
 - Se añaden pruebas para el caso engañoso A↔B↔C donde A y C exceden el umbral, para determinismo y umbrales fuera de rango.
 - El análisis conserva la cancelación en vez de absorber una `CancellationException` como si fuera una imagen ilegible. La decodificación reduce el riesgo de retener bitmaps si el escalado o la lectura de píxeles fallan.
 - Referencias de diseño consultadas: [Hydrus Network](https://github.com/hydrusnetwork/hydrus) destaca organización por etiquetas, colecciones grandes y privacidad local; [digiKam](https://github.com/KDE/digikam) combina etiquetas, metadatos y búsqueda por múltiples criterios; [Tropy](https://github.com/tropy/tropy) se orienta a describir fotos de investigación para reencontrar fuentes. Archivero adopta principios compatibles, no su código ni dependencias pesadas.
-- CI pendiente para la nueva revisión de este lote.
+- **CI PASS:** [run 39656468147](https://github.com/jonhararagi/archivero/actions/runs/39656468147), SHA `e619ba846b5f2b75ef2f4273868589125745e6df`. Pasaron `testDebugUnitTest`, `assembleDebug`, la verificación de firma/hash y la subida del artefacto. `archivero-debug-apk`, ID `12372620604`, ZIP 20.662.905 bytes, no expirado; digest ZIP SHA-256 `4fd7b2a0c061102c3bfe84ce21c4ffe46d027f37db755863bcc19f88f045f397`.
 
 ---
 
