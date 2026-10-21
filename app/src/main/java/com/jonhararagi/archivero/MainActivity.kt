@@ -2751,8 +2751,8 @@ private fun DiskCard(disk: Disk?, location: String, accent: Color = Color(0xFF80
 }
 @Composable private fun SearchBox(
     query: String,
-    onChange: (String) -> Unit,
-    onSearch: (() -> Unit)? = null
+    onSearch: (() -> Unit)? = null,
+    onChange: (String) -> Unit
 ) {
     OutlinedTextField(
         value = query,
