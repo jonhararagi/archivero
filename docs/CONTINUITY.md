@@ -1,36 +1,38 @@
-## Continuidad · biblioteca visual V2, relaciones y filtros · 2026-10-21
+## Continuidad · favoritos de biblioteca y ordenación · 2026-10-21
 
 ### Rama y estado de integración
-- Repositorio: `jonhararagi/archivero`.
-- Rama autorizada: `feature/archivero-digital-library-001`.
-- PR #3: https://github.com/jonhararagi/archivero/pull/3, abierto en borrador. **No fusionado**; no se editó `main` directamente.
-- SHA de código y pruebas validados: `e0d5ea7b173d795c2ecc7e5629efd8fc2f143614`.
-- GitHub Actions [run 39625852877](https://github.com/jonhararagi/archivero/actions/runs/39625852877): **PASS**. Pasaron `testDebugUnitTest`, `assembleDebug`, verificación de firma/hash y subida del artefacto.
-- Artefacto: `archivero-debug-apk`, ID `12356454794`, ZIP de 20.513.480 bytes, aún no expirado al comprobarlo.
+- Rama: `feature/archivero-digital-library-001`.
+- PR #3: https://github.com/jonhararagi/archivero/pull/3. Sigue abierto en borrador y no está fusionado; `main` no se modificó directamente.
+- SHA de código validado: `d89f6db6dcc55354997cd5754bdccf37f1cf167a`.
+- GitHub Actions [run 39627115115](https://github.com/jonhararagi/archivero/actions/runs/39627115115): **PASS** en `testDebugUnitTest`, `assembleDebug`, verificación de firma/hash y publicación de artefacto.
+- Artefacto `archivero-debug-apk`, ID `12358276807`, ZIP de 20.516.295 bytes. La suma/hash y la subida están completas.
 
-### Funcionalidad incluida
-- `DigitalLibraryCatalog.kt` guarda localmente URI, nombre visible, categoría, etiquetas, notas, procedencia, fecha, proyecto, tipo de recurso y relaciones.
-- Migración V1→V2 compatible: las fichas antiguas conservan nombre, categoría, etiquetas, notas, procedencia y fecha; los campos nuevos reciben valores predeterminados. La próxima escritura serializa en V2.
-- La UI permite añadir/editar fichas desde el menú contextual, importar/exportar instantáneas Android de hasta 64 MiB, consultar metadatos técnicos y usar cuadrícula/lista con miniaturas de la caché limitada existente.
-- Tipos explícitos: Sin clasificar, Original, Derivado, Editado, Generado, Referencia y Personaje. Proyecto/colección y hasta 100 URI relacionadas por ficha, con deduplicación y eliminación de autorreferencias.
-- Los recursos ausentes o sin permiso no se borran del catálogo. Quitar ficha elimina metadatos únicamente, nunca el archivo físico.
-- Filtros combinables de texto, categoría y tipo de recurso; orden por nombre, recientes o proyecto; historial local de las últimas ocho búsquedas, con borrado explícito.
-- La lectura/escritura va en `Dispatchers.IO`; el filtrado en `Dispatchers.Default` con debounce. La vista muestra como máximo 500 resultados.
+### Incremento de favoritos
+- Se añadió una estrella a las fichas de Biblioteca, disponible en cuadrícula y lista. Usa preferencias locales independientes de los favoritos musicales.
+- El filtro `filterLibraryRecords` recibe el conjunto de favoritos y los ordena antes de los demás, manteniendo el suborden elegido (Nombre, Recientes o Proyecto).
+- Límite defensivo de 5.000 favoritos; un exceso no reemplaza el conjunto guardado.
+- Al volver a cargar el catálogo, el conjunto de favoritos se reconcilia contra las fichas existentes. Se limpian URI de fichas quitadas del índice sin borrar archivos físicos.
+- Prueba añadida para verificar prioridad de favoritos y orden alfabético determinista.
+- Este SHA pasó la CI completa. La cabeza posterior de solo documentación debe volver a pasar su propia CI antes de considerar que esa cabeza exacta está verificada.
 
-### Incidentes y correcciones que deben conservarse en el historial
-1. `d91684b992b3770cc58b725870cdcac5f1e44ca5`: falló compilación porque el efecto usaba `query` antes de declararse. Se corrigió en `f7daab88136ce21ea94477919e3bd2e119fe3246`; CI pasó.
-2. `bfb02d5ec66f02e9566df12d65a0684ea9edcde3`: CI falló por llamadas existentes `SearchBox(query) { ... }` incompatibles con el orden nuevo de parámetros. Se corrigió la firma en `ade41baa25aa44dd71caf97587e2474e4e44c1c9`.
-3. Run [39625522152](https://github.com/jonhararagi/archivero/actions/runs/39625522152), SHA `ade41baa...`: las pruebas ejecutaron 39 casos y falló la expectativa de orden alfabético, no la compilación. Se corrigió el test de nombre para esperar orden alfabético en `e0d5ea7b...`.
-4. Run [39625852877](https://github.com/jonhararagi/archivero/actions/runs/39625852877), SHA `e0d5ea7b...`: **PASS** de pruebas, APK, firma/hash y artefacto. Este es el SHA al que corresponde el PASS descrito arriba.
+### Estado funcional consolidado
+- Catálogo local versionado con lectura compatible V1→V2; nombre, categoría, tags, notas, procedencia, proyecto/tipo de recurso y hasta 100 URI relacionadas.
+- Grid/lista, miniaturas de caché acotada, MIME/tamaño/fecha/dimensiones cuando estén disponibles, filtros combinables, búsqueda reciente local, ordenación, favoritos y exportación/importación de instantáneas de metadatos de hasta 64 MiB.
+- Operaciones de catálogo se ejecutan fuera del hilo de interfaz; máximo 500 resultados visibles y 5.000 favoritos.
+- Quitar ficha elimina solo los metadatos. Las URI ausentes o que Android no deja abrir se conservan y se señalan; no se inventan procedencias ni dimensiones.
 
-### Límites que continúan abiertos
-- No se ha probado manualmente la nueva pantalla en el Xiaomi ni con diferentes proveedores SAF; las URI persistidas pueden dejar de estar accesibles si Android revoca el permiso o se mueve el recurso.
-- Las pruebas automatizadas no miden jank, memoria en teléfono real ni tiempos de apertura.
-- Faltan benchmarks reproducibles con 1.000 y 10.000 imágenes y con la biblioteca real de aproximadamente 200 GB. No declarar esa escala validada.
-- La exportación incluye metadatos/URI, no los bytes de los archivos originales.
-- La estimación TIMER inicial del lote fue de 2–4 horas de ingeniería; es una previsión, no una duración real medida.
+### Incidentes de CI conservados
+1. `d91684b992b3770cc58b725870cdcac5f1e44ca5`: error por `query` referenciada antes de su declaración; se corrigió en `f7daab88...`.
+2. `bfb02d5ec66f02e9566df12d65a0684ea9edcde3`: error de firma de `SearchBox`; se corrigió en `ade41baa...`.
+3. `ade41baa...`: compiló, pero una expectativa del orden alfabético falló; se corrigió en `e0d5ea7b...`.
+4. `e0d5ea7b...`: PASS de pruebas, APK, firma/hash y artefacto. El último código con favoritos `d89f6db6...` también tiene CI completa PASS.
 
-**Estado:** catálogo visual, V2, relaciones, filtros e historial local **PASS en CI**; validación física, proveedores SAF y escalabilidad grande **PARTIAL**.
+### Pruebas físicas y límites abiertos
+- No se han ejecutado pruebas manuales de UI/permisos en el Xiaomi, ni pruebas con variedad de proveedores SAF.
+- Falta medir tiempos, memoria/jank y comportamiento en 1.000/10.000 imágenes y la biblioteca real de aproximadamente 200 GB.
+- La exportación es de metadatos/URI, no de los bytes de los recursos.
+- **Estado:** favoritos de biblioteca + pruebas automatizadas **PASS en CI**; validación física y escalabilidad real **PARTIAL**.
+- **TIMER** estimado de este lote de favoritos: 1–2 horas de ingeniería; no es tiempo real medido.
 
 
 ---

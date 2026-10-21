@@ -1,3 +1,15 @@
+## Favoritos de biblioteca · ordenación con prioridad · 2026-10-21
+
+- Cada ficha de Biblioteca tiene una estrella para marcar/quitar el favorito desde cuadrícula o lista. Los favoritos son independientes del reproductor musical y se guardan localmente en preferencias.
+- Los favoritos pasan al frente dentro de la ordenación elegida (Nombre, Recientes o Proyecto) y admiten hasta 5.000 URI para mantener acotado el almacenamiento de preferencias.
+- Al recargar el catálogo se eliminan de la lista de favoritos las fichas que ya no existen, evitando referencias fantasma tras quitar metadatos. El archivo físico nunca se borra desde esta operación.
+- Se añadió prueba unitaria para verificar que los favoritos se ordenan antes que las demás fichas sin perder el orden determinista.
+- GitHub Actions [run 39627115115](https://github.com/jonhararagi/archivero/actions/runs/39627115115), SHA `d89f6db6dcc55354997cd5754bdccf37f1cf167a`: **PASS** en pruebas unitarias, compilación Android, verificación de firma/hash y subida del APK.
+- Artefacto `archivero-debug-apk`, ID `12358276807`, ZIP de 20.516.295 bytes. El commit validado incluye los favoritos, la prueba nueva y el catálogo visual/filtros de la iteración anterior.
+- Pendiente: todavía no hay prueba manual del favorito ni benchmark en el Xiaomi o con proveedores SAF reales.
+
+---
+
 ## Biblioteca visual, relaciones y filtros combinados · 2026-10-21
 
 - La sección Biblioteca ahora ofrece cuadrícula/lista, miniaturas reutilizadas de la caché existente y metadatos técnicos disponibles: MIME/extensión, tamaño, fecha de modificación y dimensiones de imágenes cuando Android puede consultarlas.
