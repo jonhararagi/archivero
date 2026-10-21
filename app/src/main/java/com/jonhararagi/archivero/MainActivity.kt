@@ -190,6 +190,17 @@ fun ArchiveroApp() {
     var libraryMatchesTruncated by remember { mutableStateOf(false) }
     var librarySearching by remember { mutableStateOf(false) }
     var libraryGridView by rememberSaveable { mutableStateOf(true) }
+    var libraryCategoryFilter by rememberSaveable { mutableStateOf("") }
+    var libraryResourceKindFilter by rememberSaveable { mutableStateOf("") }
+    var librarySortMode by rememberSaveable { mutableStateOf("Nombre") }
+    var librarySortMenuExpanded by remember { mutableStateOf(false) }
+    var libraryRecentSearches by remember(context) {
+        mutableStateOf(
+            context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
+                .getString("library_recent_searches", "")
+                .orEmpty().split('\n').map { it.trim() }.filter { it.isNotEmpty() }.take(8)
+        )
+    }
     var libraryEditDialog by remember { mutableStateOf(false) }
     var libraryEditUri by remember { mutableStateOf<String?>(null) }
     var libraryEditName by remember { mutableStateOf("") }
@@ -268,21 +279,18 @@ fun ArchiveroApp() {
     var selectedKind by rememberSaveable { mutableStateOf(Kind.IMAGES.name) }
     var choosingKind by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
-    LaunchedEffect(query, libraryRecords) {
+    LaunchedEffect(query, libraryRecords, libraryCategoryFilter, libraryResourceKindFilter, librarySortMode) {
         librarySearching = true
         delay(150)
-        val needle = query.trim().lowercase(Locale.ROOT)
         val matches = withContext(Dispatchers.Default) {
-            libraryRecords.asSequence()
-                .filter { record ->
-                    needle.isEmpty() || sequenceOf(
-                        record.displayName, record.category, record.tags.joinToString(" "),
-                        record.project, record.resourceKind, record.relatedUris.joinToString(" "),
-                        record.notes, record.source
-                    ).any { it.lowercase(Locale.ROOT).contains(needle) }
-                }
-                .take(501)
-                .toList()
+            filterLibraryRecords(
+                records = libraryRecords,
+                query = query,
+                category = libraryCategoryFilter,
+                resourceKind = libraryResourceKindFilter,
+                sortMode = librarySortMode,
+                limit = 501
+            )
         }
         visibleLibraryRecords = matches.take(500)
         libraryMatchesTruncated = matches.size > 500
@@ -518,6 +526,21 @@ fun ArchiveroApp() {
                 { error -> libraryStorageError = error.message ?: "No se pudo leer el índice de biblioteca." }
             )
         }
+    }
+
+    fun rememberLibrarySearch() {
+        val term = query.trim().replace('\n', ' ')
+        if (term.isBlank()) return
+        val next = (listOf(term) + libraryRecentSearches.filterNot { it.equals(term, ignoreCase = true) }).take(8)
+        libraryRecentSearches = next
+        context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
+            .edit().putString("library_recent_searches", next.joinToString("\n")).apply()
+    }
+
+    fun clearLibraryRecentSearches() {
+        libraryRecentSearches = emptyList()
+        context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
+            .edit().remove("library_recent_searches").apply()
     }
     LaunchedEffect(sleepTimerMinutes, mediaController) {
         val minutes = sleepTimerMinutes
@@ -1758,7 +1781,91 @@ fun ArchiveroApp() {
                         if (libraryTransferRunning) {
                             Text("Procesando instantánea de metadatos…", style = MaterialTheme.typography.bodySmall)
                         }
-                        SearchBox(query) { query = it }
+                        SearchBox(
+                            query = query,
+                            onChange = { query = it },
+                            onSearch = { rememberLibrarySearch() }
+                        )
+                        if (query.isBlank() && libraryRecentSearches.isNotEmpty()) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Búsquedas recientes", style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                                TextButton(onClick = { clearLibraryRecentSearches() }) { Text("Borrar historial") }
+                            }
+                            Row(
+                                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                libraryRecentSearches.forEach { term ->
+                                    FilterChip(
+                                        selected = false,
+                                        onClick = { query = term },
+                                        label = { Text(term, maxLines = 1) }
+                                    )
+                                }
+                            }
+                        }
+                        Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = libraryCategoryFilter,
+                                onValueChange = { libraryCategoryFilter = it },
+                                label = { Text("Categoría") },
+                                placeholder = { Text("Todas") },
+                                singleLine = true,
+                                modifier = Modifier.width(150.dp),
+                                trailingIcon = {
+                                    if (libraryCategoryFilter.isNotBlank()) IconButton(onClick = { libraryCategoryFilter = "" }) {
+                                        Icon(Icons.Default.Close, "Quitar filtro de categoría")
+                                    }
+                                }
+                            )
+                            OutlinedTextField(
+                                value = libraryResourceKindFilter,
+                                onValueChange = { libraryResourceKindFilter = it },
+                                label = { Text("Tipo de recurso") },
+                                placeholder = { Text("Todos") },
+                                singleLine = true,
+                                modifier = Modifier.width(160.dp),
+                                trailingIcon = {
+                                    if (libraryResourceKindFilter.isNotBlank()) IconButton(onClick = { libraryResourceKindFilter = "" }) {
+                                        Icon(Icons.Default.Close, "Quitar filtro de tipo")
+                                    }
+                                }
+                            )
+                            Box {
+                                OutlinedButton(onClick = { librarySortMenuExpanded = true }) {
+                                    Icon(Icons.Default.Sort, null)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(librarySortMode)
+                                    Icon(Icons.Default.ArrowDropDown, null)
+                                }
+                                DropdownMenu(
+                                    expanded = librarySortMenuExpanded,
+                                    onDismissRequest = { librarySortMenuExpanded = false }
+                                ) {
+                                    listOf("Nombre", "Recientes", "Proyecto").forEach { sort ->
+                                        DropdownMenuItem(
+                                            text = { Text(sort) },
+                                            onClick = {
+                                                librarySortMode = sort
+                                                librarySortMenuExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                            TextButton(onClick = {
+                                libraryCategoryFilter = ""
+                                libraryResourceKindFilter = ""
+                                librarySortMode = "Nombre"
+                            }) { Text("Restablecer") }
+                        }
                         if (libraryCatalogLoading) {
                             Row(
                                 Modifier.fillMaxWidth().padding(vertical = 18.dp),
@@ -2642,8 +2749,31 @@ private fun DiskCard(disk: Disk?, location: String, accent: Color = Color(0xFF80
         }
     }
 }
-@Composable private fun SearchBox(query: String, onChange: (String) -> Unit) {
-    OutlinedTextField(query, onChange, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Buscar por nombre...") }, leadingIcon = { Icon(Icons.Default.Search, null) }, trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { onChange("") }) { Icon(Icons.Default.Close, "Limpiar búsqueda") } })
+@Composable private fun SearchBox(
+    query: String,
+    onChange: (String) -> Unit,
+    onSearch: (() -> Unit)? = null
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onChange,
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+        placeholder = { Text("Buscar por nombre...") },
+        leadingIcon = { Icon(Icons.Default.Search, null) },
+        trailingIcon = {
+            if (query.isNotEmpty()) IconButton(onClick = { onChange("") }) {
+                Icon(Icons.Default.Close, "Limpiar búsqueda")
+            }
+        },
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            imeAction = if (onSearch != null) androidx.compose.ui.text.input.ImeAction.Search
+            else androidx.compose.ui.text.input.ImeAction.Done
+        ),
+        keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+            onSearch = { onSearch?.invoke() }
+        )
+    )
 }
 @Composable private fun DocumentRow(file: DocumentFile, onClick: () -> Unit, onMore: () -> Unit) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), shape = RoundedCornerShape(15.dp)) {

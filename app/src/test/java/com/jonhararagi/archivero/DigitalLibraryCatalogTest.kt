@@ -207,6 +207,33 @@ class DigitalLibraryCatalogTest {
     }
 
     @Test
+    fun combinedLibraryFiltersAndSortAreStableAndRespectTheLimit() {
+        val records = listOf(
+            LibraryRecord(
+                uri = "content://library/1", displayName = "Zorro", category = "Imagen",
+                tags = listOf("azul"), updatedAtMillis = 100L, project = "Anime",
+                resourceKind = "Original"
+            ),
+            LibraryRecord(
+                uri = "content://library/2", displayName = "Akari", category = "Documento",
+                tags = listOf("guía"), updatedAtMillis = 300L, project = "Anime",
+                resourceKind = "Referencia"
+            ),
+            LibraryRecord(
+                uri = "content://library/3", displayName = "Mika", category = "Imagen",
+                tags = listOf("rojo"), updatedAtMillis = 200L, project = "Manga",
+                resourceKind = "Editado"
+            )
+        )
+        assertEquals(listOf("Zorro", "Mika"), filterLibraryRecords(records, category = "imagen").map { it.displayName })
+        assertEquals(listOf("Zorro"), filterLibraryRecords(records, query = "ANIME", category = "Imagen", resourceKind = "original").map { it.displayName })
+        assertEquals(listOf("Akari", "Mika", "Zorro"), filterLibraryRecords(records, sortMode = "Recientes").map { it.displayName })
+        assertEquals(listOf("Akari", "Zorro", "Mika"), filterLibraryRecords(records, sortMode = "Proyecto").map { it.displayName })
+        assertEquals(1, filterLibraryRecords(records, limit = 1).size)
+        assertTrue(filterLibraryRecords(records, query = "no-existe").isEmpty())
+    }
+
+    @Test
     fun rejectsInvalidRecordsAndResultLimits() {
         val directory = Files.createTempDirectory("archivero-library-validation").toFile()
         try {

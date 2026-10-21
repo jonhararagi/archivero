@@ -11,6 +11,51 @@ import java.util.Properties
 internal const val MAX_LIBRARY_SNAPSHOT_BYTES: Long = 64L * 1024L * 1024L
 
 /**
+ * Combined, stable UI filtering for the virtualized library. A small result cap prevents the
+ * presentation layer from materializing every match just to show the first screen.
+ */
+internal fun filterLibraryRecords(
+    records: Collection<LibraryRecord>,
+    query: String = "",
+    category: String = "",
+    resourceKind: String = "",
+    sortMode: String = "Nombre",
+    limit: Int = 500
+): List<LibraryRecord> {
+    require(limit in 1..10_000) { "El límite de resultados no es válido." }
+    val queryNeedle = query.trim().lowercase(Locale.ROOT)
+    val categoryNeedle = category.trim().lowercase(Locale.ROOT)
+    val kindNeedle = resourceKind.trim().lowercase(Locale.ROOT)
+    val matches = records.asSequence().filter { record ->
+        val searchable = sequenceOf(
+            record.displayName, record.category, record.project, record.resourceKind,
+            record.tags.joinToString(" "), record.notes, record.source,
+            record.relatedUris.joinToString(" ")
+        ).joinToString(" ").lowercase(Locale.ROOT)
+        (queryNeedle.isEmpty() || searchable.contains(queryNeedle)) &&
+            (categoryNeedle.isEmpty() || record.category.lowercase(Locale.ROOT).contains(categoryNeedle)) &&
+            (kindNeedle.isEmpty() || record.resourceKind.lowercase(Locale.ROOT).contains(kindNeedle))
+    }
+    val sorted = when (sortMode) {
+        "Recientes" -> matches.sortedWith(
+            compareByDescending<LibraryRecord> { it.updatedAtMillis }
+                .thenBy { it.displayName.lowercase(Locale.ROOT) }
+                .thenBy { it.uri }
+        )
+        "Proyecto" -> matches.sortedWith(
+            compareBy<LibraryRecord> { it.project.lowercase(Locale.ROOT) }
+                .thenBy { it.displayName.lowercase(Locale.ROOT) }
+                .thenBy { it.uri }
+        )
+        else -> matches.sortedWith(
+            compareBy<LibraryRecord> { it.displayName.lowercase(Locale.ROOT) }
+                .thenBy { it.uri }
+        )
+    }
+    return sorted.take(limit).toList()
+}
+
+/**
  * Metadata for a library entry. The URI identifies a resource; Archivero never copies or deletes
  * the resource when this record is saved or removed.
  */
