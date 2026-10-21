@@ -21,6 +21,7 @@ internal fun filterLibraryRecords(
     resourceKind: String = "",
     sortMode: String = "Nombre",
     favorites: Set<String> = emptySet(),
+    onlyFavorites: Boolean = false,
     limit: Int = 500
 ): List<LibraryRecord> {
     require(limit in 1..10_000) { "El límite de resultados no es válido." }
@@ -35,7 +36,8 @@ internal fun filterLibraryRecords(
         ).joinToString(" ").lowercase(Locale.ROOT)
         (queryNeedle.isEmpty() || searchable.contains(queryNeedle)) &&
             (categoryNeedle.isEmpty() || record.category.lowercase(Locale.ROOT).contains(categoryNeedle)) &&
-            (kindNeedle.isEmpty() || record.resourceKind.lowercase(Locale.ROOT).contains(kindNeedle))
+            (kindNeedle.isEmpty() || record.resourceKind.lowercase(Locale.ROOT).contains(kindNeedle)) &&
+            (!onlyFavorites || record.uri in favorites)
     }
     val sorted = when (sortMode) {
         "Recientes" -> matches.sortedWith(

@@ -194,6 +194,7 @@ fun ArchiveroApp() {
     var libraryCategoryFilter by rememberSaveable { mutableStateOf("") }
     var libraryResourceKindFilter by rememberSaveable { mutableStateOf("") }
     var librarySortMode by rememberSaveable { mutableStateOf("Nombre") }
+    var libraryFavoritesOnly by rememberSaveable { mutableStateOf(false) }
     var librarySortMenuExpanded by remember { mutableStateOf(false) }
     var libraryRecentSearches by remember(context) {
         mutableStateOf(
@@ -297,7 +298,7 @@ fun ArchiveroApp() {
     var selectedKind by rememberSaveable { mutableStateOf(Kind.IMAGES.name) }
     var choosingKind by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
-    LaunchedEffect(query, libraryRecords, libraryCategoryFilter, libraryResourceKindFilter, librarySortMode, libraryFavoriteUris) {
+    LaunchedEffect(query, libraryRecords, libraryCategoryFilter, libraryResourceKindFilter, librarySortMode, libraryFavoriteUris, libraryFavoritesOnly) {
         librarySearching = true
         delay(150)
         val matches = withContext(Dispatchers.Default) {
@@ -308,6 +309,7 @@ fun ArchiveroApp() {
                 resourceKind = libraryResourceKindFilter,
                 sortMode = librarySortMode,
                 favorites = libraryFavoriteUris,
+                onlyFavorites = libraryFavoritesOnly,
                 limit = 501
             )
         }
@@ -1896,10 +1898,26 @@ fun ArchiveroApp() {
                                     }
                                 }
                             }
+                            FilterChip(
+                                selected = libraryFavoritesOnly,
+                                onClick = { libraryFavoritesOnly = !libraryFavoritesOnly },
+                                label = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            if (libraryFavoritesOnly) Icons.Default.Star else Icons.Default.StarBorder,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Solo favoritos")
+                                    }
+                                }
+                            )
                             TextButton(onClick = {
                                 libraryCategoryFilter = ""
                                 libraryResourceKindFilter = ""
                                 librarySortMode = "Nombre"
+                                libraryFavoritesOnly = false
                             }) { Text("Restablecer") }
                         }
                         if (libraryCatalogLoading) {

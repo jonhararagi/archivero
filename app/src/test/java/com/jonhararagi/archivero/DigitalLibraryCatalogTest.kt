@@ -237,6 +237,17 @@ class DigitalLibraryCatalogTest {
                 favorites = setOf("content://library/1", "content://library/3")
             ).map { it.displayName }
         )
+        assertEquals(
+            listOf("Mika", "Zorro"),
+            filterLibraryRecords(
+                records,
+                favorites = setOf("content://library/1", "content://library/3"),
+                onlyFavorites = true
+            ).map { it.displayName }
+        )
+        assertTrue(
+            filterLibraryRecords(records, favorites = emptySet(), onlyFavorites = true).isEmpty()
+        )
         assertTrue(filterLibraryRecords(records, query = "no-existe").isEmpty())
     }
 
