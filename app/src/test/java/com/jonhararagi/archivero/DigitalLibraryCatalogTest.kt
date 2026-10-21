@@ -275,7 +275,7 @@ class DigitalLibraryCatalogTest {
 
             val savedProperties = Properties()
             legacyFile.inputStream().use(savedProperties::load)
-            assertEquals("2", savedProperties.getProperty("schema.version"))
+            assertEquals("3", savedProperties.getProperty("schema.version"))
             assertEquals("KapiArt", savedProperties.getProperty("record.0.project"))
             assertEquals("Original", savedProperties.getProperty("record.0.resourceKind"))
             assertEquals("1", savedProperties.getProperty("record.0.related.count"))
@@ -402,6 +402,121 @@ class DigitalLibraryCatalogTest {
                 .take(19),
             filterLibraryRecords(records, project = "kapiart", limit = 19)
         )
+    }
+
+    @Test
+    fun trashedRecordSurvivesReopenAndCanBeRestoredWithoutChangingPhysicalFile() {
+        val directory = Files.createTempDirectory("archivero-library-trash-restore").toFile()
+        try {
+            val physicalFile = File(directory, "reference.png")
+            physicalFile.writeText("do not alter this resource")
+            val uri = physicalFile.toURI().toString()
+            val file = File(directory, "catalog.properties")
+            val catalog = DigitalLibraryCatalog(file)
+            val record = LibraryRecord(
+                uri = uri,
+                displayName = "Referencia recuperable",
+                category = "Imagen",
+                tags = listOf("anime"),
+                notes = "Dato que debe sobrevivir",
+                project = "KapiArt"
+            )
+            catalog.upsert(record)
+
+            assertTrue(catalog.trashMetadata(uri))
+            assertTrue(catalog.all().isEmpty())
+            assertEquals(1, catalog.trashed().size)
+            assertEquals(record.displayName, catalog.trashed().single().record.displayName)
+            assertTrue(catalog.trashed().single().deletedAtMillis > 0L)
+            assertTrue(physicalFile.exists())
+            assertEquals("do not alter this resource", physicalFile.readText())
+
+            val reopened = DigitalLibraryCatalog(file)
+            assertTrue(reopened.all().isEmpty())
+            assertEquals(record.notes, reopened.trashed().single().record.notes)
+            assertTrue(reopened.restoreMetadata(uri))
+            assertEquals(record.displayName, reopened.get(uri)?.displayName)
+            assertEquals(listOf("anime"), reopened.get(uri)?.tags)
+            assertTrue(reopened.trashed().isEmpty())
+            assertTrue(physicalFile.exists())
+            assertEquals("do not alter this resource", physicalFile.readText())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun exportAndImportSnapshotPreserveBothActiveAndTrashedMetadata() {
+        val directory = Files.createTempDirectory("archivero-library-trash-snapshot").toFile()
+        try {
+            val sourceFile = File(directory, "source.properties")
+            val source = DigitalLibraryCatalog(sourceFile)
+            val active = LibraryRecord("content://snapshot/active", "Activa", "Imagen", tags = listOf("uno"))
+            val trashed = LibraryRecord("content://snapshot/trash", "En papelera", "Documento", tags = listOf("dos"))
+            source.upsert(active)
+            source.upsert(trashed)
+            source.trashMetadata(trashed.uri)
+
+            val export = File(directory, "portable.properties")
+            source.exportSnapshot(export)
+            val targetFile = File(directory, "target.properties")
+            val target = DigitalLibraryCatalog(targetFile)
+            val local = LibraryRecord("content://snapshot/local", "Local", "Otros")
+            target.upsert(local)
+
+            assertEquals(2, target.importSnapshot(export))
+            assertEquals(setOf(active.uri, local.uri), target.all().map { it.uri }.toSet())
+            assertEquals(trashed.uri, target.trashed().single().record.uri)
+
+            val reopened = DigitalLibraryCatalog(targetFile)
+            assertEquals(setOf(active.uri, local.uri), reopened.all().map { it.uri }.toSet())
+            assertEquals(trashed.displayName, reopened.trashed().single().record.displayName)
+            assertTrue(reopened.restoreMetadata(trashed.uri))
+            assertEquals(trashed.displayName, reopened.get(trashed.uri)?.displayName)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun upsertOfTrashedUriReturnsItToActiveLibraryAndReplacesTrashEntry() {
+        val directory = Files.createTempDirectory("archivero-library-trash-upsert").toFile()
+        try {
+            val file = File(directory, "catalog.properties")
+            val catalog = DigitalLibraryCatalog(file)
+            val original = LibraryRecord("content://trash/upsert", "Original", "Imagen")
+            catalog.upsert(original)
+            assertTrue(catalog.trashMetadata(original.uri))
+
+            catalog.upsert(original.copy(displayName = "Añadido otra vez"))
+            assertEquals("Añadido otra vez", catalog.get(original.uri)?.displayName)
+            assertTrue(catalog.trashed().isEmpty())
+            assertEquals("Añadido otra vez", DigitalLibraryCatalog(file).get(original.uri)?.displayName)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun purgingTrashRemovesOnlyMetadataAndKeepsPhysicalFile() {
+        val directory = Files.createTempDirectory("archivero-library-trash-purge").toFile()
+        try {
+            val physicalFile = File(directory, "keep.txt")
+            physicalFile.writeText("physical content remains")
+            val uri = physicalFile.toURI().toString()
+            val catalog = DigitalLibraryCatalog(File(directory, "catalog.properties"))
+            catalog.upsert(LibraryRecord(uri, "Archivo a purgar", "Documento"))
+            assertTrue(catalog.trashMetadata(uri))
+
+            assertTrue(catalog.purgeTrashedMetadata(uri))
+            assertTrue(catalog.trashed().isEmpty())
+            assertTrue(catalog.all().isEmpty())
+            assertFalse(catalog.purgeTrashedMetadata(uri))
+            assertTrue(physicalFile.exists())
+            assertEquals("physical content remains", physicalFile.readText())
+        } finally {
+            directory.deleteRecursively()
+        }
     }
 
     @Test

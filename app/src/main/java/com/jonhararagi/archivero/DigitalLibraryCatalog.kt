@@ -91,6 +91,17 @@ internal data class LibraryRecord(
     val relatedUris: List<String> = emptyList()
 )
 
+/** Metadata kept in the recoverable library trash; the referenced physical file is never moved. */
+internal data class TrashedLibraryRecord(
+    val record: LibraryRecord,
+    val deletedAtMillis: Long
+)
+
+private data class LibraryCatalogSnapshot(
+    val records: LinkedHashMap<String, LibraryRecord>,
+    val trashedRecords: LinkedHashMap<String, TrashedLibraryRecord>
+)
+
 /**
  * Small, dependency-free, offline metadata catalog.
  *
@@ -99,7 +110,22 @@ internal data class LibraryRecord(
  * A malformed snapshot fails loudly instead of silently starting with an empty catalog.
  */
 internal class DigitalLibraryCatalog(private val storageFile: File) {
-    private var records: LinkedHashMap<String, LibraryRecord> = loadSnapshotIfPresent(storageFile)
+    private var records: LinkedHashMap<String, LibraryRecord> = LinkedHashMap()
+    private var trashedRecords: LinkedHashMap<String, TrashedLibraryRecord> = LinkedHashMap()
+
+    init {
+        val snapshot = loadSnapshotIfPresent(storageFile)
+        records = snapshot.records
+        trashedRecords = snapshot.trashedRecords
+    }
+
+    /** Read-only list of recoverable metadata entries, newest deletion first. */
+    @Synchronized
+    fun trashed(): List<TrashedLibraryRecord> = trashedRecords.values.sortedWith(
+        compareByDescending<TrashedLibraryRecord> { it.deletedAtMillis }
+            .thenBy { it.record.displayName.lowercase(Locale.ROOT) }
+            .thenBy { it.record.uri }
+    )
 
     @Synchronized
     fun get(uri: String): LibraryRecord? = records[validateUri(uri)]
@@ -146,9 +172,14 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
     fun upsert(record: LibraryRecord): LibraryRecord {
         val normalized = normalizeRecord(record)
         val updated = LinkedHashMap(records)
+        val updatedTrash = LinkedHashMap(trashedRecords)
         updated[normalized.uri] = normalized
-        persist(storageFile, updated.values)
+        // Adding the same URI again is an intentional return to the active library, not a second
+        // entry with the same identity in the recycle bin.
+        updatedTrash.remove(normalized.uri)
+        persist(storageFile, updated.values, updatedTrash.values)
         records = updated
+        trashedRecords = updatedTrash
         return normalized
     }
 
@@ -197,19 +228,68 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
         if (changedRecords.isEmpty()) return 0
         val updated = LinkedHashMap(records)
         changedRecords.forEach { updated[it.uri] = it }
-        persist(storageFile, updated.values)
+        persist(storageFile, updated.values, trashedRecords.values)
         records = updated
         return changedRecords.size
     }
 
-    /** Removes a catalog entry only. It never calls ContentResolver or deletes a physical file. */
+    /** Moves a ficha to the recoverable metadata trash. The physical file is never touched. */
     @Synchronized
+    @Throws(IOException::class)
+    fun trashMetadata(uri: String): Boolean {
+        val key = validateUri(uri)
+        val record = records[key] ?: return false
+        val updatedRecords = LinkedHashMap(records)
+        val updatedTrash = LinkedHashMap(trashedRecords)
+        updatedRecords.remove(key)
+        updatedTrash[key] = TrashedLibraryRecord(record, System.currentTimeMillis().coerceAtLeast(0L))
+        persist(storageFile, updatedRecords.values, updatedTrash.values)
+        records = updatedRecords
+        trashedRecords = updatedTrash
+        return true
+    }
+
+    /** Restores a trashed ficha without overwriting an active entry or touching the resource. */
+    @Synchronized
+    @Throws(IOException::class)
+    fun restoreMetadata(uri: String): Boolean {
+        val key = validateUri(uri)
+        val trashed = trashedRecords[key] ?: return false
+        if (key in records) {
+            throw IOException("Ya existe una ficha activa con esa URI; no se sobrescribió.")
+        }
+        val updatedRecords = LinkedHashMap(records)
+        val updatedTrash = LinkedHashMap(trashedRecords)
+        updatedRecords[key] = normalizeRecord(trashed.record)
+        updatedTrash.remove(key)
+        persist(storageFile, updatedRecords.values, updatedTrash.values)
+        records = updatedRecords
+        trashedRecords = updatedTrash
+        return true
+    }
+
+    /** Permanently removes only the metadata entry from the trash, never the physical file. */
+    @Synchronized
+    @Throws(IOException::class)
+    fun purgeTrashedMetadata(uri: String): Boolean {
+        val key = validateUri(uri)
+        if (key !in trashedRecords) return false
+        val updatedTrash = LinkedHashMap(trashedRecords)
+        updatedTrash.remove(key)
+        persist(storageFile, records.values, updatedTrash.values)
+        trashedRecords = updatedTrash
+        return true
+    }
+
+    /** Permanently removes an active catalog entry only; never deletes a physical file. */
+    @Synchronized
+    @Throws(IOException::class)
     fun removeMetadata(uri: String): Boolean {
         val key = validateUri(uri)
         if (!records.containsKey(key)) return false
         val updated = LinkedHashMap(records)
         updated.remove(key)
-        persist(storageFile, updated.values)
+        persist(storageFile, updated.values, trashedRecords.values)
         records = updated
         return true
     }
@@ -221,7 +301,7 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
         if (sameFile(destination, storageFile)) {
             throw IOException("La exportación debe guardarse en otro archivo.")
         }
-        persist(destination, records.values)
+        persist(destination, records.values, trashedRecords.values)
     }
 
     /**
@@ -236,15 +316,31 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
             throw IOException("La importación ya es la biblioteca activa.")
         }
         val imported = loadSnapshot(source)
-        val collisions = imported.keys.intersect(records.keys)
+        val importedUris = imported.records.keys + imported.trashedRecords.keys
+        val existingUris = records.keys + trashedRecords.keys
+        val collisions = importedUris.intersect(existingUris.toSet())
         if (collisions.isNotEmpty() && !replaceExisting) {
             throw IOException("La importación coincide con ${collisions.size} ficha(s) existente(s); no se modificó la biblioteca.")
         }
-        val updated = LinkedHashMap(records)
-        imported.forEach { (uri, item) -> updated[uri] = item }
-        persist(storageFile, updated.values)
-        records = updated
-        return imported.size
+
+        val updatedRecords = LinkedHashMap(records)
+        val updatedTrash = LinkedHashMap(trashedRecords)
+        if (replaceExisting) importedUris.forEach { uri ->
+            updatedRecords.remove(uri)
+            updatedTrash.remove(uri)
+        }
+        imported.records.forEach { (uri, item) ->
+            updatedRecords[uri] = item
+            updatedTrash.remove(uri)
+        }
+        imported.trashedRecords.forEach { (uri, item) ->
+            updatedRecords.remove(uri)
+            updatedTrash[uri] = item
+        }
+        persist(storageFile, updatedRecords.values, updatedTrash.values)
+        records = updatedRecords
+        trashedRecords = updatedTrash
+        return importedUris.size
     }
 
     private fun searchableText(item: LibraryRecord): String = sequenceOf(
@@ -259,7 +355,8 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
     ).joinToString(" ").lowercase(Locale.ROOT)
 
     companion object {
-        private const val SCHEMA_VERSION = "2"
+        private const val SCHEMA_VERSION = "3"
+        private const val PREVIOUS_SCHEMA_VERSION = "2"
         private const val LEGACY_SCHEMA_VERSION = "1"
         private const val DEFAULT_RESOURCE_KIND = "Sin clasificar"
         private const val DEFAULT_RESULT_LIMIT = 500
@@ -342,11 +439,15 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
             )
         }
 
-        private fun loadSnapshotIfPresent(file: File): LinkedHashMap<String, LibraryRecord> =
-            if (!file.exists()) LinkedHashMap() else loadSnapshot(file)
+        private fun loadSnapshotIfPresent(file: File): LibraryCatalogSnapshot =
+            if (!file.exists()) {
+                LibraryCatalogSnapshot(LinkedHashMap(), LinkedHashMap())
+            } else {
+                loadSnapshot(file)
+            }
 
         @Throws(IOException::class)
-        private fun loadSnapshot(file: File): LinkedHashMap<String, LibraryRecord> {
+        private fun loadSnapshot(file: File): LibraryCatalogSnapshot {
             if (!file.isFile || !file.canRead()) throw IOException("No se puede leer el archivo de metadatos.")
             if (file.length() > MAX_LIBRARY_SNAPSHOT_BYTES) {
                 throw IOException("La instantánea supera el límite seguro de 64 MiB.")
@@ -358,84 +459,116 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
                 throw IOException("El archivo de metadatos está dañado o no se puede leer.", error)
             }
             val schemaVersion = properties.getProperty("schema.version")
-            if (schemaVersion != SCHEMA_VERSION && schemaVersion != LEGACY_SCHEMA_VERSION) {
+            if (schemaVersion !in setOf(LEGACY_SCHEMA_VERSION, PREVIOUS_SCHEMA_VERSION, SCHEMA_VERSION)) {
                 throw IOException("La versión del archivo de metadatos no es compatible.")
             }
             val isLegacySchema = schemaVersion == LEGACY_SCHEMA_VERSION
-            val count = properties.getProperty("records.count")?.toIntOrNull()
-                ?: throw IOException("El archivo de metadatos no contiene un recuento válido.")
-            if (count !in 0..MAX_RECORDS) throw IOException("El archivo de metadatos excede el límite permitido.")
+            val currentFieldsAvailable = schemaVersion == PREVIOUS_SCHEMA_VERSION || schemaVersion == SCHEMA_VERSION
 
-            val loaded = LinkedHashMap<String, LibraryRecord>(count)
-            try {
-                repeat(count) { index ->
-                    val prefix = "record.$index."
-                    fun required(field: String): String = properties.getProperty(prefix + field)
-                        ?: throw IOException("Falta el campo ${prefix + field}.")
-                    val tagCount = required("tag.count").toIntOrNull()
-                        ?: throw IOException("La cantidad de etiquetas no es válida.")
-                    if (tagCount !in 0..MAX_TAGS) throw IOException("La ficha contiene demasiadas etiquetas.")
-                    val tags = (0 until tagCount).map { tagIndex -> required("tag.$tagIndex") }
-                    val record = normalizeRecord(
-                        LibraryRecord(
-                            uri = required("uri"),
-                            displayName = required("displayName"),
-                            category = required("category"),
-                            tags = tags,
-                            notes = required("notes"),
-                            source = required("source"),
-                            updatedAtMillis = required("updatedAtMillis").toLongOrNull()
-                                ?: throw IOException("La fecha de modificación no es válida."),
-                            project = if (isLegacySchema) "" else required("project"),
-                            resourceKind = if (isLegacySchema) DEFAULT_RESOURCE_KIND else required("resourceKind"),
-                            relatedUris = if (isLegacySchema) emptyList() else {
-                                val relatedCount = required("related.count").toIntOrNull()
-                                    ?: throw IOException("La cantidad de recursos relacionados no es válida.")
-                                if (relatedCount !in 0..MAX_RELATED_URIS) {
-                                    throw IOException("La ficha contiene demasiadas referencias relacionadas.")
-                                }
-                                (0 until relatedCount).map { relatedIndex -> required("related.$relatedIndex.uri") }
+            fun readCount(field: String, allowMissing: Boolean = false): Int {
+                val raw = properties.getProperty(field)
+                if (raw == null && allowMissing) return 0
+                val count = raw?.toIntOrNull()
+                    ?: throw IOException("El recuento '$field' no es válido.")
+                if (count !in 0..MAX_RECORDS) throw IOException("El archivo de metadatos excede el límite permitido.")
+                return count
+            }
+
+            fun readRecord(prefix: String): LibraryRecord {
+                fun required(field: String): String = properties.getProperty(prefix + field)
+                    ?: throw IOException("Falta el campo ${prefix + field}.")
+                val tagCount = required("tag.count").toIntOrNull()
+                    ?: throw IOException("La cantidad de etiquetas no es válida.")
+                if (tagCount !in 0..MAX_TAGS) throw IOException("La ficha contiene demasiadas etiquetas.")
+                val tags = (0 until tagCount).map { tagIndex -> required("tag.$tagIndex") }
+                return normalizeRecord(
+                    LibraryRecord(
+                        uri = required("uri"),
+                        displayName = required("displayName"),
+                        category = required("category"),
+                        tags = tags,
+                        notes = required("notes"),
+                        source = required("source"),
+                        updatedAtMillis = required("updatedAtMillis").toLongOrNull()
+                            ?: throw IOException("La fecha de modificación no es válida."),
+                        project = if (!currentFieldsAvailable) "" else required("project"),
+                        resourceKind = if (!currentFieldsAvailable) DEFAULT_RESOURCE_KIND else required("resourceKind"),
+                        relatedUris = if (!currentFieldsAvailable) emptyList() else {
+                            val relatedCount = required("related.count").toIntOrNull()
+                                ?: throw IOException("La cantidad de recursos relacionados no es válida.")
+                            if (relatedCount !in 0..MAX_RELATED_URIS) {
+                                throw IOException("La ficha contiene demasiadas referencias relacionadas.")
                             }
-                        )
+                            (0 until relatedCount).map { relatedIndex -> required("related.$relatedIndex.uri") }
+                        }
                     )
+                )
+            }
+
+            val recordCount = readCount("records.count")
+            val trashCount = if (schemaVersion == SCHEMA_VERSION) readCount("trash.count") else 0
+            if (recordCount.toLong() + trashCount.toLong() > MAX_RECORDS) {
+                throw IOException("La biblioteca y su papelera exceden el límite permitido.")
+            }
+            val loaded = LinkedHashMap<String, LibraryRecord>(recordCount)
+            val loadedTrash = LinkedHashMap<String, TrashedLibraryRecord>(trashCount)
+            try {
+                repeat(recordCount) { index ->
+                    val record = readRecord("record.$index.")
                     if (loaded.put(record.uri, record) != null) {
                         throw IOException("El archivo contiene fichas duplicadas para la misma URI.")
+                    }
+                }
+                repeat(trashCount) { index ->
+                    val prefix = "trash.$index."
+                    val deletedAt = properties.getProperty(prefix + "deletedAtMillis")?.toLongOrNull()
+                        ?: throw IOException("La fecha de eliminación de papelera no es válida.")
+                    if (deletedAt < 0L) throw IOException("La fecha de eliminación de papelera no es válida.")
+                    val record = readRecord(prefix + "record.")
+                    if (record.uri in loaded || loadedTrash.put(record.uri, TrashedLibraryRecord(record, deletedAt)) != null) {
+                        throw IOException("La instantánea contiene una URI repetida entre la biblioteca y la papelera.")
                     }
                 }
             } catch (error: IllegalArgumentException) {
                 throw IOException("El archivo de metadatos contiene una ficha no válida.", error)
             }
-            return loaded
+            return LibraryCatalogSnapshot(loaded, loadedTrash)
         }
 
         @Throws(IOException::class)
-        private fun persist(destination: File, records: Collection<LibraryRecord>) {
-            if (records.size > MAX_RECORDS) throw IOException("La biblioteca excede el límite de fichas.")
-            val normalized = records.map(::normalizeRecord)
-            if (normalized.map { it.uri }.toSet().size != normalized.size) {
-                throw IOException("No se puede guardar un archivo con URI duplicadas.")
+        private fun persist(
+            destination: File,
+            records: Collection<LibraryRecord>,
+            trashedRecords: Collection<TrashedLibraryRecord>
+        ) {
+            if (records.size.toLong() + trashedRecords.size.toLong() > MAX_RECORDS) {
+                throw IOException("La biblioteca y su papelera exceden el límite permitido.")
             }
+            val normalized = records.map(::normalizeRecord)
+            val normalizedTrash = trashedRecords.map { entry ->
+                if (entry.deletedAtMillis < 0L) throw IOException("La fecha de eliminación de papelera no es válida.")
+                TrashedLibraryRecord(normalizeRecord(entry.record), entry.deletedAtMillis)
+            }
+            val activeUris = normalized.map { it.uri }
+            val trashUris = normalizedTrash.map { it.record.uri }
+            if (activeUris.toSet().size != activeUris.size || trashUris.toSet().size != trashUris.size) {
+                throw IOException("No se puede guardar una instantánea con URI duplicadas.")
+            }
+            if (activeUris.toSet().intersect(trashUris.toSet()).isNotEmpty()) {
+                throw IOException("Una URI no puede estar a la vez en la biblioteca y en la papelera.")
+            }
+
             val properties = Properties().apply {
                 setProperty("schema.version", SCHEMA_VERSION)
                 setProperty("records.count", normalized.size.toString())
                 normalized.forEachIndexed { index, item ->
-                    val prefix = "record.$index."
-                    setProperty(prefix + "uri", item.uri)
-                    setProperty(prefix + "displayName", item.displayName)
-                    setProperty(prefix + "category", item.category)
-                    setProperty(prefix + "notes", item.notes)
-                    setProperty(prefix + "source", item.source)
-                    setProperty(prefix + "updatedAtMillis", item.updatedAtMillis.toString())
-                    setProperty(prefix + "project", item.project)
-                    setProperty(prefix + "resourceKind", item.resourceKind)
-                    setProperty(prefix + "related.count", item.relatedUris.size.toString())
-                    item.relatedUris.forEachIndexed { relatedIndex, relatedUri ->
-                        setProperty(prefix + "related.$relatedIndex.uri", relatedUri)
-                    }
-                    setProperty(prefix + "tag.count", item.tags.size.toString())
-                    item.tags.forEachIndexed { tagIndex, tag ->
-                        setProperty(prefix + "tag.$tagIndex", tag)
-                    }
+                    writeRecord(this, "record.$index.", item)
+                }
+                setProperty("trash.count", normalizedTrash.size.toString())
+                normalizedTrash.forEachIndexed { index, entry ->
+                    val prefix = "trash.$index."
+                    setProperty(prefix + "deletedAtMillis", entry.deletedAtMillis.toString())
+                    writeRecord(this, prefix + "record.", entry.record)
                 }
             }
 
@@ -468,6 +601,25 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
                 runCatching { Files.deleteIfExists(temporary) }
                 if (error is IOException) throw error
                 throw IOException("No se pudieron guardar los metadatos; se conserva la versión anterior.", error)
+            }
+        }
+
+        private fun writeRecord(properties: Properties, prefix: String, item: LibraryRecord) {
+            properties.setProperty(prefix + "uri", item.uri)
+            properties.setProperty(prefix + "displayName", item.displayName)
+            properties.setProperty(prefix + "category", item.category)
+            properties.setProperty(prefix + "notes", item.notes)
+            properties.setProperty(prefix + "source", item.source)
+            properties.setProperty(prefix + "updatedAtMillis", item.updatedAtMillis.toString())
+            properties.setProperty(prefix + "project", item.project)
+            properties.setProperty(prefix + "resourceKind", item.resourceKind)
+            properties.setProperty(prefix + "related.count", item.relatedUris.size.toString())
+            item.relatedUris.forEachIndexed { relatedIndex, relatedUri ->
+                properties.setProperty(prefix + "related.$relatedIndex.uri", relatedUri)
+            }
+            properties.setProperty(prefix + "tag.count", item.tags.size.toString())
+            item.tags.forEachIndexed { tagIndex, tag ->
+                properties.setProperty(prefix + "tag.$tagIndex", tag)
             }
         }
 
