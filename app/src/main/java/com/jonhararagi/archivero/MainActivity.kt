@@ -1816,6 +1816,11 @@ fun ArchiveroApp() {
                                 Text("Importar")
                             }
                         }
+                        LibraryDuplicateScanner(
+                            records = libraryRecords,
+                            enabled = libraryCatalog != null && !libraryTransferRunning,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                         if (libraryTransferRunning) {
                             Text("Procesando instantánea de metadatos…", style = MaterialTheme.typography.bodySmall)
                         }

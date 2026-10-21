@@ -1,3 +1,13 @@
+## Duplicados exactos dentro de la Biblioteca · 2026-10-21
+
+- Se añadió una acción independiente para analizar los recursos ya catalogados y detectar copias exactas por tamaño positivo + SHA-256 del contenido completo.
+- El cálculo de hashes se limita a candidatos que comparten tamaño, se ejecuta fuera del hilo de interfaz y puede cancelarse. Los recursos inaccesibles o con tamaño no disponible se omiten de forma segura.
+- No se guardan hashes persistentes, para evitar resultados antiguos si cambia un archivo. Se vuelve a comprobar el tamaño tras la lectura; un cambio detectado hace que ese recurso no participe del resultado.
+- La lista muestra grupos, nombres de fichas y un prefijo del hash. No elimina, mueve, renombra ni altera los archivos.
+- Se añadieron pruebas unitarias para digestos completos, URI repetidas, tamaños distintos, hash inválidos y orden determinista. El resultado todavía debe verificarse mediante CI y una prueba manual con proveedores SAF reales.
+
+---
+
 ## Filtro de favoritos · 2026-10-21
 
 - Se añadió el chip **Solo favoritos** a la barra de filtros de la Biblioteca. Es combinable con texto, categoría y tipo de recurso, y permite volver al conjunto completo al desactivarlo.

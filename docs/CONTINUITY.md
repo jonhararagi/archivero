@@ -1,3 +1,21 @@
+## Continuidad · escáner de duplicados exactos para Biblioteca · 2026-10-21
+
+### Implementación preparada
+- Se añade `LibraryDuplicateScanner.kt`, una acción manual y cancelable dentro de la pantalla Biblioteca.
+- Solo se calculan hashes SHA-256 para entradas con tamaño positivo conocido y que comparten tamaño con otra URI del catálogo. La igualdad de tamaño no basta para producir un resultado.
+- La lectura de contenido corre en `Dispatchers.IO`, comprueba cancelación y omite URI inaccesibles o recursos que cambien el tamaño durante la lectura.
+- Los hashes no se persisten: los resultados no quedan obsoletos por un índice de huellas guardadas. La detección es de solo lectura y no ejecuta borrados.
+- Pruebas unitarias cubren SHA-256 válido, URI repetidas, archivos con tamaños diferentes, huellas inválidas y orden de resultados.
+- No está validado aún con carpetas SAF de distintos fabricantes, archivos modificados durante la lectura ni bibliotecas de 1.000/10.000 elementos. La CI del nuevo commit debe confirmar las pruebas y la compilación antes de considerar el incremento **PASS**.
+
+### Última base verificada antes de esta iteración
+- Cabeza de rama: `eb5e365f366f7bbbdec272b21a7096a191556e8d`.
+- CI **PASS** en [run 39628363277](https://github.com/jonhararagi/archivero/actions/runs/39628363277): tests, `assembleDebug`, comprobación de firma/hash y subida de artefacto.
+- Artefacto `archivero-debug-apk`, ID `12358925054`, ZIP de 20.517.818 bytes.
+- PR #3 sigue en borrador; no se modificó `main` ni se integró el PR.
+
+---
+
 ## Continuidad · filtro Solo favoritos · 2026-10-21
 
 ### Rama e integración
