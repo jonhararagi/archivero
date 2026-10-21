@@ -197,6 +197,7 @@ fun ArchiveroApp() {
     var libraryEditTags by remember { mutableStateOf("") }
     var libraryEditNotes by remember { mutableStateOf("") }
     var libraryEditSource by remember { mutableStateOf("") }
+    var libraryTransferRunning by remember { mutableStateOf(false) }
     val savedPaletteName = context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).getString("palette", null)
     // Cyberpunk is the first-run identity; preserve any palette the user explicitly selected.
     val initialPaletteName = savedPaletteName ?: Palette.CIBERPUNK.name
@@ -501,6 +502,89 @@ fun ArchiveroApp() {
             showAppearance = false
         }
     }
+    val exportLibrary = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { destination ->
+        if (destination != null) {
+            val catalog = libraryCatalog
+            if (catalog == null) {
+                message = "No se puede exportar porque el índice de biblioteca no está disponible."
+            } else {
+                libraryTransferRunning = true
+                scope.launch {
+                    val result = withContext(Dispatchers.IO) {
+                        runCatching {
+                            val snapshot = File.createTempFile("archivero-library-export-", ".properties", context.cacheDir)
+                            try {
+                                catalog.exportSnapshot(snapshot)
+                                val output = context.contentResolver.openOutputStream(destination, "wt")
+                                    ?: throw IOException("Android no permitió escribir el archivo de exportación.")
+                                output.use { stream -> snapshot.inputStream().use { input -> input.copyTo(stream) } }
+                                snapshot.length()
+                            } finally {
+                                snapshot.delete()
+                            }
+                        }
+                    }
+                    libraryTransferRunning = false
+                    result.fold(
+                        { bytes -> message = "Exportación completada: $bytes bytes de metadatos. Los archivos originales no se copiaron." },
+                        { error -> message = "No se pudo exportar la biblioteca: ${error.message ?: "error de almacenamiento"}" }
+                    )
+                }
+            }
+        }
+    }
+
+    val importLibrary = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { source ->
+        if (source != null) {
+            val catalog = libraryCatalog
+            if (catalog == null) {
+                message = "No se puede importar porque el índice de biblioteca no está disponible."
+            } else {
+                libraryTransferRunning = true
+                scope.launch {
+                    val result = withContext(Dispatchers.IO) {
+                        runCatching {
+                            val snapshot = File.createTempFile("archivero-library-import-", ".properties", context.cacheDir)
+                            try {
+                                val input = context.contentResolver.openInputStream(source)
+                                    ?: throw IOException("Android no permitió leer el archivo seleccionado.")
+                                input.use { incoming ->
+                                    snapshot.outputStream().use { outgoing ->
+                                        val buffer = ByteArray(8 * 1024)
+                                        var totalBytes = 0L
+                                        while (true) {
+                                            val count = incoming.read(buffer)
+                                            if (count < 0) break
+                                            if (count == 0) continue
+                                            totalBytes += count
+                                            if (totalBytes > MAX_LIBRARY_SNAPSHOT_BYTES) {
+                                                throw IOException("La instantánea supera el límite seguro de 64 MiB.")
+                                            }
+                                            outgoing.write(buffer, 0, count)
+                                        }
+                                    }
+                                }
+                                catalog.importSnapshot(snapshot)
+                            } finally {
+                                snapshot.delete()
+                            }
+                        }
+                    }
+                    libraryTransferRunning = false
+                    result.fold(
+                        { count ->
+                            refreshLibrary()
+                            message = "Importación completada: $count ficha(s). Los conflictos se rechazan sin sobrescribir metadatos."
+                        },
+                        { error -> message = "No se importó la biblioteca: ${error.message ?: "archivo inválido o conflicto"}. La biblioteca activa se conserva." }
+                    )
+                }
+            }
+        }
+    }
+
     val pickMusic = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) {
             loadingQueue = true
@@ -1589,6 +1673,31 @@ fun ArchiveroApp() {
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = { exportLibrary.launch("archivero-biblioteca.properties") },
+                                enabled = libraryCatalog != null && !libraryTransferRunning,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                if (libraryTransferRunning) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                else Icon(Icons.Default.FileDownload, null)
+                                Spacer(Modifier.width(5.dp))
+                                Text("Exportar")
+                            }
+                            OutlinedButton(
+                                onClick = { importLibrary.launch(arrayOf("*/*")) },
+                                enabled = libraryCatalog != null && !libraryTransferRunning,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                if (libraryTransferRunning) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                else Icon(Icons.Default.FileUpload, null)
+                                Spacer(Modifier.width(5.dp))
+                                Text("Importar")
+                            }
+                        }
+                        if (libraryTransferRunning) {
+                            Text("Procesando instantánea de metadatos…", style = MaterialTheme.typography.bodySmall)
+                        }
                         SearchBox(query) { query = it }
                         if (libraryStorageError != null) {
                             EmptyNotice(

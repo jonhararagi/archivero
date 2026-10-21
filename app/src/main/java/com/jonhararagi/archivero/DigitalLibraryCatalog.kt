@@ -8,6 +8,8 @@ import java.nio.file.StandardCopyOption
 import java.util.Locale
 import java.util.Properties
 
+internal const val MAX_LIBRARY_SNAPSHOT_BYTES: Long = 64L * 1024L * 1024L
+
 /**
  * Metadata for a library entry. The URI identifies a resource; Archivero never copies or deletes
  * the resource when this record is saved or removed.
@@ -199,6 +201,9 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
         @Throws(IOException::class)
         private fun loadSnapshot(file: File): LinkedHashMap<String, LibraryRecord> {
             if (!file.isFile || !file.canRead()) throw IOException("No se puede leer el archivo de metadatos.")
+            if (file.length() > MAX_LIBRARY_SNAPSHOT_BYTES) {
+                throw IOException("La instantánea supera el límite seguro de 64 MiB.")
+            }
             val properties = Properties()
             try {
                 file.inputStream().use(properties::load)
@@ -281,6 +286,9 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
             }
             try {
                 temporary.toFile().outputStream().use { properties.store(it, "Archivero digital library metadata") }
+                if (temporary.toFile().length() > MAX_LIBRARY_SNAPSHOT_BYTES) {
+                    throw IOException("La instantánea supera el límite seguro de 64 MiB.")
+                }
                 try {
                     Files.move(
                         temporary,

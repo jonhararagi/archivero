@@ -2,6 +2,7 @@ package com.jonhararagi.archivero
 
 import java.io.File
 import java.io.IOException
+import java.io.RandomAccessFile
 import java.nio.file.Files
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -117,6 +118,30 @@ class DigitalLibraryCatalogTest {
             assertEquals(listOf(keep), catalog.all())
             assertEquals(listOf(keep), DigitalLibraryCatalog(catalogFile).all())
             assertNotNull(catalog.get(keep.uri))
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun oversizedSnapshotIsRejectedWithoutReplacingTheActiveCatalog() {
+        val directory = Files.createTempDirectory("archivero-library-size-limit").toFile()
+        try {
+            val activeFile = File(directory, "active.properties")
+            val catalog = DigitalLibraryCatalog(activeFile)
+            val keep = LibraryRecord("content://demo/keep", "Conservar", "Documento")
+            catalog.upsert(keep)
+
+            val oversized = File(directory, "oversized.properties")
+            RandomAccessFile(oversized, "rw").use { it.setLength(MAX_LIBRARY_SNAPSHOT_BYTES + 1L) }
+            try {
+                catalog.importSnapshot(oversized)
+                throw AssertionError("La instantánea excesiva debía rechazarse.")
+            } catch (_: IOException) {
+                // Expected: size validation happens before Properties parses the file.
+            }
+            assertEquals(listOf(keep), catalog.all())
+            assertEquals(listOf(keep), DigitalLibraryCatalog(activeFile).all())
         } finally {
             directory.deleteRecursively()
         }
