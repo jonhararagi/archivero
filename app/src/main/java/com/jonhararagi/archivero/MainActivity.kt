@@ -1818,6 +1818,7 @@ fun ArchiveroApp() {
                         }
                         LibraryDuplicateScanner(
                             records = libraryRecords,
+                            recordsByUri = libraryRecordsByUri,
                             enabled = libraryCatalog != null && !libraryTransferRunning,
                             modifier = Modifier.fillMaxWidth()
                         )

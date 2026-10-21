@@ -50,6 +50,7 @@ import kotlinx.coroutines.withContext
 @Composable
 internal fun LibraryDuplicateScanner(
     records: List<LibraryRecord>,
+    recordsByUri: Map<String, LibraryRecord>,
     enabled: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -60,14 +61,13 @@ internal fun LibraryDuplicateScanner(
     var progressText by remember { mutableStateOf("") }
     var duplicateGroups by remember { mutableStateOf<List<LibraryDuplicateGroup>>(emptyList()) }
     var scanJob by remember { mutableStateOf<Job?>(null) }
-    val recordsByUri = remember(records) { records.associateBy { it.uri } }
 
     fun startOrCancelScan() {
         if (scanning) {
             scanJob?.cancel()
             return
         }
-        val snapshot = records.distinctBy { it.uri }
+        val snapshot = records
         if (snapshot.size < 2) return
         dialogOpen = true
         duplicateGroups = emptyList()
@@ -145,7 +145,7 @@ internal fun LibraryDuplicateScanner(
 
     OutlinedButton(
         onClick = { startOrCancelScan() },
-        enabled = scanning || (enabled && records.distinctBy { it.uri }.size >= 2),
+        enabled = scanning || (enabled && records.size >= 2),
         modifier = modifier
     ) {
         if (scanning) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -190,10 +190,17 @@ internal fun LibraryDuplicateScanner(
                                         "${group.uris.size} copias · ${group.sizeBytes} bytes cada archivo",
                                         style = MaterialTheme.typography.titleSmall
                                     )
-                                    group.uris.forEach { uri ->
+                                    group.uris.take(20).forEach { uri ->
                                         Text(
                                             "• ${recordsByUri[uri]?.displayName ?: "Recurso sin ficha visible"}",
                                             style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+                                    if (group.uris.size > 20) {
+                                        Text(
+                                            "y ${group.uris.size - 20} recurso(s) más en este grupo",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                     Text(
