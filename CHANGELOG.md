@@ -1,10 +1,10 @@
 ## Papelera recuperable de la Biblioteca · 2026-10-21
 
 - La acción «Mover a papelera» deja de quitar una ficha de forma irreversible del índice: guarda sus metadatos y fecha de retirada en el mismo archivo local, con opción de restaurar.
-- El esquema pasa de V2 a V3. Sigue leyendo V1 y V2 y agrega `trash.count` más las fichas retiradas. Biblioteca y papelera se escriben en la misma instantánea temporal con reemplazo atómico cuando el sistema lo admite.
+- El esquema pasa de V2 a V3. Sigue leyendo V1 y V2 y agrega `trash.count` más las fichas retiradas. Se agregó una prueba explícita para migrar V2→V3 conservando etiquetas, procedencia, proyecto, tipo de recurso y relaciones. Biblioteca y papelera se escriben en la misma instantánea temporal con reemplazo atómico cuando el sistema lo admite.
 - La importación/exportación incluye elementos en papelera. Se mantienen los conflictos URI por defecto, se rechazan duplicados entre activos y papelera, y un reingreso manual de la misma URI devuelve esa ficha a la biblioteca activa.
 - «Eliminar ficha» desde la papelera exige confirmación y elimina solamente metadatos. La ruta no borra ni mueve archivos físicos.
-- Se añadieron pruebas de recuperación tras reabrir el catálogo, exportación/importación con elementos en papelera, reingreso de la misma URI y borrado permanente de metadatos sin tocar el archivo real. CI de esta cabeza pendiente.
+- Se añadieron pruebas de recuperación tras reabrir el catálogo, exportación/importación con elementos en papelera, reingreso de la misma URI y borrado permanente de metadatos sin tocar el archivo real. CI [run 39638194130](https://github.com/jonhararagi/archivero/actions/runs/39638194130), SHA `a7ed2a03839d0effc596c3cb0719aa0fd879f733`: **PASS** en tests, compilación Android, verificación de firma/hash y subida de APK. Artefacto ID `12365030210`, ZIP de 20.614.259 bytes.
 
 ---
 

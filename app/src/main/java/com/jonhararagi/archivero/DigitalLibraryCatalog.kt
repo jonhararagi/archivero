@@ -462,12 +462,10 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
             if (schemaVersion !in setOf(LEGACY_SCHEMA_VERSION, PREVIOUS_SCHEMA_VERSION, SCHEMA_VERSION)) {
                 throw IOException("La versión del archivo de metadatos no es compatible.")
             }
-            val isLegacySchema = schemaVersion == LEGACY_SCHEMA_VERSION
             val currentFieldsAvailable = schemaVersion == PREVIOUS_SCHEMA_VERSION || schemaVersion == SCHEMA_VERSION
 
-            fun readCount(field: String, allowMissing: Boolean = false): Int {
+            fun readCount(field: String): Int {
                 val raw = properties.getProperty(field)
-                if (raw == null && allowMissing) return 0
                 val count = raw?.toIntOrNull()
                     ?: throw IOException("El recuento '$field' no es válido.")
                 if (count !in 0..MAX_RECORDS) throw IOException("El archivo de metadatos excede el límite permitido.")

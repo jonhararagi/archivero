@@ -235,6 +235,57 @@ class DigitalLibraryCatalogTest {
     }
 
     @Test
+    fun schemaTwoSnapshotMigratesToVersionThreeAndPreservesMetadata() {
+        val directory = Files.createTempDirectory("archivero-library-migrate-v2").toFile()
+        try {
+            val file = File(directory, "schema-v2.properties")
+            val uri = "content://demo/schema-v2/record"
+            val relatedUri = "content://demo/schema-v2/related"
+            val properties = Properties().apply {
+                setProperty("schema.version", "2")
+                setProperty("records.count", "1")
+                setProperty("record.0.uri", uri)
+                setProperty("record.0.displayName", "Ficha esquema dos")
+                setProperty("record.0.category", "Imagen")
+                setProperty("record.0.notes", "No perder esta nota")
+                setProperty("record.0.source", "https://example.invalid/v2")
+                setProperty("record.0.updatedAtMillis", "170")
+                setProperty("record.0.project", "AnimeArt")
+                setProperty("record.0.resourceKind", "Referencia")
+                setProperty("record.0.related.count", "1")
+                setProperty("record.0.related.0.uri", relatedUri)
+                setProperty("record.0.tag.count", "1")
+                setProperty("record.0.tag.0", "anime")
+            }
+            file.outputStream().use { properties.store(it, "schema v2 compatibility fixture") }
+
+            val catalog = DigitalLibraryCatalog(file)
+            val record = catalog.get(uri)
+            assertEquals("Ficha esquema dos", record?.displayName)
+            assertEquals("No perder esta nota", record?.notes)
+            assertEquals("AnimeArt", record?.project)
+            assertEquals("Referencia", record?.resourceKind)
+            assertEquals(listOf(relatedUri), record?.relatedUris)
+            assertEquals(listOf("anime"), record?.tags)
+            assertTrue(catalog.trashed().isEmpty())
+
+            assertTrue(catalog.trashMetadata(uri))
+            val saved = Properties()
+            file.inputStream().use(saved::load)
+            assertEquals("3", saved.getProperty("schema.version"))
+            assertEquals("1", saved.getProperty("trash.count"))
+
+            val reopened = DigitalLibraryCatalog(file)
+            assertEquals("AnimeArt", reopened.trashed().single().record.project)
+            assertEquals(listOf(relatedUri), reopened.trashed().single().record.relatedUris)
+            assertTrue(reopened.restoreMetadata(uri))
+            assertEquals("Ficha esquema dos", reopened.get(uri)?.displayName)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun legacyVersionOneSnapshotMigratesWithoutLosingExistingMetadata() {
         val directory = Files.createTempDirectory("archivero-library-migrate-v1").toFile()
         try {
