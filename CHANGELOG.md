@@ -1,3 +1,12 @@
+## Filtro de proyecto/colección · 2026-10-21
+
+- La barra de filtros ahora permite elegir cualquiera de los proyectos/colecciones ya usados por las fichas; la lista de opciones se construye en memoria, se deduplica sin distinguir mayúsculas/minúsculas y se ordena de forma determinista.
+- El filtro de proyecto se combina con texto, categoría, tipo y Solo favoritos. No introduce una migración ni inventa nuevas colecciones.
+- Se añadieron pruebas para un filtro de proyecto aislado y para una combinación de proyecto, nombre/etiqueta, categoría y tipo.
+- Validación de CI de esta nueva cabeza pendiente.
+
+---
+
 ## Etiquetado por lotes con vista previa · 2026-10-21
 
 - Se añadió una operación para seleccionar hasta 500 fichas visibles del filtro actual, revisar nombres/etiquetas que se van a cambiar y añadir varias etiquetas con una sola escritura del catálogo.

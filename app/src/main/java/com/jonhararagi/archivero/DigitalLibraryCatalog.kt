@@ -22,12 +22,14 @@ internal fun filterLibraryRecords(
     sortMode: String = "Nombre",
     favorites: Set<String> = emptySet(),
     onlyFavorites: Boolean = false,
-    limit: Int = 500
+    limit: Int = 500,
+    project: String = ""
 ): List<LibraryRecord> {
     require(limit in 1..10_000) { "El límite de resultados no es válido." }
     val queryNeedle = query.trim().lowercase(Locale.ROOT)
     val categoryNeedle = category.trim().lowercase(Locale.ROOT)
     val kindNeedle = resourceKind.trim().lowercase(Locale.ROOT)
+    val projectNeedle = project.trim().lowercase(Locale.ROOT)
     val matches = records.asSequence().filter { record ->
         val searchable = sequenceOf(
             record.displayName, record.category, record.project, record.resourceKind,
@@ -37,6 +39,7 @@ internal fun filterLibraryRecords(
         (queryNeedle.isEmpty() || searchable.contains(queryNeedle)) &&
             (categoryNeedle.isEmpty() || record.category.lowercase(Locale.ROOT).contains(categoryNeedle)) &&
             (kindNeedle.isEmpty() || record.resourceKind.lowercase(Locale.ROOT).contains(kindNeedle)) &&
+            (projectNeedle.isEmpty() || record.project.trim().lowercase(Locale.ROOT) == projectNeedle) &&
             (!onlyFavorites || record.uri in favorites)
     }
     val sorted = when (sortMode) {

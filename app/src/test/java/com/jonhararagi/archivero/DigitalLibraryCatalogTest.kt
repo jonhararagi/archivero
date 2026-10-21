@@ -315,6 +315,17 @@ class DigitalLibraryCatalogTest {
         assertEquals(listOf("Zorro"), filterLibraryRecords(records, query = "ANIME", category = "Imagen", resourceKind = "original").map { it.displayName })
         assertEquals(listOf("Akari", "Mika", "Zorro"), filterLibraryRecords(records, sortMode = "Recientes").map { it.displayName })
         assertEquals(listOf("Akari", "Zorro", "Mika"), filterLibraryRecords(records, sortMode = "Proyecto").map { it.displayName })
+        assertEquals(listOf("Mika"), filterLibraryRecords(records, project = "manga").map { it.displayName })
+        assertEquals(
+            listOf("Zorro"),
+            filterLibraryRecords(
+                records,
+                query = "azul",
+                category = "imagen",
+                resourceKind = "original",
+                project = "ANIME"
+            ).map { it.displayName }
+        )
         assertEquals(1, filterLibraryRecords(records, limit = 1).size)
         assertEquals(
             listOf("Mika", "Zorro", "Akari"),

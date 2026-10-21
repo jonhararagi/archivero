@@ -1,3 +1,18 @@
+## Continuidad · filtro de proyecto/colección · 2026-10-21
+
+- La biblioteca reutiliza `LibraryRecord.project` como colección/proyecto y ahora ofrece un selector en la fila de filtros.
+- Las opciones disponibles se derivan de los valores ya guardados, eliminando duplicados por mayúsculas/minúsculas y ordenando sin un índice adicional. Las fichas con proyecto vacío no se inventan ni se asignan automáticamente.
+- `filterLibraryRecords` acepta el filtro opcional `project`; compara el nombre sin distinguir mayúsculas/minúsculas y lo combina con texto, categoría, tipo de recurso y Solo favoritos.
+- Pruebas unitarias cubren el filtro de proyecto independiente y una intersección con consulta, categoría y tipo. No requiere cambios del esquema V2.
+- La CI del nuevo SHA debe pasar tests, compilación Android, verificación de firma/hash y publicación de artefacto antes de declarar PASS.
+
+### Última base validada
+- SHA `5880a532f0f7c87709c7f7828643c89ced478bc0`: **PASS** en [run 39633408582](https://github.com/jonhararagi/archivero/actions/runs/39633408582); tests, APK debug, firma/hash y subida.
+- Artefacto `archivero-debug-apk`, ID `12360152672`, ZIP de 20.566.079 bytes.
+- PR #3 sigue abierto en borrador, sin merge y sin cambios directos en `main`.
+
+---
+
 ## Continuidad · etiquetado por lotes con vista previa · 2026-10-21
 
 ### Incremento en esta iteración

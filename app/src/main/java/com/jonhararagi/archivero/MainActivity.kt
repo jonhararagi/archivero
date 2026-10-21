@@ -193,6 +193,8 @@ fun ArchiveroApp() {
     var libraryGridView by rememberSaveable { mutableStateOf(true) }
     var libraryCategoryFilter by rememberSaveable { mutableStateOf("") }
     var libraryResourceKindFilter by rememberSaveable { mutableStateOf("") }
+    var libraryProjectFilter by rememberSaveable { mutableStateOf("") }
+    var libraryProjectFilterMenuExpanded by remember { mutableStateOf(false) }
     var librarySortMode by rememberSaveable { mutableStateOf("Nombre") }
     var libraryFavoritesOnly by rememberSaveable { mutableStateOf(false) }
     var librarySortMenuExpanded by remember { mutableStateOf(false) }
@@ -258,6 +260,14 @@ fun ArchiveroApp() {
 
     val libraryRecordsByUri = remember(libraryRecords) { libraryRecords.associateBy { it.uri } }
     val libraryKnownUris = remember(libraryRecords) { libraryRecords.mapTo(HashSet()) { it.uri } }
+    val libraryProjects = remember(libraryRecords) {
+        libraryRecords.asSequence()
+            .map { it.project.trim() }
+            .filter { it.isNotEmpty() }
+            .distinctBy { it.lowercase(Locale.ROOT) }
+            .sortedBy { it.lowercase(Locale.ROOT) }
+            .toList()
+    }
 
     val savedPaletteName = context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).getString("palette", null)
     // Cyberpunk is the first-run identity; preserve any palette the user explicitly selected.
@@ -298,7 +308,7 @@ fun ArchiveroApp() {
     var selectedKind by rememberSaveable { mutableStateOf(Kind.IMAGES.name) }
     var choosingKind by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
-    LaunchedEffect(query, libraryRecords, libraryCategoryFilter, libraryResourceKindFilter, librarySortMode, libraryFavoriteUris, libraryFavoritesOnly) {
+    LaunchedEffect(query, libraryRecords, libraryCategoryFilter, libraryResourceKindFilter, libraryProjectFilter, librarySortMode, libraryFavoriteUris, libraryFavoritesOnly) {
         librarySearching = true
         delay(150)
         val matches = withContext(Dispatchers.Default) {
@@ -308,6 +318,7 @@ fun ArchiveroApp() {
                 category = libraryCategoryFilter,
                 resourceKind = libraryResourceKindFilter,
                 sortMode = librarySortMode,
+                project = libraryProjectFilter,
                 favorites = libraryFavoriteUris,
                 onlyFavorites = libraryFavoritesOnly,
                 limit = 501
@@ -1902,6 +1913,35 @@ fun ArchiveroApp() {
                                 }
                             )
                             Box {
+                                OutlinedButton(onClick = { libraryProjectFilterMenuExpanded = true }) {
+                                    Icon(Icons.Default.FolderCopy, contentDescription = null)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(libraryProjectFilter.ifBlank { "Colecciones" }, maxLines = 1)
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                }
+                                DropdownMenu(
+                                    expanded = libraryProjectFilterMenuExpanded,
+                                    onDismissRequest = { libraryProjectFilterMenuExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Todos los proyectos") },
+                                        onClick = {
+                                            libraryProjectFilter = ""
+                                            libraryProjectFilterMenuExpanded = false
+                                        }
+                                    )
+                                    libraryProjects.forEach { project ->
+                                        DropdownMenuItem(
+                                            text = { Text(project, maxLines = 1) },
+                                            onClick = {
+                                                libraryProjectFilter = project
+                                                libraryProjectFilterMenuExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                            Box {
                                 OutlinedButton(onClick = { librarySortMenuExpanded = true }) {
                                     Icon(Icons.Default.Sort, null)
                                     Spacer(Modifier.width(4.dp))
@@ -1941,6 +1981,7 @@ fun ArchiveroApp() {
                             TextButton(onClick = {
                                 libraryCategoryFilter = ""
                                 libraryResourceKindFilter = ""
+                                libraryProjectFilter = ""
                                 librarySortMode = "Nombre"
                                 libraryFavoritesOnly = false
                             }) { Text("Restablecer") }
