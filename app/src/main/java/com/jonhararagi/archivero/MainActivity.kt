@@ -88,7 +88,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
-private enum class Screen { HOME, TYPES, FOLDERS, CLEAN }
+private enum class Screen { HOME, TYPES, FOLDERS, CLEAN, LIBRARY }
 private enum class CleanupMode { SCREENSHOTS, DUPLICATES, SIMILAR_IMAGES, VIDEOS }
 private data class DuplicateGroup(val hash: String, val files: List<DocumentFile>)
 internal data class SizedCandidate<T>(val value: T, val size: Long)
@@ -161,6 +161,16 @@ private data class Disk(val used: Long, val total: Long) {
     }
 }
 
+private fun libraryDocument(context: Context, rawUri: String): DocumentFile? = runCatching {
+    val uri = Uri.parse(rawUri)
+    if (uri.scheme == "file") {
+        val path = uri.path?.takeIf { it.isNotBlank() } ?: return@runCatching null
+        DocumentFile.fromFile(File(path))
+    } else {
+        DocumentFile.fromSingleUri(context, uri)
+    }
+}.getOrNull()
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -172,6 +182,21 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun ArchiveroApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val libraryCatalogResult = remember(context) {
+        runCatching { DigitalLibraryCatalog(File(context.filesDir, "digital-library.properties")) }
+    }
+    val libraryCatalog = libraryCatalogResult.getOrNull()
+    var libraryStorageError by remember {
+        mutableStateOf(libraryCatalogResult.exceptionOrNull()?.message)
+    }
+    var libraryRecords by remember { mutableStateOf(libraryCatalog?.all().orEmpty()) }
+    var libraryEditDialog by remember { mutableStateOf(false) }
+    var libraryEditUri by remember { mutableStateOf<String?>(null) }
+    var libraryEditName by remember { mutableStateOf("") }
+    var libraryEditCategory by remember { mutableStateOf("Otros") }
+    var libraryEditTags by remember { mutableStateOf("") }
+    var libraryEditNotes by remember { mutableStateOf("") }
+    var libraryEditSource by remember { mutableStateOf("") }
     val savedPaletteName = context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).getString("palette", null)
     // Cyberpunk is the first-run identity; preserve any palette the user explicitly selected.
     val initialPaletteName = savedPaletteName ?: Palette.CIBERPUNK.name
@@ -405,6 +430,33 @@ fun ArchiveroApp() {
         if (!next.add(uri.toString())) next.remove(uri.toString())
         favoriteUris = next.toSet()
         context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).edit().putStringSet("favorites", next).apply()
+    }
+
+    fun editLibraryMetadata(file: DocumentFile) {
+        val catalog = libraryCatalog
+        if (catalog == null) {
+            message = "No se pudo abrir el índice de biblioteca. No se ha sobrescrito ni recreado."
+            return
+        }
+        val uri = file.uri.toString()
+        val existing = catalog.get(uri)
+        val extension = file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT)
+        val detectedCategory = Kind.values().firstOrNull { extension in it.extensions }?.title ?: "Otros"
+        libraryEditUri = uri
+        libraryEditName = existing?.displayName ?: file.name.orEmpty().ifBlank { "Recurso sin nombre" }
+        libraryEditCategory = existing?.category ?: detectedCategory
+        libraryEditTags = existing?.tags?.joinToString(", ").orEmpty()
+        libraryEditNotes = existing?.notes.orEmpty()
+        libraryEditSource = existing?.source.orEmpty()
+        libraryEditDialog = true
+        actionMenu = false
+    }
+
+    fun refreshLibrary() {
+        val catalog = libraryCatalog ?: return
+        runCatching { catalog.all() }
+            .onSuccess { libraryRecords = it; libraryStorageError = null }
+            .onFailure { libraryStorageError = it.message ?: "No se pudo leer el índice de biblioteca." }
     }
     LaunchedEffect(sleepTimerMinutes, mediaController) {
         val minutes = sleepTimerMinutes
@@ -1034,6 +1086,7 @@ fun ArchiveroApp() {
                                     Screen.TYPES -> if (choosingKind) "Buscar por tipo" else activeKind.title
                                     Screen.FOLDERS -> "Carpetas y ubicaciones"
                                     Screen.CLEAN -> "Recupera espacio"
+                                    Screen.LIBRARY -> "Fichas y referencias"
                                 }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
@@ -1086,6 +1139,7 @@ fun ArchiveroApp() {
                         NavigationBarItem(screen == Screen.TYPES, { screen = Screen.TYPES; choosingKind = true; query = "" }, { Icon(Icons.Default.Category, null) }, label = { Text("Tipos") })
                         NavigationBarItem(screen == Screen.FOLDERS, { screen = Screen.FOLDERS; choosingKind = false; folderHistory = emptyList(); current = root; currentUri = rootUri; query = ""; refresh++ }, { Icon(Icons.Default.FolderOpen, null) }, label = { Text("Carpetas") })
                         NavigationBarItem(screen == Screen.CLEAN, { screen = Screen.CLEAN; query = ""; cleanupSelectedUris = emptySet() }, { Icon(Icons.Default.CleaningServices, null) }, label = { Text("Limpiar") })
+                        NavigationBarItem(screen == Screen.LIBRARY, { screen = Screen.LIBRARY; choosingKind = false; query = "" }, { Icon(Icons.Default.Bookmark, null) }, label = { Text("Biblioteca") })
                     }
                 }
             },
@@ -1527,6 +1581,137 @@ fun ArchiveroApp() {
                             }
                         }
                     }
+                    Screen.LIBRARY -> {
+                        Header("Biblioteca digital", "Fichas locales para clasificar tus recursos")
+                        Text(
+                            "Las fichas guardan etiquetas, notas y procedencia. No copian, mueven ni eliminan el archivo original.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        SearchBox(query) { query = it }
+                        if (libraryStorageError != null) {
+                            EmptyNotice(
+                                "Índice de biblioteca no disponible",
+                                "No se ha recreado ni sobrescrito el índice existente. Detalle: ${libraryStorageError}",
+                                Icons.Default.Warning
+                            )
+                        } else {
+                            val needle = query.trim().lowercase(Locale.ROOT)
+                            val visibleLibraryRecords = libraryRecords.asSequence()
+                                .filter { record ->
+                                    needle.isEmpty() || sequenceOf(
+                                        record.displayName, record.category, record.tags.joinToString(" "),
+                                        record.notes, record.source
+                                    ).any { it.lowercase(Locale.ROOT).contains(needle) }
+                                }
+                                .sortedWith(
+                                    compareBy<LibraryRecord> { it.displayName.lowercase(Locale.ROOT) }
+                                        .thenBy { it.uri }
+                                )
+                                .take(500)
+                                .toList()
+                            Text(
+                                "${visibleLibraryRecords.size} ficha(s) visibles · almacenamiento local",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(vertical = 6.dp)
+                            )
+                            if (libraryRecords.isEmpty()) {
+                                EmptyNotice(
+                                    "Tu biblioteca empieza aquí",
+                                    "Abre el menú de un archivo y elige «Añadir a biblioteca» para guardar etiquetas, notas o la fuente de referencia.",
+                                    Icons.Default.Bookmark
+                                )
+                            } else if (visibleLibraryRecords.isEmpty()) {
+                                EmptyNotice("Sin coincidencias", "Prueba con otro nombre, etiqueta, nota o fuente.", Icons.Default.SearchOff)
+                            } else {
+                                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    items(visibleLibraryRecords, key = { it.uri }) { record ->
+                                        Card(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(18.dp)
+                                        ) {
+                                            Column(
+                                                Modifier.fillMaxWidth().padding(12.dp),
+                                                verticalArrangement = Arrangement.spacedBy(5.dp)
+                                            ) {
+                                                Text(record.displayName, fontWeight = FontWeight.Bold)
+                                                Text(
+                                                    record.category,
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                                if (record.tags.isNotEmpty()) {
+                                                    Text("Etiquetas: " + record.tags.joinToString(" · "), style = MaterialTheme.typography.bodySmall)
+                                                }
+                                                if (record.notes.isNotBlank()) Text(record.notes, style = MaterialTheme.typography.bodySmall)
+                                                if (record.source.isNotBlank()) {
+                                                    Text("Procedencia: " + record.source, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                }
+                                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    TextButton(onClick = {
+                                                        val document = libraryDocument(context, record.uri)
+                                                        if (document != null && runCatching { document.exists() }.getOrDefault(false)) {
+                                                            requestOpen(document, listOf(document))
+                                                        } else {
+                                                            message = "El registro se conserva, pero Android no permite acceder al archivo. Comprueba el permiso o vuelve a elegir su ubicación."
+                                                        }
+                                                    }) {
+                                                        Icon(Icons.Default.OpenInNew, null)
+                                                        Spacer(Modifier.width(4.dp))
+                                                        Text("Abrir")
+                                                    }
+                                                    TextButton(onClick = {
+                                                        val document = libraryDocument(context, record.uri)
+                                                        if (document != null) {
+                                                            editLibraryMetadata(document)
+                                                        } else {
+                                                            libraryEditUri = record.uri
+                                                            libraryEditName = record.displayName
+                                                            libraryEditCategory = record.category
+                                                            libraryEditTags = record.tags.joinToString(", ")
+                                                            libraryEditNotes = record.notes
+                                                            libraryEditSource = record.source
+                                                            libraryEditDialog = true
+                                                        }
+                                                    }) {
+                                                        Icon(Icons.Default.Edit, null)
+                                                        Spacer(Modifier.width(4.dp))
+                                                        Text("Editar ficha")
+                                                    }
+                                                    TextButton(onClick = {
+                                                        val result = runCatching {
+                                                            libraryCatalog?.removeMetadata(record.uri)
+                                                                ?: throw IOException("El índice de biblioteca no está disponible.")
+                                                        }
+                                                        result.onSuccess {
+                                                            refreshLibrary()
+                                                            message = "Se quitó la ficha. El archivo físico no se borró."
+                                                        }.onFailure {
+                                                            message = "No se pudo quitar la ficha: ${it.message ?: "error de almacenamiento"}"
+                                                        }
+                                                    }) {
+                                                        Icon(Icons.Default.BookmarkRemove, null)
+                                                        Spacer(Modifier.width(4.dp))
+                                                        Text("Quitar ficha")
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                if (libraryRecords.size > 500) {
+                                    Text(
+                                        "La vista está limitada a 500 fichas para mantener fluida la pantalla. Usa la búsqueda para acotar resultados.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(vertical = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
             if (showExitDialog) AlertDialog(
@@ -1599,6 +1784,11 @@ fun ArchiveroApp() {
         onDismissRequest = { actionMenu = false },
         title = { Text(actionFile?.name ?: "Acciones del archivo") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            TextButton(onClick = { actionFile?.let { editLibraryMetadata(it) } }, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.BookmarkAdd, null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (actionFile?.uri?.toString()?.let { libraryCatalog?.get(it) } != null) "Editar ficha de biblioteca" else "Añadir a biblioteca")
+            }
             TextButton(onClick = { renameValue = actionFile?.name.orEmpty(); renameDialog = true; actionMenu = false }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.DriveFileRenameOutline, null); Spacer(Modifier.width(8.dp)); Text("Renombrar") }
             TextButton(onClick = {
                 val file = actionFile
@@ -1691,6 +1881,91 @@ fun ArchiveroApp() {
             TextButton(onClick = { deleteDialog = true; actionMenu = false }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.DeleteOutline, null, tint = MaterialTheme.colorScheme.error); Spacer(Modifier.width(8.dp)); Text("Eliminar", color = MaterialTheme.colorScheme.error) }
         } },
         confirmButton = { TextButton(onClick = { actionMenu = false }) { Text("Cerrar") } }
+    )
+
+    if (libraryEditDialog) AlertDialog(
+        onDismissRequest = { libraryEditDialog = false },
+        title = { Text("Ficha de biblioteca") },
+        text = {
+            Column(
+                Modifier.fillMaxWidth().heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    "Esta ficha solo guarda metadatos locales. No cambia el archivo original.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = libraryEditName,
+                    onValueChange = { libraryEditName = it },
+                    label = { Text("Nombre visible") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = libraryEditCategory,
+                    onValueChange = { libraryEditCategory = it },
+                    label = { Text("Categoría o proyecto") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = libraryEditTags,
+                    onValueChange = { libraryEditTags = it },
+                    label = { Text("Etiquetas separadas por coma") },
+                    supportingText = { Text("Ej.: anime, cabello azul, personaje principal") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = libraryEditNotes,
+                    onValueChange = { libraryEditNotes = it },
+                    label = { Text("Notas") },
+                    minLines = 2,
+                    maxLines = 4,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = libraryEditSource,
+                    onValueChange = { libraryEditSource = it },
+                    label = { Text("Procedencia o enlace original") },
+                    minLines = 1,
+                    maxLines = 3,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val catalog = libraryCatalog
+                val uri = libraryEditUri
+                if (catalog == null || uri == null) {
+                    message = "No se pudo guardar la ficha porque el índice no está disponible. No se modificó el archivo."
+                } else {
+                    val result = runCatching {
+                        catalog.upsert(
+                            LibraryRecord(
+                                uri = uri,
+                                displayName = libraryEditName,
+                                category = libraryEditCategory,
+                                tags = libraryEditTags.split(",").map { it.trim() }.filter { it.isNotEmpty() },
+                                notes = libraryEditNotes,
+                                source = libraryEditSource,
+                                updatedAtMillis = System.currentTimeMillis()
+                            )
+                        )
+                    }
+                    result.onSuccess {
+                        refreshLibrary()
+                        libraryEditDialog = false
+                        message = "Ficha guardada en la biblioteca local. El archivo original no se modificó."
+                    }.onFailure {
+                        message = "No se pudo guardar la ficha: ${it.message ?: "comprueba los campos y el almacenamiento"}"
+                    }
+                }
+            }) { Text("Guardar ficha") }
+        },
+        dismissButton = { TextButton(onClick = { libraryEditDialog = false }) { Text("Cancelar") } }
     )
 
     if (renameDialog && actionFile != null) AlertDialog(
