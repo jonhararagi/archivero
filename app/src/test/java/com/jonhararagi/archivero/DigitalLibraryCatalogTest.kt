@@ -4,6 +4,7 @@ import java.io.File
 import java.io.IOException
 import java.io.RandomAccessFile
 import java.nio.file.Files
+import java.util.Properties
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -142,6 +143,64 @@ class DigitalLibraryCatalogTest {
             }
             assertEquals(listOf(keep), catalog.all())
             assertEquals(listOf(keep), DigitalLibraryCatalog(activeFile).all())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun legacyVersionOneSnapshotMigratesWithoutLosingExistingMetadata() {
+        val directory = Files.createTempDirectory("archivero-library-migrate-v1").toFile()
+        try {
+            val legacyFile = File(directory, "legacy.properties")
+            val legacyUri = "content://demo/legacy/1"
+            val properties = Properties().apply {
+                setProperty("schema.version", "1")
+                setProperty("records.count", "1")
+                setProperty("record.0.uri", legacyUri)
+                setProperty("record.0.displayName", "Referencia antigua")
+                setProperty("record.0.category", "Imagen")
+                setProperty("record.0.notes", "Conservar esta nota")
+                setProperty("record.0.source", "https://example.invalid/original")
+                setProperty("record.0.updatedAtMillis", "777")
+                setProperty("record.0.tag.count", "1")
+                setProperty("record.0.tag.0", "anime")
+            }
+            legacyFile.outputStream().use { properties.store(it, "legacy v1 fixture") }
+
+            val migrated = DigitalLibraryCatalog(legacyFile)
+            val original = migrated.get(legacyUri)
+            assertNotNull(original)
+            assertEquals("Referencia antigua", original?.displayName)
+            assertEquals("Conservar esta nota", original?.notes)
+            assertEquals(listOf("anime"), original?.tags)
+            assertEquals("", original?.project)
+            assertEquals("Sin clasificar", original?.resourceKind)
+            assertTrue(original?.relatedUris.orEmpty().isEmpty())
+
+            val relatedUri = "content://demo/related/2"
+            migrated.upsert(
+                original!!.copy(
+                    project = "KapiArt",
+                    resourceKind = "Original",
+                    relatedUris = listOf(relatedUri, legacyUri, relatedUri)
+                )
+            )
+
+            val savedProperties = Properties()
+            legacyFile.inputStream().use(savedProperties::load)
+            assertEquals("2", savedProperties.getProperty("schema.version"))
+            assertEquals("KapiArt", savedProperties.getProperty("record.0.project"))
+            assertEquals("Original", savedProperties.getProperty("record.0.resourceKind"))
+            assertEquals("1", savedProperties.getProperty("record.0.related.count"))
+            assertEquals(relatedUri, savedProperties.getProperty("record.0.related.0.uri"))
+
+            val reopened = DigitalLibraryCatalog(legacyFile)
+            assertEquals("KapiArt", reopened.get(legacyUri)?.project)
+            assertEquals("Original", reopened.get(legacyUri)?.resourceKind)
+            assertEquals(listOf(relatedUri), reopened.get(legacyUri)?.relatedUris)
+            assertEquals(1, reopened.search(query = "kapiart").size)
+            assertEquals(1, reopened.search(query = "original", category = "Imagen").size)
         } finally {
             directory.deleteRecursively()
         }

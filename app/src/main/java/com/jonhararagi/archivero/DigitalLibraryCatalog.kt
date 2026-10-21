@@ -21,7 +21,10 @@ internal data class LibraryRecord(
     val tags: List<String> = emptyList(),
     val notes: String = "",
     val source: String = "",
-    val updatedAtMillis: Long = System.currentTimeMillis()
+    val updatedAtMillis: Long = System.currentTimeMillis(),
+    val project: String = "",
+    val resourceKind: String = "Sin clasificar",
+    val relatedUris: List<String> = emptyList()
 )
 
 /**
@@ -131,11 +134,20 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
     }
 
     private fun searchableText(item: LibraryRecord): String = sequenceOf(
-        item.displayName, item.category, item.notes, item.source, item.tags.joinToString(" ")
+        item.displayName,
+        item.category,
+        item.project,
+        item.resourceKind,
+        item.notes,
+        item.source,
+        item.tags.joinToString(" "),
+        item.relatedUris.joinToString(" ")
     ).joinToString(" ").lowercase(Locale.ROOT)
 
     companion object {
-        private const val SCHEMA_VERSION = "1"
+        private const val SCHEMA_VERSION = "2"
+        private const val LEGACY_SCHEMA_VERSION = "1"
+        private const val DEFAULT_RESOURCE_KIND = "Sin clasificar"
         private const val DEFAULT_RESULT_LIMIT = 500
         private const val MAX_RESULT_LIMIT = 10_000
         private const val MAX_RECORDS = 100_000
@@ -145,6 +157,9 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
         private const val MAX_CATEGORY_LENGTH = 128
         private const val MAX_NOTES_LENGTH = 20_000
         private const val MAX_SOURCE_LENGTH = 4_096
+        private const val MAX_PROJECT_LENGTH = 256
+        private const val MAX_RESOURCE_KIND_LENGTH = 64
+        private const val MAX_RELATED_URIS = 100
 
         private fun validateUri(uri: String): String {
             val candidate = uri.trim()
@@ -176,6 +191,8 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
             val category = record.category.trim()
             val notes = record.notes.trim()
             val source = record.source.trim()
+            val project = record.project.trim()
+            val resourceKind = record.resourceKind.trim().ifEmpty { DEFAULT_RESOURCE_KIND }
             require(name.isNotEmpty() && name.length <= MAX_NAME_LENGTH) {
                 "El nombre debe contener entre 1 y $MAX_NAME_LENGTH caracteres."
             }
@@ -184,14 +201,30 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
             }
             require(notes.length <= MAX_NOTES_LENGTH) { "Las notas son demasiado largas." }
             require(source.length <= MAX_SOURCE_LENGTH) { "La procedencia es demasiado larga." }
+            require(project.length <= MAX_PROJECT_LENGTH) { "El nombre del proyecto es demasiado largo." }
+            require(resourceKind.length <= MAX_RESOURCE_KIND_LENGTH) { "El tipo de recurso es demasiado largo." }
+            require(record.relatedUris.size <= MAX_RELATED_URIS) {
+                "Una ficha puede relacionar hasta $MAX_RELATED_URIS recursos."
+            }
             require(record.updatedAtMillis >= 0L) { "La fecha de modificación no es válida." }
+            val related = LinkedHashSet<String>()
+            record.relatedUris.forEach { rawRelated ->
+                val relatedUri = validateUri(rawRelated)
+                if (relatedUri != uri) related.add(relatedUri)
+            }
+            require(related.size <= MAX_RELATED_URIS) {
+                "Una ficha puede relacionar hasta $MAX_RELATED_URIS recursos distintos."
+            }
             return record.copy(
                 uri = uri,
                 displayName = name,
                 category = category,
                 tags = normalizeTags(record.tags),
                 notes = notes,
-                source = source
+                source = source,
+                project = project,
+                resourceKind = resourceKind,
+                relatedUris = related.toList()
             )
         }
 
@@ -210,9 +243,11 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
             } catch (error: Exception) {
                 throw IOException("El archivo de metadatos está dañado o no se puede leer.", error)
             }
-            if (properties.getProperty("schema.version") != SCHEMA_VERSION) {
+            val schemaVersion = properties.getProperty("schema.version")
+            if (schemaVersion != SCHEMA_VERSION && schemaVersion != LEGACY_SCHEMA_VERSION) {
                 throw IOException("La versión del archivo de metadatos no es compatible.")
             }
+            val isLegacySchema = schemaVersion == LEGACY_SCHEMA_VERSION
             val count = properties.getProperty("records.count")?.toIntOrNull()
                 ?: throw IOException("El archivo de metadatos no contiene un recuento válido.")
             if (count !in 0..MAX_RECORDS) throw IOException("El archivo de metadatos excede el límite permitido.")
@@ -236,7 +271,17 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
                             notes = required("notes"),
                             source = required("source"),
                             updatedAtMillis = required("updatedAtMillis").toLongOrNull()
-                                ?: throw IOException("La fecha de modificación no es válida.")
+                                ?: throw IOException("La fecha de modificación no es válida."),
+                            project = if (isLegacySchema) "" else required("project"),
+                            resourceKind = if (isLegacySchema) DEFAULT_RESOURCE_KIND else required("resourceKind"),
+                            relatedUris = if (isLegacySchema) emptyList() else {
+                                val relatedCount = required("related.count").toIntOrNull()
+                                    ?: throw IOException("La cantidad de recursos relacionados no es válida.")
+                                if (relatedCount !in 0..MAX_RELATED_URIS) {
+                                    throw IOException("La ficha contiene demasiadas referencias relacionadas.")
+                                }
+                                (0 until relatedCount).map { relatedIndex -> required("related.$relatedIndex.uri") }
+                            }
                         )
                     )
                     if (loaded.put(record.uri, record) != null) {
@@ -267,6 +312,12 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
                     setProperty(prefix + "notes", item.notes)
                     setProperty(prefix + "source", item.source)
                     setProperty(prefix + "updatedAtMillis", item.updatedAtMillis.toString())
+                    setProperty(prefix + "project", item.project)
+                    setProperty(prefix + "resourceKind", item.resourceKind)
+                    setProperty(prefix + "related.count", item.relatedUris.size.toString())
+                    item.relatedUris.forEachIndexed { relatedIndex, relatedUri ->
+                        setProperty(prefix + "related.$relatedIndex.uri", relatedUri)
+                    }
                     setProperty(prefix + "tag.count", item.tags.size.toString())
                     item.tags.forEachIndexed { tagIndex, tag ->
                         setProperty(prefix + "tag.$tagIndex", tag)

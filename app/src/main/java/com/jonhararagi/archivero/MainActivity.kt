@@ -197,6 +197,11 @@ fun ArchiveroApp() {
     var libraryEditTags by remember { mutableStateOf("") }
     var libraryEditNotes by remember { mutableStateOf("") }
     var libraryEditSource by remember { mutableStateOf("") }
+    var libraryEditProject by remember { mutableStateOf("") }
+    var libraryEditResourceKind by remember { mutableStateOf("Sin clasificar") }
+    var libraryEditRelatedUris by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var libraryRelatedQuery by remember { mutableStateOf("") }
+    var libraryResourceKindExpanded by remember { mutableStateOf(false) }
     var libraryTransferRunning by remember { mutableStateOf(false) }
 
     LaunchedEffect(context) {
@@ -220,6 +225,9 @@ fun ArchiveroApp() {
         }
         libraryCatalogLoading = false
     }
+
+    val libraryRecordsByUri = remember(libraryRecords) { libraryRecords.associateBy { it.uri } }
+    val libraryKnownUris = remember(libraryRecords) { libraryRecords.mapTo(HashSet()) { it.uri } }
 
     val savedPaletteName = context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).getString("palette", null)
     // Cyberpunk is the first-run identity; preserve any palette the user explicitly selected.
@@ -269,6 +277,7 @@ fun ArchiveroApp() {
                 .filter { record ->
                     needle.isEmpty() || sequenceOf(
                         record.displayName, record.category, record.tags.joinToString(" "),
+                        record.project, record.resourceKind, record.relatedUris.joinToString(" "),
                         record.notes, record.source
                     ).any { it.lowercase(Locale.ROOT).contains(needle) }
                 }
@@ -492,6 +501,10 @@ fun ArchiveroApp() {
         libraryEditTags = existing?.tags?.joinToString(", ").orEmpty()
         libraryEditNotes = existing?.notes.orEmpty()
         libraryEditSource = existing?.source.orEmpty()
+        libraryEditProject = existing?.project.orEmpty()
+        libraryEditResourceKind = existing?.resourceKind ?: "Sin clasificar"
+        libraryEditRelatedUris = existing?.relatedUris.orEmpty().toSet()
+        libraryRelatedQuery = ""
         libraryEditDialog = true
         actionMenu = false
     }
@@ -1814,6 +1827,7 @@ fun ArchiveroApp() {
                                                 record = record,
                                                 grid = true,
                                                 transferRunning = libraryTransferRunning,
+                                                libraryRecordsByUri = libraryRecordsByUri,
                                                 onOpen = { document ->
                                                     requestOpen(document, listOf(document))
                                                 },
@@ -1827,6 +1841,10 @@ fun ArchiveroApp() {
                                                         libraryEditTags = record.tags.joinToString(", ")
                                                         libraryEditNotes = record.notes
                                                         libraryEditSource = record.source
+                                                        libraryEditProject = record.project
+                                                        libraryEditResourceKind = record.resourceKind
+                                                        libraryEditRelatedUris = record.relatedUris.toSet()
+                                                        libraryRelatedQuery = ""
                                                         libraryEditDialog = true
                                                     }
                                                 },
@@ -1868,6 +1886,7 @@ fun ArchiveroApp() {
                                                 record = record,
                                                 grid = false,
                                                 transferRunning = libraryTransferRunning,
+                                                libraryRecordsByUri = libraryRecordsByUri,
                                                 onOpen = { document ->
                                                     requestOpen(document, listOf(document))
                                                 },
@@ -1881,6 +1900,10 @@ fun ArchiveroApp() {
                                                         libraryEditTags = record.tags.joinToString(", ")
                                                         libraryEditNotes = record.notes
                                                         libraryEditSource = record.source
+                                                        libraryEditProject = record.project
+                                                        libraryEditResourceKind = record.resourceKind
+                                                        libraryEditRelatedUris = record.relatedUris.toSet()
+                                                        libraryRelatedQuery = ""
                                                         libraryEditDialog = true
                                                     }
                                                 },
@@ -2130,6 +2153,108 @@ fun ArchiveroApp() {
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
+                    value = libraryEditProject,
+                    onValueChange = { libraryEditProject = it },
+                    label = { Text("Proyecto, personaje o colección") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text("Tipo de recurso", style = MaterialTheme.typography.labelMedium)
+                Box {
+                    OutlinedButton(onClick = { libraryResourceKindExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text(libraryEditResourceKind, modifier = Modifier.weight(1f))
+                        Icon(Icons.Default.ArrowDropDown, null)
+                    }
+                    DropdownMenu(
+                        expanded = libraryResourceKindExpanded,
+                        onDismissRequest = { libraryResourceKindExpanded = false }
+                    ) {
+                        listOf("Sin clasificar", "Original", "Derivado", "Editado", "Generado", "Referencia", "Personaje").forEach { kind ->
+                            DropdownMenuItem(
+                                text = { Text(kind) },
+                                onClick = {
+                                    libraryEditResourceKind = kind
+                                    libraryResourceKindExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+                Text("Recursos relacionados", style = MaterialTheme.typography.labelMedium)
+                Text(
+                    "Vincula otras fichas de esta biblioteca. La relación guarda identificadores, no duplica los archivos.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = libraryRelatedQuery,
+                    onValueChange = { libraryRelatedQuery = it },
+                    label = { Text("Buscar fichas para relacionar") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                val relatedCandidates = libraryRecords.asSequence()
+                    .filter { it.uri != libraryEditUri }
+                    .filter {
+                        libraryRelatedQuery.isBlank() ||
+                            sequenceOf(it.displayName, it.category, it.project, it.tags.joinToString(" "))
+                                .any { value -> value.contains(libraryRelatedQuery.trim(), ignoreCase = true) }
+                    }
+                    .take(12)
+                    .toList()
+                if (relatedCandidates.isEmpty()) {
+                    Text(
+                        "No hay coincidencias. Puedes guardar la ficha sin relaciones.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    relatedCandidates.forEach { candidate ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable {
+                                libraryEditRelatedUris = if (candidate.uri in libraryEditRelatedUris) {
+                                    libraryEditRelatedUris - candidate.uri
+                                } else if (libraryEditRelatedUris.size < 100) {
+                                    libraryEditRelatedUris + candidate.uri
+                                } else {
+                                    message = "Cada ficha admite hasta 100 relaciones."
+                                    libraryEditRelatedUris
+                                }
+                            }.padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = candidate.uri in libraryEditRelatedUris,
+                                onCheckedChange = { checked ->
+                                    libraryEditRelatedUris = if (checked) {
+                                        if (libraryEditRelatedUris.size < 100) libraryEditRelatedUris + candidate.uri
+                                        else {
+                                            message = "Cada ficha admite hasta 100 relaciones."
+                                            libraryEditRelatedUris
+                                        }
+                                    } else libraryEditRelatedUris - candidate.uri
+                                }
+                            )
+                            Column(Modifier.weight(1f)) {
+                                Text(candidate.displayName, maxLines = 1, fontWeight = FontWeight.Medium)
+                                Text(
+                                    listOf(candidate.project, candidate.category).filter { it.isNotBlank() }.joinToString(" · "),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
+                val unresolvedRelations = libraryEditRelatedUris.count { it !in libraryKnownUris }
+                Text(
+                    "Seleccionadas: ${libraryEditRelatedUris.size}" +
+                        if (unresolvedRelations > 0) " · Referencias que ya no están en la biblioteca: $unresolvedRelations" else "",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (unresolvedRelations > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
                     value = libraryEditNotes,
                     onValueChange = { libraryEditNotes = it },
                     label = { Text("Notas") },
@@ -2168,7 +2293,10 @@ fun ArchiveroApp() {
                                             tags = libraryEditTags.split(",").map { it.trim() }.filter { it.isNotEmpty() },
                                             notes = libraryEditNotes,
                                             source = libraryEditSource,
-                                            updatedAtMillis = System.currentTimeMillis()
+                                            updatedAtMillis = System.currentTimeMillis(),
+                                            project = libraryEditProject,
+                                            resourceKind = libraryEditResourceKind,
+                                            relatedUris = libraryEditRelatedUris.toList()
                                         )
                                     )
                                 }
@@ -2595,6 +2723,7 @@ private fun LibraryRecordCard(
     record: LibraryRecord,
     grid: Boolean,
     transferRunning: Boolean,
+    libraryRecordsByUri: Map<String, LibraryRecord>,
     onOpen: (DocumentFile) -> Unit,
     onEdit: (DocumentFile?) -> Unit,
     onRemove: () -> Unit
@@ -2637,6 +2766,17 @@ private fun LibraryRecordCard(
                 }
                 Text(record.displayName, fontWeight = FontWeight.Bold, maxLines = 2)
                 Text(record.category, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                if (record.project.isNotBlank()) Text("Proyecto: " + record.project, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                Text("Tipo: " + record.resourceKind, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (record.relatedUris.isNotEmpty()) {
+                    val knownRelated = record.relatedUris.count { it in libraryRecordsByUri }
+                    val unresolved = record.relatedUris.size - knownRelated
+                    Text(
+                        "Relacionados: $knownRelated" + if (unresolved > 0) " · Sin ficha: $unresolved" else "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (unresolved > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 LibraryTechnicalDetails(details)
                 if (record.tags.isNotEmpty()) {
                     Text("Etiquetas: " + record.tags.joinToString(" · "), style = MaterialTheme.typography.bodySmall, maxLines = 3)
@@ -2674,6 +2814,17 @@ private fun LibraryRecordCard(
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(record.displayName, fontWeight = FontWeight.Bold, maxLines = 2)
                     Text(record.category, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    if (record.project.isNotBlank()) Text("Proyecto: " + record.project, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                    Text("Tipo: " + record.resourceKind, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (record.relatedUris.isNotEmpty()) {
+                        val knownRelated = record.relatedUris.count { it in libraryRecordsByUri }
+                        val unresolved = record.relatedUris.size - knownRelated
+                        Text(
+                            "Relacionados: $knownRelated" + if (unresolved > 0) " · Sin ficha: $unresolved" else "",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (unresolved > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     LibraryTechnicalDetails(details)
                     if (record.tags.isNotEmpty()) {
                         Text("Etiquetas: " + record.tags.joinToString(" · "), style = MaterialTheme.typography.bodySmall, maxLines = 2)
