@@ -1,3 +1,13 @@
+## Continuidad · errores de escritura y rollback del catálogo · 2026-10-23
+
+- Rama autorizada: `feature/archivero-digital-library-001`; PR #3 sigue abierto en borrador. No modificar `main` ni fusionar.
+- Se añade un punto de inyección opcional al escritor de instantáneas para simular fallos de almacenamiento determinísticamente en pruebas. El camino de producción conserva el escritor normal.
+- Nueva prueba: el guardado falla al editar la ficha y al moverla a papelera; las operaciones propagan `IOException`, la instancia no publica cambios sin persistencia y una reapertura conserva el último catálogo válido.
+- Sin migración de esquema, sin dependencias nuevas y sin operaciones sobre los archivos físicos.
+- CI de este lote: pendiente. TIMER estimado: 30–60 minutos de agente, no una medición de rendimiento en dispositivo.
+
+---
+
 ## Continuidad · búsqueda tolerante a tildes · 2026-10-23
 
 - Rama autorizada: `feature/archivero-digital-library-001`; el PR #3 continúa abierto en borrador. No tocar `main` ni fusionar.

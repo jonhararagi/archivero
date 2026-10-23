@@ -144,7 +144,14 @@ private data class LibraryCatalogSnapshot(
  * Writes use a sibling temporary file and an atomic replace where the filesystem supports it.
  * A malformed snapshot fails loudly instead of silently starting with an empty catalog.
  */
-internal class DigitalLibraryCatalog(private val storageFile: File) {
+internal class DigitalLibraryCatalog(
+    private val storageFile: File,
+    /**
+     * Optional deterministic seam for exercising failed snapshot writes in transaction tests.
+     * Production callers use the normal atomic file writer.
+     */
+    private val snapshotWriter: ((File, Collection<LibraryRecord>, Collection<TrashedLibraryRecord>) -> Unit)? = null
+) {
     private var records: LinkedHashMap<String, LibraryRecord> = LinkedHashMap()
     private var trashedRecords: LinkedHashMap<String, TrashedLibraryRecord> = LinkedHashMap()
 
@@ -212,7 +219,7 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
         // Adding the same URI again is an intentional return to the active library, not a second
         // entry with the same identity in the recycle bin.
         updatedTrash.remove(normalized.uri)
-        persist(storageFile, updated.values, updatedTrash.values)
+        writeSnapshot(storageFile, updated.values, updatedTrash.values)
         records = updated
         trashedRecords = updatedTrash
         return normalized
@@ -263,7 +270,7 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
         if (changedRecords.isEmpty()) return 0
         val updated = LinkedHashMap(records)
         changedRecords.forEach { updated[it.uri] = it }
-        persist(storageFile, updated.values, trashedRecords.values)
+        writeSnapshot(storageFile, updated.values, trashedRecords.values)
         records = updated
         return changedRecords.size
     }
@@ -302,7 +309,7 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
 
         val updated = LinkedHashMap(records)
         changedRecords.forEach { updated[it.uri] = it }
-        persist(storageFile, updated.values, trashedRecords.values)
+        writeSnapshot(storageFile, updated.values, trashedRecords.values)
         records = updated
         return changedRecords.size
     }
@@ -317,7 +324,7 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
         val updatedTrash = LinkedHashMap(trashedRecords)
         updatedRecords.remove(key)
         updatedTrash[key] = TrashedLibraryRecord(record, System.currentTimeMillis().coerceAtLeast(0L))
-        persist(storageFile, updatedRecords.values, updatedTrash.values)
+        writeSnapshot(storageFile, updatedRecords.values, updatedTrash.values)
         records = updatedRecords
         trashedRecords = updatedTrash
         return true
@@ -336,7 +343,7 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
         val updatedTrash = LinkedHashMap(trashedRecords)
         updatedRecords[key] = normalizeRecord(trashed.record)
         updatedTrash.remove(key)
-        persist(storageFile, updatedRecords.values, updatedTrash.values)
+        writeSnapshot(storageFile, updatedRecords.values, updatedTrash.values)
         records = updatedRecords
         trashedRecords = updatedTrash
         return true
@@ -350,7 +357,7 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
         if (key !in trashedRecords) return false
         val updatedTrash = LinkedHashMap(trashedRecords)
         updatedTrash.remove(key)
-        persist(storageFile, records.values, updatedTrash.values)
+        writeSnapshot(storageFile, records.values, updatedTrash.values)
         trashedRecords = updatedTrash
         return true
     }
@@ -363,7 +370,7 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
         if (!records.containsKey(key)) return false
         val updated = LinkedHashMap(records)
         updated.remove(key)
-        persist(storageFile, updated.values, trashedRecords.values)
+        writeSnapshot(storageFile, updated.values, trashedRecords.values)
         records = updated
         return true
     }
@@ -375,7 +382,7 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
         if (sameFile(destination, storageFile)) {
             throw IOException("La exportación debe guardarse en otro archivo.")
         }
-        persist(destination, records.values, trashedRecords.values)
+        writeSnapshot(destination, records.values, trashedRecords.values)
     }
 
     /**
@@ -411,10 +418,23 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
             updatedRecords.remove(uri)
             updatedTrash[uri] = item
         }
-        persist(storageFile, updatedRecords.values, updatedTrash.values)
+        writeSnapshot(storageFile, updatedRecords.values, updatedTrash.values)
         records = updatedRecords
         trashedRecords = updatedTrash
         return importedUris.size
+    }
+
+    private fun writeSnapshot(
+        destination: File,
+        records: Collection<LibraryRecord>,
+        trashedRecords: Collection<TrashedLibraryRecord>
+    ) {
+        val writer = snapshotWriter
+        if (writer == null) {
+            persist(destination, records, trashedRecords)
+        } else {
+            writer(destination, records, trashedRecords)
+        }
     }
 
     private fun searchableText(item: LibraryRecord): String = item.normalizedSearchText

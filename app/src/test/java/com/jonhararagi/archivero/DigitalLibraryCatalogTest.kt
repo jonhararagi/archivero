@@ -758,6 +758,53 @@ class DigitalLibraryCatalogTest {
     }
 
     @Test
+    fun failedSnapshotWriteLeavesMemoryAndExistingDiskSnapshotUnchanged() {
+        val directory = Files.createTempDirectory("archivero-library-write-failure").toFile()
+        try {
+            val file = File(directory, "catalog.properties")
+            val uri = "content://demo/write-failure/keep"
+            val original = LibraryRecord(
+                uri = uri,
+                displayName = "Original conservado",
+                category = "Documento",
+                notes = "La instantánea válida debe sobrevivir",
+                updatedAtMillis = 123L
+            )
+            DigitalLibraryCatalog(file).upsert(original)
+
+            val failingCatalog = DigitalLibraryCatalog(file) { _, _, _ ->
+                throw IOException("Fallo de almacenamiento simulado para probar rollback")
+            }
+
+            try {
+                failingCatalog.upsert(original.copy(displayName = "Cambio que no debe guardarse"))
+                throw AssertionError("El guardado fallido debía propagar IOException.")
+            } catch (error: IOException) {
+                assertTrue(error.message.orEmpty().contains("Fallo de almacenamiento simulado"))
+            }
+
+            assertEquals("La instancia activa debe conservar la ficha anterior.", original, failingCatalog.get(uri))
+            assertTrue(failingCatalog.trashed().isEmpty())
+
+            try {
+                failingCatalog.trashMetadata(uri)
+                throw AssertionError("Mover a papelera con un guardado fallido debía propagarse.")
+            } catch (error: IOException) {
+                assertTrue(error.message.orEmpty().contains("Fallo de almacenamiento simulado"))
+            }
+
+            assertEquals(listOf(original), failingCatalog.all())
+            assertTrue("La operación fallida no debe vaciar la papelera ni alterar la ficha.", failingCatalog.trashed().isEmpty())
+
+            val reopened = DigitalLibraryCatalog(file)
+            assertEquals("El disco debe seguir conteniendo la última instantánea válida.", original, reopened.get(uri))
+            assertTrue(reopened.trashed().isEmpty())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun rejectsInvalidRecordsAndResultLimits() {
         val directory = Files.createTempDirectory("archivero-library-validation").toFile()
         try {

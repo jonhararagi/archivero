@@ -1,3 +1,12 @@
+## Transacciones del catálogo frente a fallos de escritura · 2026-10-23
+
+- Se introduce un punto de inyección interno y opcional para simular un error del escritor de instantáneas en pruebas; el comportamiento normal sigue usando el guardado temporal con reemplazo atómico cuando el sistema lo admite.
+- Se añade una prueba que provoca fallos de escritura al editar una ficha y al moverla a papelera. Comprueba que el error se propaga, el estado en memoria no cambia y al reabrir se recupera la última instantánea válida del disco.
+- No se alteran el esquema, las URI ni los recursos físicos. La prueba es determinista y no depende de permisos de archivos del sistema de CI.
+- CI de este lote: pendiente de ejecución.
+
+---
+
 ## Búsqueda tolerante a tildes en Biblioteca · 2026-10-23
 
 - La búsqueda por metadatos y los filtros de categoría, tipo, proyecto y etiquetas pueden encontrar términos aunque el usuario omita tildes, por ejemplo `cancion` para `Canción`.
