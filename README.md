@@ -36,7 +36,7 @@ Los archivos se procesan localmente. La aplicación no tiene una función de sub
 La sección **Biblioteca** crea fichas locales para recursos existentes sin copiar, mover ni eliminar el archivo original. Cada ficha puede guardar nombre visible, categoría, etiquetas, notas, procedencia, proyecto/colección, tipo de recurso y relaciones con otras fichas.
 
 - Abre el menú contextual de un archivo y elige **Añadir a biblioteca** para crear o editar su ficha.
-- Busca por nombre, categoría, etiquetas, notas, procedencia, proyecto, tipo o identificadores de recursos relacionados.
+- Busca por nombre, categoría, etiquetas, notas, procedencia, proyecto, tipo o identificadores de recursos relacionados. La búsqueda y los filtros ignoran tildes para facilitar la recuperación en español, pero mantienen la `ñ` distinta de la `n`; la normalización es temporal y no modifica los metadatos guardados.
 - Usa vistas de **cuadrícula** y **lista**, miniaturas de la caché compartida y metadatos técnicos disponibles: formato/MIME, tamaño, fecha de modificación y dimensiones de imágenes cuando Android puede leerlas.
 - Los tipos de recurso distinguen explícitamente entre **Sin clasificar**, **Original**, **Derivado**, **Editado**, **Generado**, **Referencia** y **Personaje**. No se inventan datos cuando un proveedor no devuelve metadatos.
 - Combina búsqueda con filtros de categoría, tipo de recurso y proyecto/colección (valores existentes en las fichas). Ordena por **Nombre**, **Recientes** o **Proyecto**. Las últimas ocho búsquedas se guardan en preferencias locales y pueden borrarse desde la pantalla Biblioteca.
