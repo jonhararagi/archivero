@@ -4,7 +4,7 @@
 - Se cambia la búsqueda libre de frase contigua a términos AND separados por espacios. Todos los términos deben aparecer en el texto de metadatos buscable, aunque estén repartidos entre nombre, etiquetas, notas, procedencia, tipo o proyecto. Los filtros de categoría, tipo, proyecto, favoritos, orden y límite no cambian.
 - Se reutiliza una pequeña función pura para compartir la regla entre el filtrado de la pantalla y el catálogo; no se agrega ninguna dependencia ni indexación costosa.
 - Pruebas nuevas en `DigitalLibraryCatalogTest`: coincidencia de términos entre campos y resultado vacío si falta un término; el conjunto de filtros visuales también tiene cobertura.
-- **CI anterior verificado:** [run 39877392399](https://github.com/jonhararagi/archivero/actions/runs/39877392399), SHA `6465fe4d3ac1d1dd34452f0d32b927609f5ac0d4`, PASS en pruebas unitarias, ensamblado del APK debug, verificación de firma/hash y subida. El CI del nuevo commit queda pendiente hasta consultar Actions.
+- **CI PASS del cambio funcional:** [run 39881521173](https://github.com/jonhararagi/archivero/actions/runs/39881521173), SHA `f30edbe3847c7fd2b8f8222c59983b18e267d0ad`. Pasaron pruebas unitarias, `assembleDebug`, verificación de firma/hash y subida. Artefacto `archivero-debug-apk`, ID `12470223376`, ZIP de 20.663.357 bytes, `expired=false`, digest SHA-256 `b8b75e8e7977a67e34de29e7759872db1c7a022b9560c1253133e2dd27435b6d`.
 - La mejora no busca dentro del contenido real de PDF/documentos ni reemplaza un motor de indexación por contenido; solo busca metadatos catalogados.
 - TIMER estimado para este lote: 30–60 minutos de agente; no es una medición de rendimiento en el dispositivo.
 

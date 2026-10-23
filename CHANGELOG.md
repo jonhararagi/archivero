@@ -3,7 +3,7 @@
 - La búsqueda de la Biblioteca ahora interpreta las palabras separadas por espacios como términos que deben coincidir todos, aunque aparezcan en campos distintos: nombre, categoría, etiquetas, proyecto, tipo, notas, procedencia o relaciones.
 - Se conserva el filtrado combinado, el orden de resultados y el límite acotado. No se indexa ni se lee el contenido binario de los archivos: la búsqueda sigue trabajando exclusivamente sobre metadatos ya catalogados.
 - Se añadieron pruebas para términos que aparecen en campos diferentes y para una consulta en la que falta uno de los términos.
-- CI para este cambio: pendiente de ejecución/verificación.
+- **CI PASS:** [run 39881521173](https://github.com/jonhararagi/archivero/actions/runs/39881521173), SHA `f30edbe3847c7fd2b8f8222c59983b18e267d0ad`. Pasaron pruebas unitarias, `assembleDebug`, verificación de firma/hash y subida. Artefacto `archivero-debug-apk`, ID `12470223376`, ZIP de 20.663.357 bytes, `expired=false`, digest SHA-256 `b8b75e8e7977a67e34de29e7759872db1c7a022b9560c1253133e2dd27435b6d`.
 
 ---
 
