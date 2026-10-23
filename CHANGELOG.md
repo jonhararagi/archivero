@@ -1,3 +1,13 @@
+## Búsqueda tolerante a tildes en Biblioteca · 2026-10-23
+
+- La búsqueda por metadatos y los filtros de categoría, tipo, proyecto y etiquetas pueden encontrar términos aunque el usuario omita tildes, por ejemplo `cancion` para `Canción`.
+- Se conserva la diferencia entre `ñ` y `n`, evitando que una consulta como `nino` se confunda con `niño`.
+- El texto normalizado se deriva en memoria. Los nombres, etiquetas, notas y demás metadatos originales no se reescriben y el esquema del catálogo no cambia.
+- Prueba añadida para búsqueda entre varios campos, filtros, etiquetas, distinción de la `ñ` y persistencia del texto original.
+- CI del lote: pendiente de verificación sobre la cabeza actual de la rama.
+
+---
+
 ## Texto buscable normalizado reutilizable · 2026-10-22
 
 - Cada ficha inmutable calcula una sola vez su representación de texto en minúsculas para búsquedas posteriores. Los filtros y la búsqueda del catálogo reutilizan ese texto en vez de concatenar y normalizar otra vez todos los campos en cada consulta.
