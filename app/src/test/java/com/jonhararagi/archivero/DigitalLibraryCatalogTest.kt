@@ -709,6 +709,55 @@ class DigitalLibraryCatalogTest {
     }
 
     @Test
+    fun searchIgnoresAccentsButKeepsSpanishEnyeDistinctAcrossFieldsAndFilters() {
+        val directory = Files.createTempDirectory("archivero-library-accent-search").toFile()
+        try {
+            val file = File(directory, "catalog.properties")
+            val catalog = DigitalLibraryCatalog(file)
+            val record = LibraryRecord(
+                uri = "content://demo/accent-search/1",
+                displayName = "Canción azul",
+                category = "Música",
+                tags = listOf("referéncia"),
+                notes = "Personaje niño",
+                project = "Colección manga",
+                resourceKind = "Edición"
+            )
+            catalog.upsert(record)
+
+            assertEquals(
+                listOf(record.uri),
+                catalog.search(
+                    query = "cancion personaje",
+                    category = "musica",
+                    requiredTags = setOf("referencia")
+                ).map { it.uri }
+            )
+            assertEquals(
+                listOf(record.uri),
+                filterLibraryRecords(
+                    records = catalog.all(),
+                    query = "cancion coleccion",
+                    category = "musica",
+                    resourceKind = "edicion",
+                    project = "coleccion manga"
+                ).map { it.uri }
+            )
+
+            // Spanish ñ is a distinct letter: a search for "nino" must not match "niño".
+            assertTrue(catalog.search(query = "nino").isEmpty())
+
+            // Search normalization is derived only; it does not rewrite saved metadata.
+            val reopened = DigitalLibraryCatalog(file).get(record.uri)
+            assertEquals("Música", reopened?.category)
+            assertEquals(listOf("referéncia"), reopened?.tags)
+            assertEquals("Personaje niño", reopened?.notes)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun rejectsInvalidRecordsAndResultLimits() {
         val directory = Files.createTempDirectory("archivero-library-validation").toFile()
         try {
