@@ -3,7 +3,7 @@
 - Rama autorizada: `feature/archivero-digital-library-001`; base inspeccionada: `f9316f3d827df9f8c5500297a190a7cb063f58ad`. No tocar `main` ni fusionar PR #3.
 - `LibraryRecord` tiene ahora una representación normalizada de búsqueda calculada de forma diferida y conservada en memoria por instancia. El texto incluye los mismos campos ya buscables, sin incorporar contenido binario ni una dependencia de indexación.
 - El filtrado principal y `DigitalLibraryCatalog.search` reutilizan el texto. Las fichas son tratadas como valores inmutables; las ediciones crean copias nuevas, así que el texto derivado no se persiste ni debe quedar asociado a nuevos metadatos.
-- Prueba nueva: la lectura repetida reutiliza el texto y una ficha copiada con nombre/etiquetas distintos genera su propio texto. CI de este lote pendiente de comprobación.
+- Prueba nueva: la lectura repetida reutiliza el texto y una ficha copiada con nombre, etiquetas y notas distintos genera su propio texto sin conservar términos antiguos. CI de este lote pendiente de comprobación.
 - Se registra como evidencia anterior la paginación validada por [run 39882184901](https://github.com/jonhararagi/archivero/actions/runs/39882184901), SHA `f9316f3d827df9f8c5500297a190a7cb063f58ad`, con tests, APK firmado y artefacto no expirado. No se ha ejecutado benchmark en el Xiaomi.
 - TIMER estimado: 30–60 minutos de agente; no representa tiempo de rendimiento medido.
 

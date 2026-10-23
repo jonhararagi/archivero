@@ -2,7 +2,7 @@
 
 - Cada ficha inmutable calcula una sola vez su representación de texto en minúsculas para búsquedas posteriores. Los filtros y la búsqueda del catálogo reutilizan ese texto en vez de concatenar y normalizar otra vez todos los campos en cada consulta.
 - El texto derivado permanece solo en memoria y no altera el esquema ni la exportación. Una ficha editada mediante `copy` obtiene una nueva caché acorde con sus nuevos metadatos.
-- Se añade una prueba de reutilización y otra comprobación de que una copia editada no contamina la ficha anterior.
+- Se añade una prueba de reutilización y se verifica que una copia con nombre, etiquetas y notas modificadas no hereda texto buscable antiguo ni contamina la ficha anterior.
 - No se declara un porcentaje de mejora: aún no hay benchmark representativo en un dispositivo.
 - CI para este lote: pendiente de ejecución/verificación.
 

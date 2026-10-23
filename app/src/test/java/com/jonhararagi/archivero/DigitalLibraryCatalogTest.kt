@@ -59,10 +59,15 @@ class DigitalLibraryCatalogTest {
         assertTrue("The immutable record should reuse its cached search text.", firstRead === original.normalizedSearchText)
         assertTrue(firstRead.contains("cabello"))
 
-        val edited = original.copy(displayName = "Referencia roja", tags = listOf("Manga"))
+        val edited = original.copy(
+            displayName = "Referencia roja",
+            tags = listOf("Manga"),
+            notes = "Paisaje tranquilo"
+        )
         assertTrue(edited.normalizedSearchText.contains("referencia roja"))
         assertTrue(edited.normalizedSearchText.contains("manga"))
-        assertFalse(edited.normalizedSearchText.contains("cabello") && edited.notes.isBlank())
+        assertTrue(edited.normalizedSearchText.contains("paisaje"))
+        assertFalse(edited.normalizedSearchText.contains("cabello"))
         assertTrue(original.normalizedSearchText.contains("referencia azul"))
         assertTrue(original.normalizedSearchText.contains("anime"))
     }
