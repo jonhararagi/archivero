@@ -4,7 +4,7 @@
 - Añadida `normalizeLibrarySearchText`: normaliza para buscar sin tildes y conserva la `ñ` como letra distinta de `n`.
 - La regla se reutiliza en las consultas de metadatos y en los filtros visuales por categoría, tipo, proyecto y etiquetas. No modifica el texto almacenado, no cambia el esquema y no añade dependencias.
 - Prueba: consulta `cancion personaje` contra distintos campos, filtros `musica/edicion/coleccion`, etiqueta con tilde, distinción `nino` vs. `niño` y comprobación de que el registro original conserva sus tildes.
-- **CI todavía pendiente** para este lote. No declarar validada la compilación ni la prueba hasta revisar el run de GitHub Actions del SHA actual.
+- **CI PASS de código y pruebas:** [run 39960718647](https://github.com/jonhararagi/archivero/actions/runs/39960718647), SHA `8cb4e45583c8566d59381eeeef7ee249d56e1b6b`. Pasaron `testDebugUnitTest`, `assembleDebug`, la verificación de firma/hash y la subida. Artefacto `archivero-debug-apk`, ID `12505060873`, 20.666.763 bytes, `expired=false`, digest SHA-256 `bc743fa0019dd6b7b1b313058fc8a97163d2cf211cf37dbb571293d138001bae`. El cambio posterior en la rama solo reajustó comentarios/documentación de este comportamiento.
 - TIMER estimado del lote: 30–60 minutos de agente; no representa una medición de rendimiento en dispositivo.
 
 ---

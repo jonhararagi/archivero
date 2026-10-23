@@ -4,7 +4,7 @@
 - Se conserva la diferencia entre `ñ` y `n`, evitando que una consulta como `nino` se confunda con `niño`.
 - El texto normalizado se deriva en memoria. Los nombres, etiquetas, notas y demás metadatos originales no se reescriben y el esquema del catálogo no cambia.
 - Prueba añadida para búsqueda entre varios campos, filtros, etiquetas, distinción de la `ñ` y persistencia del texto original.
-- CI del lote: pendiente de verificación sobre la cabeza actual de la rama.
+- **CI PASS de código y pruebas:** [run 39960718647](https://github.com/jonhararagi/archivero/actions/runs/39960718647), SHA `8cb4e45583c8566d59381eeeef7ee249d56e1b6b`. Pasaron `testDebugUnitTest`, `assembleDebug`, la verificación de firma/hash y la subida. Artefacto `archivero-debug-apk`, ID `12505060873`, 20.666.763 bytes, `expired=false`, digest SHA-256 `bc743fa0019dd6b7b1b313058fc8a97163d2cf211cf37dbb571293d138001bae`. El cambio posterior en la rama solo reajustó comentarios/documentación de este comportamiento.
 
 ---
 
