@@ -4,7 +4,7 @@
 - El texto derivado permanece solo en memoria y no altera el esquema ni la exportación. Una ficha editada mediante `copy` obtiene una nueva caché acorde con sus nuevos metadatos.
 - Se añade una prueba de reutilización y se verifica que una copia con nombre, etiquetas y notas modificadas no hereda texto buscable antiguo ni contamina la ficha anterior.
 - No se declara un porcentaje de mejora: aún no hay benchmark representativo en un dispositivo.
-- CI para este lote: pendiente de ejecución/verificación.
+- **CI PASS:** [run 39882676213](https://github.com/jonhararagi/archivero/actions/runs/39882676213), SHA `364c0ec61f917815bd02c6394864f61be0182938`. Pasaron pruebas unitarias, `assembleDebug`, verificación de firma/hash y subida. Artefacto `archivero-debug-apk`, ID `12471765139`, ZIP de 20.666.158 bytes, `expired=false`, digest SHA-256 `37869f682f2f6eefafee904e815a69253ef098c6cd3dd316444ebb918e33f542`.
 
 ---
 

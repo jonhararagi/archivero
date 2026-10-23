@@ -3,7 +3,8 @@
 - Rama autorizada: `feature/archivero-digital-library-001`; base inspeccionada: `f9316f3d827df9f8c5500297a190a7cb063f58ad`. No tocar `main` ni fusionar PR #3.
 - `LibraryRecord` tiene ahora una representación normalizada de búsqueda calculada de forma diferida y conservada en memoria por instancia. El texto incluye los mismos campos ya buscables, sin incorporar contenido binario ni una dependencia de indexación.
 - El filtrado principal y `DigitalLibraryCatalog.search` reutilizan el texto. Las fichas son tratadas como valores inmutables; las ediciones crean copias nuevas, así que el texto derivado no se persiste ni debe quedar asociado a nuevos metadatos.
-- Prueba nueva: la lectura repetida reutiliza el texto y una ficha copiada con nombre, etiquetas y notas distintos genera su propio texto sin conservar términos antiguos. CI de este lote pendiente de comprobación.
+- Prueba nueva: la lectura repetida reutiliza el texto y una ficha copiada con nombre, etiquetas y notas distintos genera su propio texto sin conservar términos antiguos.
+- **CI PASS:** [run 39882676213](https://github.com/jonhararagi/archivero/actions/runs/39882676213), SHA `364c0ec61f917815bd02c6394864f61be0182938`. Pasaron tests, compilación Android, firma/hash y subida. Artefacto `archivero-debug-apk`, ID `12471765139`, ZIP de 20.666.158 bytes, `expired=false`, digest SHA-256 `37869f682f2f6eefafee904e815a69253ef098c6cd3dd316444ebb918e33f542`.
 - Se registra como evidencia anterior la paginación validada por [run 39882184901](https://github.com/jonhararagi/archivero/actions/runs/39882184901), SHA `f9316f3d827df9f8c5500297a190a7cb063f58ad`, con tests, APK firmado y artefacto no expirado. No se ha ejecutado benchmark en el Xiaomi.
 - TIMER estimado: 30–60 minutos de agente; no representa tiempo de rendimiento medido.
 
