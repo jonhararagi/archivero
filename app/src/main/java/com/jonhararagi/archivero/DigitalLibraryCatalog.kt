@@ -5,6 +5,7 @@ import java.io.IOException
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.text.Normalizer
 import java.util.Locale
 import java.util.PriorityQueue
 import java.util.Properties
@@ -23,8 +24,17 @@ internal fun nextLibraryResultLimit(currentLimit: Int): Int {
  * Splits a free-text query into whitespace-separated terms. Every term must occur somewhere in
  * the searchable metadata, but terms need not be adjacent or appear in the same metadata field.
  */
+/**
+ * Makes searches accent-insensitive while keeping Spanish ñ distinct from n.
+ * The text stays derived in memory; stored names, notes, and tags are not rewritten.
+ */
+internal fun normalizeLibrarySearchText(value: String): String {
+    val decomposed = Normalizer.normalize(value.lowercase(Locale.ROOT), Normalizer.Form.NFD)
+    return decomposed.replace(Regex("(?<!n)\\p{M}+|(?<=n)(?!\\u0303)\\p{M}+"), "")
+}
+
 internal fun librarySearchTerms(query: String): List<String> =
-    query.trim().lowercase(Locale.ROOT).split(Regex("\\s+")).filter { it.isNotBlank() }
+    normalizeLibrarySearchText(query.trim()).split(Regex("\\s+")).filter { it.isNotBlank() }
 
 /** The searchable text is already normalized to lowercase by callers. */
 internal fun librarySearchMatches(searchableText: String, terms: List<String>): Boolean =
@@ -47,9 +57,9 @@ internal fun filterLibraryRecords(
 ): List<LibraryRecord> {
     require(limit in 1..MAX_LIBRARY_RESULT_LIMIT) { "El límite de resultados no es válido." }
     val queryTerms = librarySearchTerms(query)
-    val categoryNeedle = category.trim().lowercase(Locale.ROOT)
-    val kindNeedle = resourceKind.trim().lowercase(Locale.ROOT)
-    val projectNeedle = project.trim().lowercase(Locale.ROOT)
+    val categoryNeedle = normalizeLibrarySearchText(category.trim())
+    val kindNeedle = normalizeLibrarySearchText(resourceKind.trim())
+    val projectNeedle = normalizeLibrarySearchText(project.trim())
     val order = when (sortMode) {
         "Recientes" -> compareByDescending<LibraryRecord> { it.uri in favorites }
             .thenByDescending { it.updatedAtMillis }
@@ -69,9 +79,9 @@ internal fun filterLibraryRecords(
     val best = PriorityQueue<LibraryRecord>(limit, order.reversed())
     records.forEach { record ->
         val matches = librarySearchMatches(record.normalizedSearchText, queryTerms) &&
-            (categoryNeedle.isEmpty() || record.category.lowercase(Locale.ROOT).contains(categoryNeedle)) &&
-            (kindNeedle.isEmpty() || record.resourceKind.lowercase(Locale.ROOT).contains(kindNeedle)) &&
-            (projectNeedle.isEmpty() || record.project.trim().lowercase(Locale.ROOT) == projectNeedle) &&
+            (categoryNeedle.isEmpty() || normalizeLibrarySearchText(record.category).contains(categoryNeedle)) &&
+            (kindNeedle.isEmpty() || normalizeLibrarySearchText(record.resourceKind).contains(kindNeedle)) &&
+            (projectNeedle.isEmpty() || normalizeLibrarySearchText(record.project.trim()) == projectNeedle) &&
             (!onlyFavorites || record.uri in favorites)
         if (!matches) return@forEach
 
@@ -112,7 +122,7 @@ internal data class LibraryRecord(
         sequenceOf(
             displayName, category, project, resourceKind, tags.joinToString(" "),
             notes, source, relatedUris.joinToString(" ")
-        ).joinToString(" ").lowercase(Locale.ROOT)
+        ).joinToString(" ").let(::normalizeLibrarySearchText)
     }
 }
 
@@ -175,13 +185,13 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
     ): List<LibraryRecord> {
         require(limit in 1..MAX_RESULT_LIMIT) { "El límite de resultados no es válido." }
         val queryTerms = librarySearchTerms(query)
-        val categoryNeedle = category?.trim()?.takeIf { it.isNotEmpty() }?.lowercase(Locale.ROOT)
-        val tagNeedles = normalizeTags(requiredTags.toList()).map { it.lowercase(Locale.ROOT) }.toSet()
+        val categoryNeedle = category?.trim()?.takeIf { it.isNotEmpty() }?.let(::normalizeLibrarySearchText)
+        val tagNeedles = normalizeTags(requiredTags.toList()).map(::normalizeLibrarySearchText).toSet()
         return records.values.asSequence()
             .filter { item ->
                 librarySearchMatches(searchableText(item), queryTerms) &&
-                    (categoryNeedle == null || item.category.equals(categoryNeedle, ignoreCase = true)) &&
-                    tagNeedles.all { wanted -> item.tags.any { it.equals(wanted, ignoreCase = true) } }
+                    (categoryNeedle == null || normalizeLibrarySearchText(item.category) == categoryNeedle) &&
+                    tagNeedles.all { wanted -> item.tags.any { normalizeLibrarySearchText(it) == wanted } }
             }
             .sortedWith(
                 compareByDescending<LibraryRecord> { it.uri in favorites }
