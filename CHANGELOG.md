@@ -1,3 +1,12 @@
+## Búsqueda de varias palabras por metadatos · 2026-10-22
+
+- La búsqueda de la Biblioteca ahora interpreta las palabras separadas por espacios como términos que deben coincidir todos, aunque aparezcan en campos distintos: nombre, categoría, etiquetas, proyecto, tipo, notas, procedencia o relaciones.
+- Se conserva el filtrado combinado, el orden de resultados y el límite acotado. No se indexa ni se lee el contenido binario de los archivos: la búsqueda sigue trabajando exclusivamente sobre metadatos ya catalogados.
+- Se añadieron pruebas para términos que aparecen en campos diferentes y para una consulta en la que falta uno de los términos.
+- CI para este cambio: pendiente de ejecución/verificación.
+
+---
+
 ## Agrupación visual más estricta y liberación segura de bitmaps · 2026-10-21
 
 - El agrupador de similitud ya no trata cualquier cadena de coincidencias como un solo grupo: ahora cada pareja dentro de un grupo debe cumplir el umbral de distancia perceptual. Se ordenan previamente las huellas/URI para obtener una partición reproducible con la misma entrada, aunque llegue en otro orden.

@@ -35,6 +35,9 @@ class DigitalLibraryCatalogTest {
             assertEquals("Referencia - cabello azul", restored.get("content://demo/anime/42")?.displayName)
             assertEquals(listOf("Anime", "cabello azul"), restored.get("content://demo/anime/42")?.tags)
             assertEquals(1, restored.search(query = "PERSONAJE").size)
+            // Terms can be found across different metadata fields without being adjacent.
+            assertEquals(1, restored.search(query = "cabello PRINCIPAL").size)
+            assertTrue(restored.search(query = "cabello inexistente").isEmpty())
             assertEquals(1, restored.search(query = "example.invalid").size)
             assertEquals(1, restored.search(category = "imagen", requiredTags = setOf("anime", "cabello azul")).size)
             assertTrue(restored.search(requiredTags = setOf("anime", "paisaje")).isEmpty())
@@ -455,6 +458,9 @@ class DigitalLibraryCatalogTest {
             )
         )
         assertEquals(listOf("Mika", "Zorro"), filterLibraryRecords(records, category = "imagen").map { it.displayName })
+        // Multi-term queries use AND semantics across name, tags, project and other metadata.
+        assertEquals(listOf("Zorro"), filterLibraryRecords(records, query = "zorro azul").map { it.displayName })
+        assertTrue(filterLibraryRecords(records, query = "zorro inexistente").isEmpty())
         assertEquals(listOf("Zorro"), filterLibraryRecords(records, query = "ANIME", category = "Imagen", resourceKind = "original").map { it.displayName })
         assertEquals(listOf("Akari", "Mika", "Zorro"), filterLibraryRecords(records, sortMode = "Recientes").map { it.displayName })
         assertEquals(listOf("Akari", "Zorro", "Mika"), filterLibraryRecords(records, sortMode = "Proyecto").map { it.displayName })

@@ -12,6 +12,17 @@ import java.util.Properties
 internal const val MAX_LIBRARY_SNAPSHOT_BYTES: Long = 64L * 1024L * 1024L
 
 /**
+ * Splits a free-text query into whitespace-separated terms. Every term must occur somewhere in
+ * the searchable metadata, but terms need not be adjacent or appear in the same metadata field.
+ */
+internal fun librarySearchTerms(query: String): List<String> =
+    query.trim().lowercase(Locale.ROOT).split(Regex("\\s+")).filter { it.isNotBlank() }
+
+/** The searchable text is already normalized to lowercase by callers. */
+internal fun librarySearchMatches(searchableText: String, terms: List<String>): Boolean =
+    terms.all { term -> searchableText.contains(term) }
+
+/**
  * Combined, stable UI filtering for the virtualized library. A small result cap prevents the
  * presentation layer from materializing every match just to show the first screen.
  */
@@ -27,7 +38,7 @@ internal fun filterLibraryRecords(
     project: String = ""
 ): List<LibraryRecord> {
     require(limit in 1..10_000) { "El límite de resultados no es válido." }
-    val queryNeedle = query.trim().lowercase(Locale.ROOT)
+    val queryTerms = librarySearchTerms(query)
     val categoryNeedle = category.trim().lowercase(Locale.ROOT)
     val kindNeedle = resourceKind.trim().lowercase(Locale.ROOT)
     val projectNeedle = project.trim().lowercase(Locale.ROOT)
@@ -54,7 +65,7 @@ internal fun filterLibraryRecords(
             record.tags.joinToString(" "), record.notes, record.source,
             record.relatedUris.joinToString(" ")
         ).joinToString(" ").lowercase(Locale.ROOT)
-        val matches = (queryNeedle.isEmpty() || searchable.contains(queryNeedle)) &&
+        val matches = librarySearchMatches(searchable, queryTerms) &&
             (categoryNeedle.isEmpty() || record.category.lowercase(Locale.ROOT).contains(categoryNeedle)) &&
             (kindNeedle.isEmpty() || record.resourceKind.lowercase(Locale.ROOT).contains(kindNeedle)) &&
             (projectNeedle.isEmpty() || record.project.trim().lowercase(Locale.ROOT) == projectNeedle) &&
@@ -149,12 +160,12 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
         limit: Int = DEFAULT_RESULT_LIMIT
     ): List<LibraryRecord> {
         require(limit in 1..MAX_RESULT_LIMIT) { "El límite de resultados no es válido." }
-        val needle = query.trim().lowercase(Locale.ROOT)
+        val queryTerms = librarySearchTerms(query)
         val categoryNeedle = category?.trim()?.takeIf { it.isNotEmpty() }?.lowercase(Locale.ROOT)
         val tagNeedles = normalizeTags(requiredTags.toList()).map { it.lowercase(Locale.ROOT) }.toSet()
         return records.values.asSequence()
             .filter { item ->
-                (needle.isEmpty() || searchableText(item).contains(needle)) &&
+                librarySearchMatches(searchableText(item), queryTerms) &&
                     (categoryNeedle == null || item.category.equals(categoryNeedle, ignoreCase = true)) &&
                     tagNeedles.all { wanted -> item.tags.any { it.equals(wanted, ignoreCase = true) } }
             }

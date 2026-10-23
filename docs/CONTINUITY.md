@@ -1,3 +1,15 @@
+## Continuidad · búsqueda de varias palabras por metadatos · 2026-10-22
+
+- Rama autorizada: `feature/archivero-digital-library-001`; commit base inspeccionado: `6465fe4d3ac1d1dd34452f0d32b927609f5ac0d4`. PR #3 sigue como borrador abierto; no modificar `main`, no fusionar ni crear ramas duplicadas.
+- Se cambia la búsqueda libre de frase contigua a términos AND separados por espacios. Todos los términos deben aparecer en el texto de metadatos buscable, aunque estén repartidos entre nombre, etiquetas, notas, procedencia, tipo o proyecto. Los filtros de categoría, tipo, proyecto, favoritos, orden y límite no cambian.
+- Se reutiliza una pequeña función pura para compartir la regla entre el filtrado de la pantalla y el catálogo; no se agrega ninguna dependencia ni indexación costosa.
+- Pruebas nuevas en `DigitalLibraryCatalogTest`: coincidencia de términos entre campos y resultado vacío si falta un término; el conjunto de filtros visuales también tiene cobertura.
+- **CI anterior verificado:** [run 39877392399](https://github.com/jonhararagi/archivero/actions/runs/39877392399), SHA `6465fe4d3ac1d1dd34452f0d32b927609f5ac0d4`, PASS en pruebas unitarias, ensamblado del APK debug, verificación de firma/hash y subida. El CI del nuevo commit queda pendiente hasta consultar Actions.
+- La mejora no busca dentro del contenido real de PDF/documentos ni reemplaza un motor de indexación por contenido; solo busca metadatos catalogados.
+- TIMER estimado para este lote: 30–60 minutos de agente; no es una medición de rendimiento en el dispositivo.
+
+---
+
 ## Continuidad · evitar cadenas engañosas en similitud visual · 2026-10-21
 
 - Rama autorizada: `feature/archivero-digital-library-001`; cabeza base `69993f34cdd979344db3e39aefa94681432aa200`. No modificar `main`, no crear ramas duplicadas ni fusionar PR #3.
