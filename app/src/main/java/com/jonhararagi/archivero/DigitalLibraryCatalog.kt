@@ -21,10 +21,6 @@ internal fun nextLibraryResultLimit(currentLimit: Int): Int {
 }
 
 /**
- * Splits a free-text query into whitespace-separated terms. Every term must occur somewhere in
- * the searchable metadata, but terms need not be adjacent or appear in the same metadata field.
- */
-/**
  * Makes searches accent-insensitive while keeping Spanish ñ distinct from n.
  * The text stays derived in memory; stored names, notes, and tags are not rewritten.
  */
@@ -33,10 +29,14 @@ internal fun normalizeLibrarySearchText(value: String): String {
     return decomposed.replace(Regex("(?<!n)\\p{M}+|(?<=n)(?!\\u0303)\\p{M}+"), "")
 }
 
+/**
+ * Splits a free-text query into whitespace-separated terms. Every term must occur somewhere in
+ * the searchable metadata, but terms need not be adjacent or appear in the same metadata field.
+ */
 internal fun librarySearchTerms(query: String): List<String> =
     normalizeLibrarySearchText(query.trim()).split(Regex("\\s+")).filter { it.isNotBlank() }
 
-/** The searchable text is already normalized to lowercase by callers. */
+/** The searchable text is normalized to lowercase and search-accent form by callers. */
 internal fun librarySearchMatches(searchableText: String, terms: List<String>): Boolean =
     terms.all { term -> searchableText.contains(term) }
 
