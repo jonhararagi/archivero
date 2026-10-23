@@ -1,3 +1,14 @@
+## Continuidad · búsqueda tolerante a tildes · 2026-10-23
+
+- Rama autorizada: `feature/archivero-digital-library-001`; el PR #3 continúa abierto en borrador. No tocar `main` ni fusionar.
+- Añadida `normalizeLibrarySearchText`: normaliza para buscar sin tildes y conserva la `ñ` como letra distinta de `n`.
+- La regla se reutiliza en las consultas de metadatos y en los filtros visuales por categoría, tipo, proyecto y etiquetas. No modifica el texto almacenado, no cambia el esquema y no añade dependencias.
+- Prueba: consulta `cancion personaje` contra distintos campos, filtros `musica/edicion/coleccion`, etiqueta con tilde, distinción `nino` vs. `niño` y comprobación de que el registro original conserva sus tildes.
+- **CI todavía pendiente** para este lote. No declarar validada la compilación ni la prueba hasta revisar el run de GitHub Actions del SHA actual.
+- TIMER estimado del lote: 30–60 minutos de agente; no representa una medición de rendimiento en dispositivo.
+
+---
+
 ## Continuidad · reutilización del texto buscable · 2026-10-22
 
 - Rama autorizada: `feature/archivero-digital-library-001`; base inspeccionada: `f9316f3d827df9f8c5500297a190a7cb063f58ad`. No tocar `main` ni fusionar PR #3.
