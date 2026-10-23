@@ -127,6 +127,17 @@ private data class FilteredFileLists(
     val similar: List<SimilarImageGroup>,
     val cleanup: List<DocumentFile>
 )
+private data class LibrarySearchSignature(
+    val query: String,
+    val recordsIdentity: Int,
+    val recordCount: Int,
+    val category: String,
+    val resourceKind: String,
+    val project: String,
+    val sortMode: String,
+    val favoriteUris: Set<String>,
+    val favoritesOnly: Boolean
+)
 private data class ScanResult(
     val files: List<DocumentFile>,
     val visited: Int,
@@ -191,6 +202,8 @@ fun ArchiveroApp() {
     var libraryTrashDialog by remember { mutableStateOf(false) }
     var visibleLibraryRecords by remember { mutableStateOf<List<LibraryRecord>>(emptyList()) }
     var libraryMatchesTruncated by remember { mutableStateOf(false) }
+    var libraryResultLimit by rememberSaveable { mutableIntStateOf(LIBRARY_RESULTS_PAGE_SIZE) }
+    var previousLibrarySearchSignature by remember { mutableStateOf<LibrarySearchSignature?>(null) }
     var librarySearching by remember { mutableStateOf(false) }
     var libraryGridView by rememberSaveable { mutableStateOf(true) }
     var libraryCategoryFilter by rememberSaveable { mutableStateOf("") }
@@ -317,9 +330,30 @@ fun ArchiveroApp() {
     var selectedKind by rememberSaveable { mutableStateOf(Kind.IMAGES.name) }
     var choosingKind by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
-    LaunchedEffect(query, libraryRecords, libraryCategoryFilter, libraryResourceKindFilter, libraryProjectFilter, librarySortMode, libraryFavoriteUris, libraryFavoritesOnly) {
+    LaunchedEffect(query, libraryRecords, libraryCategoryFilter, libraryResourceKindFilter, libraryProjectFilter, librarySortMode, libraryFavoriteUris, libraryFavoritesOnly, libraryResultLimit) {
         librarySearching = true
         delay(150)
+        val signature = LibrarySearchSignature(
+            query = query,
+            recordsIdentity = System.identityHashCode(libraryRecords),
+            recordCount = libraryRecords.size,
+            category = libraryCategoryFilter,
+            resourceKind = libraryResourceKindFilter,
+            project = libraryProjectFilter,
+            sortMode = librarySortMode,
+            favoriteUris = libraryFavoriteUris,
+            favoritesOnly = libraryFavoritesOnly
+        )
+        val filterChanged = signature != previousLibrarySearchSignature
+        previousLibrarySearchSignature = signature
+        if (filterChanged && libraryResultLimit != LIBRARY_RESULTS_PAGE_SIZE) {
+            // New filters/catalog should begin at the first page, not keep a stale later offset.
+            libraryResultLimit = LIBRARY_RESULTS_PAGE_SIZE
+            librarySearching = false
+            return@LaunchedEffect
+        }
+        val resultLimit = if (filterChanged) LIBRARY_RESULTS_PAGE_SIZE else libraryResultLimit
+        val requestedLimit = minOf(resultLimit + 1, MAX_LIBRARY_RESULT_LIMIT)
         val matches = withContext(Dispatchers.Default) {
             filterLibraryRecords(
                 records = libraryRecords,
@@ -330,11 +364,11 @@ fun ArchiveroApp() {
                 project = libraryProjectFilter,
                 favorites = libraryFavoriteUris,
                 onlyFavorites = libraryFavoritesOnly,
-                limit = 501
+                limit = requestedLimit
             )
         }
-        visibleLibraryRecords = matches.take(500)
-        libraryMatchesTruncated = matches.size > 500
+        visibleLibraryRecords = matches.take(resultLimit)
+        libraryMatchesTruncated = matches.size > resultLimit
         librarySearching = false
     }
 
@@ -2120,7 +2154,7 @@ fun ArchiveroApp() {
                                 )
                             }
                             Text(
-                                "${if (libraryMatchesTruncated) "500+" else visibleLibraryRecords.size.toString()} ficha(s) visibles · almacenamiento local",
+                                "${if (libraryMatchesTruncated) visibleLibraryRecords.size.toString() + "+" else visibleLibraryRecords.size.toString()} ficha(s) visibles · almacenamiento local",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(vertical = 6.dp)
@@ -2276,9 +2310,25 @@ fun ArchiveroApp() {
                                         }
                                     }
                                 }
-                                if (visibleLibraryRecords.size == 500 && libraryRecords.size > 500) {
+                                if (libraryMatchesTruncated && libraryResultLimit < MAX_LIBRARY_RESULT_LIMIT) {
                                     Text(
-                                        "La vista está limitada a 500 fichas para mantener fluida la pantalla. Usa la búsqueda para acotar resultados.",
+                                        "Se muestran ${visibleLibraryRecords.size} fichas. Carga la siguiente página para continuar sin dibujar toda la biblioteca a la vez.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(vertical = 4.dp)
+                                    )
+                                    OutlinedButton(
+                                        onClick = { libraryResultLimit = nextLibraryResultLimit(libraryResultLimit) },
+                                        enabled = !librarySearching,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("Cargar ${minOf(LIBRARY_RESULTS_PAGE_SIZE, MAX_LIBRARY_RESULT_LIMIT - libraryResultLimit)} fichas más")
+                                    }
+                                } else if (libraryResultLimit == MAX_LIBRARY_RESULT_LIMIT &&
+                                    visibleLibraryRecords.size == MAX_LIBRARY_RESULT_LIMIT
+                                ) {
+                                    Text(
+                                        "Se alcanzó el límite de 10.000 fichas para esta vista. Añade filtros o una búsqueda para acotar los resultados.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.padding(vertical = 4.dp)

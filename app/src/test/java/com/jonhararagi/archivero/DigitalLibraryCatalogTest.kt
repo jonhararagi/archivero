@@ -498,6 +498,20 @@ class DigitalLibraryCatalogTest {
     }
 
     @Test
+    fun libraryResultPagingAdvancesInFixedStepsAndStopsAtCap() {
+        assertEquals(1_000, nextLibraryResultLimit(500))
+        assertEquals(9_500, nextLibraryResultLimit(9_000))
+        assertEquals(MAX_LIBRARY_RESULT_LIMIT, nextLibraryResultLimit(9_500))
+        assertEquals(MAX_LIBRARY_RESULT_LIMIT, nextLibraryResultLimit(MAX_LIBRARY_RESULT_LIMIT))
+        try {
+            nextLibraryResultLimit(0)
+            throw AssertionError("El límite cero debía rechazarse.")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+    }
+
+    @Test
     fun boundedFilteringReturnsTheSameFirstPageAsFullOrdering() {
         val records = (0 until 5_000).reversed().map { index ->
             LibraryRecord(

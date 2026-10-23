@@ -1,3 +1,12 @@
+## Paginación progresiva de resultados de Biblioteca · 2026-10-22
+
+- Se reemplaza el corte fijo de 500 fichas por páginas progresivas de hasta 500 resultados adicionales. Los filtros nuevos y los cambios de catálogo reinician la vista a la primera página.
+- La pantalla mantiene los componentes perezosos de cuadrícula/lista, muestra cuántas fichas están cargadas y permite continuar hasta el máximo seguro de vista de 10.000; al alcanzar ese techo pide reducir con filtros.
+- Se añadió una función pura para avanzar páginas con tope y una prueba de límites, además de conservar el filtro previo de resultados acotados.
+- CI para este lote: pendiente de ejecución/verificación.
+
+---
+
 ## Búsqueda de varias palabras por metadatos · 2026-10-22
 
 - La búsqueda de la Biblioteca ahora interpreta las palabras separadas por espacios como términos que deben coincidir todos, aunque aparezcan en campos distintos: nombre, categoría, etiquetas, proyecto, tipo, notas, procedencia o relaciones.

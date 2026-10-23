@@ -10,6 +10,14 @@ import java.util.PriorityQueue
 import java.util.Properties
 
 internal const val MAX_LIBRARY_SNAPSHOT_BYTES: Long = 64L * 1024L * 1024L
+internal const val LIBRARY_RESULTS_PAGE_SIZE: Int = 500
+internal const val MAX_LIBRARY_RESULT_LIMIT: Int = 10_000
+
+/** Moves the visible result window forward without ever exceeding the supported result cap. */
+internal fun nextLibraryResultLimit(currentLimit: Int): Int {
+    require(currentLimit in 1..MAX_LIBRARY_RESULT_LIMIT) { "El límite de resultados actual no es válido." }
+    return minOf(currentLimit + LIBRARY_RESULTS_PAGE_SIZE, MAX_LIBRARY_RESULT_LIMIT)
+}
 
 /**
  * Splits a free-text query into whitespace-separated terms. Every term must occur somewhere in
@@ -37,7 +45,7 @@ internal fun filterLibraryRecords(
     limit: Int = 500,
     project: String = ""
 ): List<LibraryRecord> {
-    require(limit in 1..10_000) { "El límite de resultados no es válido." }
+    require(limit in 1..MAX_LIBRARY_RESULT_LIMIT) { "El límite de resultados no es válido." }
     val queryTerms = librarySearchTerms(query)
     val categoryNeedle = category.trim().lowercase(Locale.ROOT)
     val kindNeedle = resourceKind.trim().lowercase(Locale.ROOT)

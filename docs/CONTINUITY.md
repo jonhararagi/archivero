@@ -1,3 +1,15 @@
+## Continuidad · paginación progresiva en Biblioteca · 2026-10-22
+
+- Rama autorizada: `feature/archivero-digital-library-001`; base inspeccionada: `e098d1efa454782cae85aa6e3fd74cf31569d5e0`. PR #3 permanece abierto en borrador y sin fusionar en `main`.
+- Se sustituye el corte rígido de 500 resultados por carga progresiva en páginas de hasta 500. Cada cambio en consulta, filtros, favoritos o catálogo vuelve a la primera página para impedir que una página posterior se conserve sobre un conjunto nuevo.
+- La lista/grid sigue siendo perezosa. La vista puede crecer hasta 10.000 fichas; alcanzado ese tope, se muestra una instrucción de reducir la búsqueda en vez de prometer paginación ilimitada.
+- Se añade `nextLibraryResultLimit` y test de avance, saturación en el máximo e invalidación del límite cero.
+- **Último cambio funcional ya validado antes de este lote:** [run 39881521173](https://github.com/jonhararagi/archivero/actions/runs/39881521173), SHA `f30edbe3847c7fd2b8f8222c59983b18e267d0ad`, PASS en tests, compilación, firma/hash y artefacto.
+- CI de la paginación queda pendiente hasta comprobar Actions; no se declara prueba en Xiaomi ni benchmark de una biblioteca real.
+- TIMER estimado: 30–60 minutos de agente, no tiempo medido en dispositivo.
+
+---
+
 ## Continuidad · búsqueda de varias palabras por metadatos · 2026-10-22
 
 - Rama autorizada: `feature/archivero-digital-library-001`; commit base inspeccionado: `6465fe4d3ac1d1dd34452f0d32b927609f5ac0d4`. PR #3 sigue como borrador abierto; no modificar `main`, no fusionar ni crear ramas duplicadas.
