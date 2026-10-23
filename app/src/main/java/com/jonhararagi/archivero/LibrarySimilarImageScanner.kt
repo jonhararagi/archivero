@@ -55,6 +55,17 @@ internal fun LibrarySimilarImageScanner(
     var similarGroups by remember { mutableStateOf<List<SimilarImageGroup>>(emptyList()) }
     var scanJob by remember { mutableStateOf<Job?>(null) }
 
+    // A changed filter/catalog invalidates results and cancels the scan against the old snapshot.
+    // The scan is read-only, but this prevents stale groups being presented as current results.
+    androidx.compose.runtime.LaunchedEffect(records) {
+        if (scanJob?.isActive == true) scanJob?.cancel()
+        similarGroups = emptyList()
+        if (scanning) {
+            scanning = false
+            progressText = "La biblioteca cambió. Vuelve a iniciar el análisis para usar los resultados actuales."
+        }
+    }
+
     fun startOrCancelScan() {
         if (scanning) {
             scanJob?.cancel()
