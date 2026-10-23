@@ -1,9 +1,19 @@
+## Texto buscable normalizado reutilizable · 2026-10-22
+
+- Cada ficha inmutable calcula una sola vez su representación de texto en minúsculas para búsquedas posteriores. Los filtros y la búsqueda del catálogo reutilizan ese texto en vez de concatenar y normalizar otra vez todos los campos en cada consulta.
+- El texto derivado permanece solo en memoria y no altera el esquema ni la exportación. Una ficha editada mediante `copy` obtiene una nueva caché acorde con sus nuevos metadatos.
+- Se añade una prueba de reutilización y otra comprobación de que una copia editada no contamina la ficha anterior.
+- No se declara un porcentaje de mejora: aún no hay benchmark representativo en un dispositivo.
+- CI para este lote: pendiente de ejecución/verificación.
+
+---
+
 ## Paginación progresiva de resultados de Biblioteca · 2026-10-22
 
 - Se reemplaza el corte fijo de 500 fichas por páginas progresivas de hasta 500 resultados adicionales. Los filtros nuevos y los cambios de catálogo reinician la vista a la primera página.
 - La pantalla mantiene los componentes perezosos de cuadrícula/lista, muestra cuántas fichas están cargadas y permite continuar hasta el máximo seguro de vista de 10.000; al alcanzar ese techo pide reducir con filtros.
 - Se añadió una función pura para avanzar páginas con tope y una prueba de límites, además de conservar el filtro previo de resultados acotados.
-- CI para este lote: pendiente de ejecución/verificación.
+- **CI PASS:** [run 39882184901](https://github.com/jonhararagi/archivero/actions/runs/39882184901), SHA `f9316f3d827df9f8c5500297a190a7cb063f58ad`. Pasaron pruebas unitarias, `assembleDebug`, verificación de firma/hash y subida. Artefacto `archivero-debug-apk`, ID `12471520229`, ZIP de 20.665.482 bytes, `expired=false`, digest SHA-256 `3b71728d7166d5722c2162b5b8dc2e0917ab43d766e3088d0be0864082365b41`.
 
 ---
 

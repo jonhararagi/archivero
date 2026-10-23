@@ -68,12 +68,7 @@ internal fun filterLibraryRecords(
     // every matching record when the catalog is large and the screen needs only its first page.
     val best = PriorityQueue<LibraryRecord>(limit, order.reversed())
     records.forEach { record ->
-        val searchable = sequenceOf(
-            record.displayName, record.category, record.project, record.resourceKind,
-            record.tags.joinToString(" "), record.notes, record.source,
-            record.relatedUris.joinToString(" ")
-        ).joinToString(" ").lowercase(Locale.ROOT)
-        val matches = librarySearchMatches(searchable, queryTerms) &&
+        val matches = librarySearchMatches(record.normalizedSearchText, queryTerms) &&
             (categoryNeedle.isEmpty() || record.category.lowercase(Locale.ROOT).contains(categoryNeedle)) &&
             (kindNeedle.isEmpty() || record.resourceKind.lowercase(Locale.ROOT).contains(kindNeedle)) &&
             (projectNeedle.isEmpty() || record.project.trim().lowercase(Locale.ROOT) == projectNeedle) &&
@@ -108,7 +103,18 @@ internal data class LibraryRecord(
     val project: String = "",
     val resourceKind: String = "Sin clasificar",
     val relatedUris: List<String> = emptyList()
-)
+) {
+    /**
+     * A record is treated as an immutable value. The normalized search document is cached only in
+     * memory, not persisted; creating a modified copy automatically gets a fresh cache.
+     */
+    internal val normalizedSearchText: String by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        sequenceOf(
+            displayName, category, project, resourceKind, tags.joinToString(" "),
+            notes, source, relatedUris.joinToString(" ")
+        ).joinToString(" ").lowercase(Locale.ROOT)
+    }
+}
 
 /** Metadata kept in the recoverable library trash; the referenced physical file is never moved. */
 internal data class TrashedLibraryRecord(
@@ -401,16 +407,7 @@ internal class DigitalLibraryCatalog(private val storageFile: File) {
         return importedUris.size
     }
 
-    private fun searchableText(item: LibraryRecord): String = sequenceOf(
-        item.displayName,
-        item.category,
-        item.project,
-        item.resourceKind,
-        item.notes,
-        item.source,
-        item.tags.joinToString(" "),
-        item.relatedUris.joinToString(" ")
-    ).joinToString(" ").lowercase(Locale.ROOT)
+    private fun searchableText(item: LibraryRecord): String = item.normalizedSearchText
 
     companion object {
         private const val SCHEMA_VERSION = "3"

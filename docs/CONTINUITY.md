@@ -1,3 +1,14 @@
+## Continuidad · reutilización del texto buscable · 2026-10-22
+
+- Rama autorizada: `feature/archivero-digital-library-001`; base inspeccionada: `f9316f3d827df9f8c5500297a190a7cb063f58ad`. No tocar `main` ni fusionar PR #3.
+- `LibraryRecord` tiene ahora una representación normalizada de búsqueda calculada de forma diferida y conservada en memoria por instancia. El texto incluye los mismos campos ya buscables, sin incorporar contenido binario ni una dependencia de indexación.
+- El filtrado principal y `DigitalLibraryCatalog.search` reutilizan el texto. Las fichas son tratadas como valores inmutables; las ediciones crean copias nuevas, así que el texto derivado no se persiste ni debe quedar asociado a nuevos metadatos.
+- Prueba nueva: la lectura repetida reutiliza el texto y una ficha copiada con nombre/etiquetas distintos genera su propio texto. CI de este lote pendiente de comprobación.
+- Se registra como evidencia anterior la paginación validada por [run 39882184901](https://github.com/jonhararagi/archivero/actions/runs/39882184901), SHA `f9316f3d827df9f8c5500297a190a7cb063f58ad`, con tests, APK firmado y artefacto no expirado. No se ha ejecutado benchmark en el Xiaomi.
+- TIMER estimado: 30–60 minutos de agente; no representa tiempo de rendimiento medido.
+
+---
+
 ## Continuidad · paginación progresiva en Biblioteca · 2026-10-22
 
 - Rama autorizada: `feature/archivero-digital-library-001`; base inspeccionada: `e098d1efa454782cae85aa6e3fd74cf31569d5e0`. PR #3 permanece abierto en borrador y sin fusionar en `main`.
@@ -5,7 +16,8 @@
 - La lista/grid sigue siendo perezosa. La vista puede crecer hasta 10.000 fichas; alcanzado ese tope, se muestra una instrucción de reducir la búsqueda en vez de prometer paginación ilimitada.
 - Se añade `nextLibraryResultLimit` y test de avance, saturación en el máximo e invalidación del límite cero.
 - **Último cambio funcional ya validado antes de este lote:** [run 39881521173](https://github.com/jonhararagi/archivero/actions/runs/39881521173), SHA `f30edbe3847c7fd2b8f8222c59983b18e267d0ad`, PASS en tests, compilación, firma/hash y artefacto.
-- CI de la paginación queda pendiente hasta comprobar Actions; no se declara prueba en Xiaomi ni benchmark de una biblioteca real.
+- **CI PASS de paginación:** [run 39882184901](https://github.com/jonhararagi/archivero/actions/runs/39882184901), SHA `f9316f3d827df9f8c5500297a190a7cb063f58ad`. Tests, compilación Android, firma/hash y subida completaron correctamente. Artefacto `archivero-debug-apk`, ID `12471520229`, ZIP 20.665.482 bytes, `expired=false`, digest SHA-256 `3b71728d7166d5722c2162b5b8dc2e0917ab43d766e3088d0be0864082365b41`.
+- No se declara prueba en Xiaomi ni benchmark de una biblioteca real.
 - TIMER estimado: 30–60 minutos de agente, no tiempo medido en dispositivo.
 
 ---

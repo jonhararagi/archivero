@@ -47,6 +47,27 @@ class DigitalLibraryCatalogTest {
     }
 
     @Test
+    fun normalizedSearchTextIsReusedAndCopiesReflectUpdatedMetadata() {
+        val original = LibraryRecord(
+            uri = "content://search-cache/item",
+            displayName = "Referencia azul",
+            category = "Imagen",
+            tags = listOf("Anime"),
+            notes = "Cabello y ojos"
+        )
+        val firstRead = original.normalizedSearchText
+        assertTrue("The immutable record should reuse its cached search text.", firstRead === original.normalizedSearchText)
+        assertTrue(firstRead.contains("cabello"))
+
+        val edited = original.copy(displayName = "Referencia roja", tags = listOf("Manga"))
+        assertTrue(edited.normalizedSearchText.contains("referencia roja"))
+        assertTrue(edited.normalizedSearchText.contains("manga"))
+        assertFalse(edited.normalizedSearchText.contains("cabello") && edited.notes.isBlank())
+        assertTrue(original.normalizedSearchText.contains("referencia azul"))
+        assertTrue(original.normalizedSearchText.contains("anime"))
+    }
+
+    @Test
     fun bulkTaggingMergesCaseInsensitivelyAndPersists() {
         val directory = Files.createTempDirectory("archivero-library-bulk-tags").toFile()
         try {
