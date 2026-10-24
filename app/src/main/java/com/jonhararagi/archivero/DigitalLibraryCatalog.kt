@@ -194,19 +194,31 @@ internal class DigitalLibraryCatalog(
         val queryTerms = librarySearchTerms(query)
         val categoryNeedle = category?.trim()?.takeIf { it.isNotEmpty() }?.let(::normalizeLibrarySearchText)
         val tagNeedles = normalizeTags(requiredTags.toList()).map(::normalizeLibrarySearchText).toSet()
-        return records.values.asSequence()
-            .filter { item ->
-                librarySearchMatches(searchableText(item), queryTerms) &&
-                    (categoryNeedle == null || normalizeLibrarySearchText(item.category) == categoryNeedle) &&
-                    tagNeedles.all { wanted -> item.tags.any { normalizeLibrarySearchText(it) == wanted } }
+        val order = compareByDescending<LibraryRecord> { it.uri in favorites }
+            .thenBy { it.displayName.lowercase(Locale.ROOT) }
+            .thenBy { it.uri }
+
+        // Keep only the best N matches instead of sorting and materializing every match.
+        // The scan remains O(catalog size), while selection uses O(limit) memory and O(log limit)
+        // heap work per matching record.
+        val best = PriorityQueue<LibraryRecord>(limit, order.reversed())
+        records.values.forEach { item ->
+            val matches = librarySearchMatches(searchableText(item), queryTerms) &&
+                (categoryNeedle == null || normalizeLibrarySearchText(item.category) == categoryNeedle) &&
+                tagNeedles.all { wanted -> item.tags.any { normalizeLibrarySearchText(it) == wanted } }
+            if (!matches) return@forEach
+
+            if (best.size < limit) {
+                best.add(item)
+            } else {
+                val worst = best.peek()
+                if (worst != null && order.compare(item, worst) < 0) {
+                    best.poll()
+                    best.add(item)
+                }
             }
-            .sortedWith(
-                compareByDescending<LibraryRecord> { it.uri in favorites }
-                    .thenBy { it.displayName.lowercase(Locale.ROOT) }
-                    .thenBy { it.uri }
-            )
-            .take(limit)
-            .toList()
+        }
+        return best.toList().sortedWith(order)
     }
 
     /** Saves metadata only. Existing records for the same URI are intentionally updated. */

@@ -1,3 +1,13 @@
+## Selección acotada en la búsqueda del catálogo · 2026-10-24
+
+- La búsqueda interna del catálogo conserva solo los mejores N resultados en un heap acotado, en lugar de ordenar y materializar todas las coincidencias para después aplicar `take(limit)`.
+- Se mantienen los criterios de coincidencia, la normalización de tildes, los filtros por categoría y etiquetas, la prioridad de favoritos y el orden determinista por nombre y URI.
+- Prueba añadida con 180 fichas: compara la página acotada con un ordenamiento completo de referencia y valida filtros, favoritos, desempates y tamaño del resultado.
+- La búsqueda sigue inspeccionando los metadatos del catálogo; este cambio no supone indexación de contenido ni se presenta como un benchmark de dispositivo.
+- CI de este lote: pendiente de verificación.
+
+---
+
 ## Transacciones del catálogo frente a fallos de escritura · 2026-10-23
 
 - Se introduce un punto de inyección interno y opcional para simular un error del escritor de instantáneas en pruebas; el comportamiento normal sigue usando el guardado temporal con reemplazo atómico cuando el sistema lo admite.

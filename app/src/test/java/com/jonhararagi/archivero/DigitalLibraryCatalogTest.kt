@@ -47,6 +47,59 @@ class DigitalLibraryCatalogTest {
     }
 
     @Test
+    fun catalogSearchBoundedResultsMatchFullOrderingWithFavoritesAndFilters() {
+        val directory = Files.createTempDirectory("archivero-library-bounded-search").toFile()
+        try {
+            val file = File(directory, "catalog.properties")
+            val catalog = DigitalLibraryCatalog(file)
+            val records = (0 until 180).map { index ->
+                LibraryRecord(
+                    uri = "content://large/catalog-search/$index",
+                    displayName = "Ficha %03d".format(index),
+                    category = if (index % 2 == 0) "Imagen" else "Documento",
+                    tags = listOf(if (index % 3 == 0) "Anime" else "General"),
+                    notes = if (index % 5 == 0) "Referencia anime" else "Archivo",
+                    updatedAtMillis = index.toLong()
+                )
+            }
+            records.forEach { catalog.upsert(it) }
+
+            val favorites = records
+                .filter { it.uri.substringAfterLast("/").toInt() % 7 == 0 }
+                .mapTo(HashSet()) { it.uri }
+            val limit = 17
+            val order = compareByDescending<LibraryRecord> { it.uri in favorites }
+                .thenBy { it.displayName.lowercase(java.util.Locale.ROOT) }
+                .thenBy { it.uri }
+            val expected = records
+                .filter { item ->
+                    librarySearchMatches(item.normalizedSearchText, librarySearchTerms("ficha")) &&
+                        normalizeLibrarySearchText(item.category) == "imagen" &&
+                        item.tags.any { normalizeLibrarySearchText(it) == "anime" }
+                }
+                .sortedWith(order)
+                .take(limit)
+
+            val actual = catalog.search(
+                query = "ficha",
+                category = "imagen",
+                requiredTags = setOf("anime"),
+                favorites = favorites,
+                limit = limit
+            )
+
+            assertEquals(limit, actual.size)
+            assertEquals(expected, actual)
+            assertTrue(
+                "Favorites must retain their priority in the bounded window.",
+                actual.takeWhile { it.uri in favorites }.all { it.uri in favorites }
+            )
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun normalizedSearchTextIsReusedAndCopiesReflectUpdatedMetadata() {
         val original = LibraryRecord(
             uri = "content://search-cache/item",

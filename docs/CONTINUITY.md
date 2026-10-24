@@ -1,3 +1,14 @@
+## Continuidad · búsqueda acotada del catálogo · 2026-10-24
+
+- Base de trabajo: `main` en `c9da3c2339d26667d3862c8a7d03ae95281677e3`. Rama autorizada de este lote: `feature/archivero-bounded-catalog-search-001`; integrar en `main` solo tras CI PASS y PR aprobado.
+- `DigitalLibraryCatalog.search` ahora mantiene como máximo `limit` coincidencias en una cola de prioridad y ordena únicamente esa ventana. El recorrido de búsqueda sigue siendo lineal sobre los metadatos; la selección acotada reduce la memoria auxiliar y evita el ordenamiento completo.
+- Se preservan favoritos primero, después nombre en minúsculas y URI como desempate estable; filtros por texto, categoría y etiquetas no cambian.
+- Prueba añadida: 180 registros y comparación exacta entre la salida limitada y un ordenamiento completo de referencia, incluidos favoritos y filtros combinados.
+- No se incorporan dependencias, no se modifica el esquema ni se tocan archivos físicos.
+- CI pendiente para esta rama. Sin benchmark en el Xiaomi; no atribuir una mejora porcentual hasta medirla.
+
+---
+
 ## Continuidad · errores de escritura y rollback del catálogo · 2026-10-23
 
 - Rama autorizada: `feature/archivero-digital-library-001`; PR #3 sigue abierto en borrador. No modificar `main` ni fusionar.
