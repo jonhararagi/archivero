@@ -1,3 +1,12 @@
+## Pruebas instrumentadas de compatibilidad Android · 2026-10-24
+
+- Se añade `AndroidCompatibilitySmokeTest`: comprueba la persistencia/reapertura del catálogo local, la paginación acotada de una carpeta y la resolución MIME de APK/APKS ejecutándose dentro de Android.
+- GitHub Actions incorpora una matriz de emuladores API 26 (mínimo declarado) y API 35 (target actual), con `connectedDebugAndroidTest`, sin añadir dependencias de pruebas al APK de producción.
+- La matriz permite detectar incompatibilidades de plataforma en esas API; no demuestra compatibilidad con todas las capas de fabricantes ni sustituye la prueba física en el Xiaomi.
+- Estado de CI del lote: pendiente de ejecución en el PR.
+
+---
+
 ## Carga de Biblioteca sin ordenamiento duplicado · 2026-10-24
 
 - Se añade recordsSnapshot(), que devuelve una copia desligada de las fichas en orden de almacenamiento sin ordenar el catálogo completo.

@@ -1,3 +1,13 @@
+## Continuidad · smoke tests en distintas API de Android · 2026-10-24
+
+- Rama de validación: `test/archivero-android-api-compatibility-001`; base inspeccionada de `main`: `9ff54f1f81da57f6c5c6c5131b80b1e911514b94`.
+- Se agrega el runner de instrumentación y tres checks de dispositivo: escritura/reapertura del catálogo, paginación acotada local sin repetir URI y tipos MIME de APK/APKS.
+- La CI de PR prueba API 26 y API 35 con emuladores. Las dependencias AndroidX agregadas son solo `androidTestImplementation`, no dependencias de ejecución de la aplicación.
+- El resultado se considera pendiente hasta inspeccionar los jobs reales de GitHub Actions. Ninguna prueba física de fabricante está afirmada.
+- Esta rama no se integra en `main` directamente; la validación se presenta por PR.
+
+---
+
 ## Continuidad · instantánea para carga y refresco de Biblioteca · 2026-10-24
 
 - PR #5 integrado en main mediante 93e70d016abbe044dbf38a6cd39117c3b6bc40a0. La rama feature/archivero-library-snapshot-load-001 ya no contiene cambios pendientes de integración.
