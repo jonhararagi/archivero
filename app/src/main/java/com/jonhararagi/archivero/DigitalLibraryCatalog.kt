@@ -179,6 +179,13 @@ internal class DigitalLibraryCatalog(
     )
 
     /**
+     * Returns a detached snapshot in storage order, without sorting the full collection.
+     * Use it when the caller applies its own filtering/sorting; use all() for alphabetic order.
+     */
+    @Synchronized
+    fun recordsSnapshot(): List<LibraryRecord> = records.values.toList()
+
+    /**
      * Searches across visible name, category, tags, notes and provenance. Required tags use AND
      * semantics: every requested tag must be present. This method only reads in-memory metadata.
      */

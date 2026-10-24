@@ -265,7 +265,7 @@ fun ArchiveroApp() {
         } else {
             libraryCatalog = catalog
             val recordsResult = withContext(Dispatchers.IO) {
-                runCatching { catalog.all() to catalog.trashed() }
+                runCatching { catalog.recordsSnapshot() to catalog.trashed() }
             }
             recordsResult.fold(
                 { (records, trash) ->
@@ -596,7 +596,7 @@ fun ArchiveroApp() {
         val catalog = libraryCatalog ?: return
         scope.launch {
             val result = withContext(Dispatchers.IO) {
-                runCatching { catalog.all() to catalog.trashed() }
+                runCatching { catalog.recordsSnapshot() to catalog.trashed() }
             }
             result.fold(
                 { (records, trash) ->
