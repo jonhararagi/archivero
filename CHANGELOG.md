@@ -4,7 +4,7 @@
 - La carga inicial y el refresco de Biblioteca usan esta instantánea porque los filtros visuales ya aplican su propio orden. all() conserva el contrato de devolver una lista alfabética completa.
 - Prueba nueva: verifica el orden de ambas APIs antes y después de reabrir el catálogo.
 - No cambia el esquema ni los datos persistidos. El ahorro esperado es evitar una ordenación O(N log N) durante carga/refresco; aún no hay benchmark de dispositivo.
-- CI de este lote: pendiente.
+- **CI PASS del PR:** [run 40062210605](https://github.com/jonhararagi/archivero/actions/runs/40062210605), SHA c59b3403165ff1f3d13188968f346cfbc4d8dc76. Pasaron pruebas unitarias, compilación Android, verificación de firma/hash y subida. Artefacto archivero-debug-apk, ID 12548266062, digest SHA-256 db2c094473ea2c3264c49adf375db1d25e5a3ee1f549a5c5380a397bab855de4. Integrado en main mediante 93e70d016abbe044dbf38a6cd39117c3b6bc40a0.
 
 ---
 ## Selección acotada en la búsqueda del catálogo · 2026-10-24

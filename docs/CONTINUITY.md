@@ -1,10 +1,10 @@
 ## Continuidad · instantánea para carga y refresco de Biblioteca · 2026-10-24
 
-- Base de trabajo: main en e492a474e5d8de1786467c69324bc3c93562f209. Rama autorizada: feature/archivero-library-snapshot-load-001. PR e integración pendientes.
+- PR #5 integrado en main mediante 93e70d016abbe044dbf38a6cd39117c3b6bc40a0. La rama feature/archivero-library-snapshot-load-001 ya no contiene cambios pendientes de integración.
 - DigitalLibraryCatalog.recordsSnapshot() devuelve una copia desligada en orden de almacenamiento sin ordenar el catálogo. all() conserva el orden alfabético completo.
 - Las dos lecturas usadas al iniciar y refrescar la pantalla Biblioteca pasan a recordsSnapshot(); el orden final visible continúa a cargo de filterLibraryRecords().
 - Prueba nueva: comprueba el orden de almacenamiento y el orden alfabético antes y después de reabrir el índice.
-- Sin cambios de esquema, persistencia o archivos físicos. CI pendiente para este lote; sin benchmark en el Xiaomi.
+- Sin cambios de esquema, persistencia o archivos físicos. **CI PASS del PR:** run 40062210605, con pruebas, compilación, firma/hash y artefacto verificados antes de la fusión. Sin benchmark en el Xiaomi.
 
 ---
 
