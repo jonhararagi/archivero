@@ -1,3 +1,205 @@
+## Transacciones del catálogo frente a fallos de escritura · 2026-10-23
+
+- Se introduce un punto de inyección interno y opcional para simular un error del escritor de instantáneas en pruebas; el comportamiento normal sigue usando el guardado temporal con reemplazo atómico cuando el sistema lo admite.
+- Se añade una prueba que provoca fallos de escritura al editar una ficha y al moverla a papelera. Comprueba que el error se propaga, el estado en memoria no cambia y al reabrir se recupera la última instantánea válida del disco.
+- No se alteran el esquema, las URI ni los recursos físicos. La prueba es determinista y no depende de permisos de archivos del sistema de CI.
+- CI de este lote: pendiente de ejecución.
+
+---
+
+## Búsqueda tolerante a tildes en Biblioteca · 2026-10-23
+
+- La búsqueda por metadatos y los filtros de categoría, tipo, proyecto y etiquetas pueden encontrar términos aunque el usuario omita tildes, por ejemplo `cancion` para `Canción`.
+- Se conserva la diferencia entre `ñ` y `n`, evitando que una consulta como `nino` se confunda con `niño`.
+- El texto normalizado se deriva en memoria. Los nombres, etiquetas, notas y demás metadatos originales no se reescriben y el esquema del catálogo no cambia.
+- Prueba añadida para búsqueda entre varios campos, filtros, etiquetas, distinción de la `ñ` y persistencia del texto original.
+- **CI PASS de código y pruebas:** [run 39960718647](https://github.com/jonhararagi/archivero/actions/runs/39960718647), SHA `8cb4e45583c8566d59381eeeef7ee249d56e1b6b`. Pasaron `testDebugUnitTest`, `assembleDebug`, la verificación de firma/hash y la subida. Artefacto `archivero-debug-apk`, ID `12505060873`, 20.666.763 bytes, `expired=false`, digest SHA-256 `bc743fa0019dd6b7b1b313058fc8a97163d2cf211cf37dbb571293d138001bae`. El cambio posterior en la rama solo reajustó comentarios/documentación de este comportamiento.
+
+---
+
+## Texto buscable normalizado reutilizable · 2026-10-22
+
+- Cada ficha inmutable calcula una sola vez su representación de texto en minúsculas para búsquedas posteriores. Los filtros y la búsqueda del catálogo reutilizan ese texto en vez de concatenar y normalizar otra vez todos los campos en cada consulta.
+- El texto derivado permanece solo en memoria y no altera el esquema ni la exportación. Una ficha editada mediante `copy` obtiene una nueva caché acorde con sus nuevos metadatos.
+- Se añade una prueba de reutilización y se verifica que una copia con nombre, etiquetas y notas modificadas no hereda texto buscable antiguo ni contamina la ficha anterior.
+- No se declara un porcentaje de mejora: aún no hay benchmark representativo en un dispositivo.
+- **CI PASS:** [run 39882676213](https://github.com/jonhararagi/archivero/actions/runs/39882676213), SHA `364c0ec61f917815bd02c6394864f61be0182938`. Pasaron pruebas unitarias, `assembleDebug`, verificación de firma/hash y subida. Artefacto `archivero-debug-apk`, ID `12471765139`, ZIP de 20.666.158 bytes, `expired=false`, digest SHA-256 `37869f682f2f6eefafee904e815a69253ef098c6cd3dd316444ebb918e33f542`.
+
+---
+
+## Paginación progresiva de resultados de Biblioteca · 2026-10-22
+
+- Se reemplaza el corte fijo de 500 fichas por páginas progresivas de hasta 500 resultados adicionales. Los filtros nuevos y los cambios de catálogo reinician la vista a la primera página.
+- La pantalla mantiene los componentes perezosos de cuadrícula/lista, muestra cuántas fichas están cargadas y permite continuar hasta el máximo seguro de vista de 10.000; al alcanzar ese techo pide reducir con filtros.
+- Se añadió una función pura para avanzar páginas con tope y una prueba de límites, además de conservar el filtro previo de resultados acotados.
+- **CI PASS:** [run 39882184901](https://github.com/jonhararagi/archivero/actions/runs/39882184901), SHA `f9316f3d827df9f8c5500297a190a7cb063f58ad`. Pasaron pruebas unitarias, `assembleDebug`, verificación de firma/hash y subida. Artefacto `archivero-debug-apk`, ID `12471520229`, ZIP de 20.665.482 bytes, `expired=false`, digest SHA-256 `3b71728d7166d5722c2162b5b8dc2e0917ab43d766e3088d0be0864082365b41`.
+
+---
+
+## Búsqueda de varias palabras por metadatos · 2026-10-22
+
+- La búsqueda de la Biblioteca ahora interpreta las palabras separadas por espacios como términos que deben coincidir todos, aunque aparezcan en campos distintos: nombre, categoría, etiquetas, proyecto, tipo, notas, procedencia o relaciones.
+- Se conserva el filtrado combinado, el orden de resultados y el límite acotado. No se indexa ni se lee el contenido binario de los archivos: la búsqueda sigue trabajando exclusivamente sobre metadatos ya catalogados.
+- Se añadieron pruebas para términos que aparecen en campos diferentes y para una consulta en la que falta uno de los términos.
+- **CI PASS:** [run 39881521173](https://github.com/jonhararagi/archivero/actions/runs/39881521173), SHA `f30edbe3847c7fd2b8f8222c59983b18e267d0ad`. Pasaron pruebas unitarias, `assembleDebug`, verificación de firma/hash y subida. Artefacto `archivero-debug-apk`, ID `12470223376`, ZIP de 20.663.357 bytes, `expired=false`, digest SHA-256 `b8b75e8e7977a67e34de29e7759872db1c7a022b9560c1253133e2dd27435b6d`.
+
+---
+
+## Agrupación visual más estricta y liberación segura de bitmaps · 2026-10-21
+
+- El agrupador de similitud ya no trata cualquier cadena de coincidencias como un solo grupo: ahora cada pareja dentro de un grupo debe cumplir el umbral de distancia perceptual. Se ordenan previamente las huellas/URI para obtener una partición reproducible con la misma entrada, aunque llegue en otro orden.
+- Se añaden pruebas para el caso engañoso A↔B↔C donde A y C exceden el umbral, para determinismo y umbrales fuera de rango.
+- El análisis conserva la cancelación en vez de absorber una `CancellationException` como si fuera una imagen ilegible. La decodificación reduce el riesgo de retener bitmaps si el escalado o la lectura de píxeles fallan.
+- Referencias de diseño consultadas: [Hydrus Network](https://github.com/hydrusnetwork/hydrus) destaca organización por etiquetas, colecciones grandes y privacidad local; [digiKam](https://github.com/KDE/digikam) combina etiquetas, metadatos y búsqueda por múltiples criterios; [Tropy](https://github.com/tropy/tropy) se orienta a describir fotos de investigación para reencontrar fuentes. Archivero adopta principios compatibles, no su código ni dependencias pesadas.
+- **CI PASS:** [run 39656468147](https://github.com/jonhararagi/archivero/actions/runs/39656468147), SHA `e619ba846b5f2b75ef2f4273868589125745e6df`. Pasaron `testDebugUnitTest`, `assembleDebug`, la verificación de firma/hash y la subida del artefacto. `archivero-debug-apk`, ID `12372620604`, ZIP 20.662.905 bytes, no expirado; digest ZIP SHA-256 `4fd7b2a0c061102c3bfe84ce21c4ffe46d027f37db755863bcc19f88f045f397`.
+
+---
+
+## Búsqueda perceptual de imágenes dentro de Biblioteca · 2026-10-21
+
+- Se integra en Biblioteca el acceso «Buscar fotos parecidas en fichas visibles», reutilizando el detector perceptual local existente.
+- Analiza el conjunto filtrado actual, con límite de interfaz de 500 fichas visibles, trabajo fuera del hilo visual, cancelación y hasta 100 grupos/20 nombres por grupo.
+- La interfaz explica que la similitud visual no confirma duplicación exacta. La operación solo lee miniaturas y metadatos necesarios; no modifica fichas ni archivos físicos. El resumen identifica análisis parciales y recursos no legibles.
+- Se añadieron pruebas unitarias para resultados vacíos, grupos similares y estados parciales con recursos inaccesibles.
+- **CI PASS del código funcional:** [run 39647800495](https://github.com/jonhararagi/archivero/actions/runs/39647800495), SHA `81516cbed5ea1a473162f687c139db714841ddd2`. Completaron correctamente `testDebugUnitTest`, `assembleDebug`, verificación de firma/hash y subida.
+- **Artefacto verificado:** `archivero-debug-apk`, ID `12368157254`, ZIP de 20.662.550 bytes, `expired=false`.
+- No se ha probado en el Xiaomi físico; CI no sustituye la comprobación de permisos/proveedores Android reales.
+- TIMER estimado para este lote: 30–60 minutos de agente, no una medición del tiempo real.
+- La rama sigue siendo `feature/archivero-digital-library-001`; PR #3 permanece abierto en borrador y sin fusionar en `main`.
+
+---
+
+## Asignación de proyecto/colección por lotes · 2026-10-21
+
+- La Biblioteca incorpora una acción para asignar el mismo proyecto/colección a varias fichas visibles, con selección, vista previa de los valores anteriores y un único guardado del índice.
+- Se conservan etiquetas, notas, procedencia, tipo de recurso y relaciones. Solo cambian el campo `project` y la marca temporal de las fichas cuya asignación varía.
+- El catálogo valida nombre y todas las URI antes de escribir. Una URI inexistente o nombre inválido rechaza el lote completo, sin cambios parciales en memoria ni disco.
+- Pruebas nuevas cubren asignación/persistencia, preservación de metadatos, operación sin cambios, URI inexistente y nombres vacíos, con controles o demasiado largos. CI [run 39642066619](https://github.com/jonhararagi/archivero/actions/runs/39642066619), SHA `215043d5a72295463e165a7064c65775c80f62d7`: **PASS** en tests, APK, firma/hash y subida. Artefacto `archivero-debug-apk` ID `12365273553`, ZIP de 20.647.933 bytes.
+
+---
+
+## Auditoría manual de acceso a recursos · 2026-10-21
+
+- Se añadió una revisión explícita de todas las fichas activas para comprobar visibilidad y bandera de lectura del proveedor Android. La operación es cancelable, informa del progreso y conserva muestras acotadas para no retener un informe gigante en memoria.
+- Se distinguen recursos legibles, URI que el proveedor no muestra y URI sin acceso o lectura. «No visible» se presenta con cautela porque un permiso revocado o un proveedor distinto puede ocultar un archivo sin que se haya borrado.
+- El análisis consulta metadatos del proveedor; no lee el contenido de los archivos, no corrige URI, no elimina fichas y no borra recursos físicos.
+- Se añadieron pruebas unitarias del acumulador, recuentos y límite de muestras. La primera CI [run 39639788751](https://github.com/jonhararagi/archivero/actions/runs/39639788751) falló al compilar porque `FolderSearch` no existe en los iconos Compose instalados; se reemplaza por `Search` antes de reintentar. No se publicó APK en el run fallido.
+- Corrección validada: [run 39640308153](https://github.com/jonhararagi/archivero/actions/runs/39640308153), SHA `c21b4512f3058da56753f435d90e947329d548c1`: **PASS** en tests, APK debug, firma/hash y subida. Artefacto `archivero-debug-apk` ID `12363234364`, ZIP de 20.631.102 bytes.
+
+---
+
+## Papelera recuperable de la Biblioteca · 2026-10-21
+
+- La acción «Mover a papelera» deja de quitar una ficha de forma irreversible del índice: guarda sus metadatos y fecha de retirada en el mismo archivo local, con opción de restaurar.
+- El esquema pasa de V2 a V3. Sigue leyendo V1 y V2 y agrega `trash.count` más las fichas retiradas. Se agregó una prueba explícita para migrar V2→V3 conservando etiquetas, procedencia, proyecto, tipo de recurso y relaciones. Biblioteca y papelera se escriben en la misma instantánea temporal con reemplazo atómico cuando el sistema lo admite.
+- La importación/exportación incluye elementos en papelera. Se mantienen los conflictos URI por defecto, se rechazan duplicados entre activos y papelera, y un reingreso manual de la misma URI devuelve esa ficha a la biblioteca activa.
+- «Eliminar ficha» desde la papelera exige confirmación y elimina solamente metadatos. La ruta no borra ni mueve archivos físicos.
+- Se añadieron pruebas de recuperación tras reabrir el catálogo, exportación/importación con elementos en papelera, reingreso de la misma URI y borrado permanente de metadatos sin tocar el archivo real. CI [run 39638194130](https://github.com/jonhararagi/archivero/actions/runs/39638194130), SHA `a7ed2a03839d0effc596c3cb0719aa0fd879f733`: **PASS** en tests, compilación Android, verificación de firma/hash y subida de APK. Artefacto ID `12365030210`, ZIP de 20.614.259 bytes.
+
+---
+
+## Auditoría de integridad de relaciones · 2026-10-21
+
+- Se añadió un reporte local que busca relaciones cuyo destino no tiene ficha en el catálogo y fichas que no reciben enlaces de otras fichas.
+- Los registros sin enlaces entrantes se marcan como informativos, porque pueden ser recursos independientes legítimos. No se eliminan ni alteran registros.
+- La auditoría se ejecuta fuera del hilo visual, coopera con la cancelación y limita las muestras a 100 filas por categoría aunque el catálogo tenga muchos vínculos.
+- Se añadieron pruebas para URI objetivo sin ficha, enlaces válidos, fichas independientes, URI duplicadas y límite de muestras. CI [run 39635472592](https://github.com/jonhararagi/archivero/actions/runs/39635472592), SHA `210e43570f39e38b1843844ec02b1ca9f43f9d9e`: **PASS** en tests, APK, firma/hash y artefacto ID `12360483934` (20.590.366 bytes). El run anterior [39635345291](https://github.com/jonhararagi/archivero/actions/runs/39635345291) falló en una expectativa de orden de las muestras; se ajustó la expectativa para que coincida con el orden alfabético del reporte.
+
+---
+
+## Búsqueda con selección acotada de resultados · 2026-10-21
+
+- `filterLibraryRecords` ya no ordena toda la lista coincidente para luego tomar 500/501 elementos: mantiene solo los mejores N elementos en una cola de prioridad acotada y devuelve esos resultados en orden.
+- Se mantiene la misma prioridad de favoritos, suborden por Nombre/Recientes/Proyecto, filtro de proyecto/colección y criterio determinista por URI.
+- Se añadió una prueba con 5.000 fichas generadas que compara las primeras 37 entradas en las tres ordenaciones con el orden completo de referencia, además de un caso con filtro por proyecto.
+- Es una optimización algorítmica verificada por tests, no un benchmark de rendimiento medido en un dispositivo. CI [run 39634548741](https://github.com/jonhararagi/archivero/actions/runs/39634548741), SHA `f7a720bda5f7d00c45eb926ce32d61cef620d850`: **PASS** en tests, APK, firma/hash y artefacto ID `12360583047` (20.573.162 bytes).
+
+---
+
+## Filtro de proyecto/colección · 2026-10-21
+
+- La barra de filtros ahora permite elegir cualquiera de los proyectos/colecciones ya usados por las fichas; la lista de opciones se construye en memoria, se deduplica sin distinguir mayúsculas/minúsculas y se ordena de forma determinista.
+- El filtro de proyecto se combina con texto, categoría, tipo y Solo favoritos. No introduce una migración ni inventa nuevas colecciones.
+- Se añadieron pruebas para un filtro de proyecto aislado y para una combinación de proyecto, nombre/etiqueta, categoría y tipo.
+- CI [run 39634053321](https://github.com/jonhararagi/archivero/actions/runs/39634053321), SHA `a4cded20629d8800dec4d556841fde9df1dc8253`: **PASS**, artefacto ID `12360063059` (20.572.760 bytes).
+
+---
+
+## Etiquetado por lotes con vista previa · 2026-10-21
+
+- Se añadió una operación para seleccionar hasta 500 fichas visibles del filtro actual, revisar nombres/etiquetas que se van a cambiar y añadir varias etiquetas con una sola escritura del catálogo.
+- Las etiquetas existentes se conservan; entradas repetidas se normalizan sin distinguir mayúsculas/minúsculas. Si una URI ya no existe, una etiqueta no es válida o alguna ficha superaría el límite de 100, se rechaza el lote completo antes de persistir.
+- Los cambios se hacen solo en metadatos; los archivos físicos no se mueven ni se modifican.
+- Se añadieron pruebas de persistencia, deduplicación de etiquetas, operación sin cambios, URI inexistente y límite que asegura rollback completo en memoria y disco. CI [run 39633408582](https://github.com/jonhararagi/archivero/actions/runs/39633408582), SHA `5880a532f0f7c87709c7f7828643c89ced478bc0`: **PASS**, artefacto ID `12360152672` (20.566.079 bytes).
+
+---
+
+## Corrección de selector del escáner · 2026-10-21
+
+- La ejecución de CI [39632036037](https://github.com/jonhararagi/archivero/actions/runs/39632036037), para SHA `8074cadfb5e5d8ad8ad1db7904df55658afc0114`, falló en `compileDebugKotlin`.
+- Causa observada en el log: el selector entregado a `potentialDuplicateCandidates` intentaba leer `value` de un `LibraryRecord`. Se cambia a `it.uri`, coherente con la firma real de la función reutilizada.
+- El fallo permanece registrado. La corrección requiere pasar una nueva CI antes de marcar la función como válida.
+
+---
+
+## Duplicados exactos dentro de la Biblioteca · 2026-10-21
+
+- Se añadió una acción independiente para analizar los recursos ya catalogados y detectar copias exactas por tamaño positivo + SHA-256 del contenido completo.
+- El cálculo de hashes se limita a candidatos que comparten tamaño, se ejecuta fuera del hilo de interfaz y puede cancelarse. Los recursos inaccesibles o con tamaño no disponible se omiten de forma segura.
+- No se guardan hashes persistentes, para evitar resultados antiguos si cambia un archivo. Se vuelve a comprobar el tamaño tras la lectura; un cambio detectado hace que ese recurso no participe del resultado.
+- La lista muestra grupos, nombres de fichas y un prefijo del hash. No elimina, mueve, renombra ni altera los archivos.
+- Se añadieron pruebas unitarias para digestos completos, URI repetidas, tamaños distintos, hash inválidos y orden determinista. El resultado todavía debe verificarse mediante CI y una prueba manual con proveedores SAF reales.
+
+---
+
+## Filtro de favoritos · 2026-10-21
+
+- Se añadió el chip **Solo favoritos** a la barra de filtros de la Biblioteca. Es combinable con texto, categoría y tipo de recurso, y permite volver al conjunto completo al desactivarlo.
+- La función pura `filterLibraryRecords` incorpora `onlyFavorites`; el test verifica selección vacía sin favoritos y el subconjunto esperado cuando hay fichas marcadas.
+- GitHub Actions [run 39627829320](https://github.com/jonhararagi/archivero/actions/runs/39627829320), SHA `3f8c725f08cb0d68309bcedd2138eeb36c7fd892`: **PASS** en tests, APK, firma/hash y subida del artefacto.
+- Artefacto `archivero-debug-apk`, ID `12357562577`, ZIP de 20.517.818 bytes. Aún no se ha probado visualmente en el Xiaomi.
+
+---
+
+## Favoritos de biblioteca · ordenación con prioridad · 2026-10-21
+
+- Cada ficha de Biblioteca tiene una estrella para marcar/quitar el favorito desde cuadrícula o lista. Los favoritos son independientes del reproductor musical y se guardan localmente en preferencias.
+- Los favoritos pasan al frente dentro de la ordenación elegida (Nombre, Recientes o Proyecto) y admiten hasta 5.000 URI para mantener acotado el almacenamiento de preferencias.
+- Al recargar el catálogo se eliminan de la lista de favoritos las fichas que ya no existen, evitando referencias fantasma tras quitar metadatos. El archivo físico nunca se borra desde esta operación.
+- Se añadió prueba unitaria para verificar que los favoritos se ordenan antes que las demás fichas sin perder el orden determinista.
+- GitHub Actions [run 39627115115](https://github.com/jonhararagi/archivero/actions/runs/39627115115), SHA `d89f6db6dcc55354997cd5754bdccf37f1cf167a`: **PASS** en pruebas unitarias, compilación Android, verificación de firma/hash y subida del APK.
+- Artefacto `archivero-debug-apk`, ID `12358276807`, ZIP de 20.516.295 bytes. El commit validado incluye los favoritos, la prueba nueva y el catálogo visual/filtros de la iteración anterior.
+- Pendiente: todavía no hay prueba manual del favorito ni benchmark en el Xiaomi o con proveedores SAF reales.
+
+---
+
+## Biblioteca visual, relaciones y filtros combinados · 2026-10-21
+
+- La sección Biblioteca ahora ofrece cuadrícula/lista, miniaturas reutilizadas de la caché existente y metadatos técnicos disponibles: MIME/extensión, tamaño, fecha de modificación y dimensiones de imágenes cuando Android puede consultarlas.
+- El esquema del catálogo pasa de V1 a V2 con campos de proyecto/colección, tipo de recurso y hasta 100 URI relacionadas. La carga sigue siendo compatible con V1, conserva los campos antiguos y asigna valores predeterminados a los campos nuevos.
+- Las fichas distinguen recursos originales, derivados, editados, generados, referencias y personajes sin inventar procedencias ni etiquetas. Las URI que ya no se pueden abrir se conservan y se muestran con un estado de acceso explícito.
+- Se agregaron filtros combinables de texto, categoría y tipo de recurso, orden por nombre/recientes/proyecto e historial local de las últimas ocho búsquedas con opción para borrarlo.
+- La búsqueda de fichas incorpora proyecto, tipo y relaciones; filtrado, consulta de metadatos y almacenamiento continúan fuera del hilo visual, y la pantalla limita la lista a 500 resultados.
+- Pruebas: migración V1→V2 conservando notas y etiquetas; normalización de relaciones; filtros combinados, orden estable y límite de resultados. La expectativa de orden alfabético se corrigió tras la ejecución que la detectó.
+- GitHub Actions [run 39625852877](https://github.com/jonhararagi/archivero/actions/runs/39625852877), SHA `e0d5ea7b173d795c2ecc7e5629efd8fc2f143614`: **PASS** en `testDebugUnitTest`, `assembleDebug`, comprobación de firma/hash y publicación del artefacto.
+- Artefacto `archivero-debug-apk`, ID `12356454794`, ZIP de 20.513.480 bytes.
+- Historial de fallos no ocultado: `bfb02d5e...` falló por compatibilidad de la firma de SearchBox; `ade41baa...` compiló pero tuvo una expectativa de ordenación de test incorrecta. Las correcciones están incluidas en la cabeza PASS.
+- Pendiente: prueba visual/manual en el Xiaomi, permisos y proveedores SAF externos, benchmark con 1.000/10.000 imágenes y comprobación de la biblioteca real de aproximadamente 200 GB. CI no demuestra fluidez física ni escala real.
+
+---
+
+## Biblioteca digital local y búsqueda fuera del hilo visual · 2026-10-21
+
+- Se añadió una sección de Biblioteca donde los recursos existentes pueden tener nombre visible, categoría, etiquetas, notas y procedencia sin copiar ni mover el archivo original.
+- El catálogo local valida importaciones, rechaza URI en conflicto por defecto, limita instantáneas a 64 MiB y conserva el índice anterior ante errores de lectura/validación.
+- Los selectores de documentos Android permiten importar/exportar una instantánea de metadatos.
+- La carga y persistencia del catálogo se movieron a `Dispatchers.IO`; la búsqueda usa debounce y `Dispatchers.Default`, muestra como máximo 500 fichas y no ordena toda la biblioteca en el hilo visual en cada cambio.
+- Pruebas de catálogo añadidas para persistencia, búsqueda por metadatos, etiquetas, exportación/importación, conflictos, archivos corruptos/sobredimensionados y no borrar el recurso al quitar su ficha.
+- CI: [run 39620283829](https://github.com/jonhararagi/archivero/actions/runs/39620283829), SHA `f7daab88136ce21ea94477919e3bd2e119fe3246`, **PASS**: pruebas unitarias, compilación, firma/hash y publicación del artefacto `archivero-debug-apk` (ID `12354766201`).
+- Limitación: todavía no se han realizado pruebas manuales en el Xiaomi, con proveedores SAF externos, ni benchmarks con 1.000/10.000 imágenes o la biblioteca de aproximadamente 200 GB. No declarar validada esa escala.
+
+---
+
 ## Paginación y seguridad de proveedores · 2026-10-20
 
 - La enumeración por lotes para el sistema de archivos y árboles SAF conserva un límite de memoria al leer entradas, mientras que los proveedores no compatibles ya no pasan por `DocumentFile.listFiles()`, que materializa una matriz completa antes de aplicar el límite.

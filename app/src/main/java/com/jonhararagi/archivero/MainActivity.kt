@@ -88,7 +88,8 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
-private enum class Screen { HOME, TYPES, FOLDERS, CLEAN }
+private const val MAX_LIBRARY_FAVORITES = 5_000
+private enum class Screen { HOME, TYPES, FOLDERS, CLEAN, LIBRARY }
 private enum class CleanupMode { SCREENSHOTS, DUPLICATES, SIMILAR_IMAGES, VIDEOS }
 private data class DuplicateGroup(val hash: String, val files: List<DocumentFile>)
 internal data class SizedCandidate<T>(val value: T, val size: Long)
@@ -126,6 +127,17 @@ private data class FilteredFileLists(
     val similar: List<SimilarImageGroup>,
     val cleanup: List<DocumentFile>
 )
+private data class LibrarySearchSignature(
+    val query: String,
+    val recordsIdentity: Int,
+    val recordCount: Int,
+    val category: String,
+    val resourceKind: String,
+    val project: String,
+    val sortMode: String,
+    val favoriteUris: Set<String>,
+    val favoritesOnly: Boolean
+)
 private data class ScanResult(
     val files: List<DocumentFile>,
     val visited: Int,
@@ -161,6 +173,16 @@ private data class Disk(val used: Long, val total: Long) {
     }
 }
 
+internal fun libraryDocument(context: Context, rawUri: String): DocumentFile? = runCatching {
+    val uri = Uri.parse(rawUri)
+    if (uri.scheme == "file") {
+        val path = uri.path?.takeIf { it.isNotBlank() } ?: return@runCatching null
+        DocumentFile.fromFile(File(path))
+    } else {
+        DocumentFile.fromSingleUri(context, uri)
+    }
+}.getOrNull()
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -172,6 +194,103 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun ArchiveroApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
+    var libraryCatalog by remember(context) { mutableStateOf<DigitalLibraryCatalog?>(null) }
+    var libraryCatalogLoading by remember(context) { mutableStateOf(true) }
+    var libraryStorageError by remember { mutableStateOf<String?>(null) }
+    var libraryRecords by remember { mutableStateOf<List<LibraryRecord>>(emptyList()) }
+    var libraryTrashRecords by remember { mutableStateOf<List<TrashedLibraryRecord>>(emptyList()) }
+    var libraryTrashDialog by remember { mutableStateOf(false) }
+    var visibleLibraryRecords by remember { mutableStateOf<List<LibraryRecord>>(emptyList()) }
+    var libraryMatchesTruncated by remember { mutableStateOf(false) }
+    var libraryResultLimit by rememberSaveable { mutableIntStateOf(LIBRARY_RESULTS_PAGE_SIZE) }
+    var previousLibrarySearchSignature by remember { mutableStateOf<LibrarySearchSignature?>(null) }
+    var librarySearching by remember { mutableStateOf(false) }
+    var libraryGridView by rememberSaveable { mutableStateOf(true) }
+    var libraryCategoryFilter by rememberSaveable { mutableStateOf("") }
+    var libraryResourceKindFilter by rememberSaveable { mutableStateOf("") }
+    var libraryProjectFilter by rememberSaveable { mutableStateOf("") }
+    var libraryProjectFilterMenuExpanded by remember { mutableStateOf(false) }
+    var librarySortMode by rememberSaveable { mutableStateOf("Nombre") }
+    var libraryFavoritesOnly by rememberSaveable { mutableStateOf(false) }
+    var librarySortMenuExpanded by remember { mutableStateOf(false) }
+    var libraryRecentSearches by remember(context) {
+        mutableStateOf(
+            context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
+                .getString("library_recent_searches", "")
+                .orEmpty().split('\n').map { it.trim() }.filter { it.isNotEmpty() }.take(8)
+        )
+    }
+    var libraryFavoriteUris by remember(context) {
+        mutableStateOf(
+            context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
+                .getStringSet("library_favorites", emptySet())?.toSet().orEmpty()
+        )
+    }
+
+    fun reconcileLibraryFavorites(
+        records: List<LibraryRecord>,
+        trashed: List<TrashedLibraryRecord> = emptyList()
+    ) {
+        val knownUris = records.mapTo(HashSet()) { it.uri }
+        trashed.forEach { knownUris.add(it.record.uri) }
+        val retained = libraryFavoriteUris.intersect(knownUris)
+        if (retained != libraryFavoriteUris) {
+            libraryFavoriteUris = retained
+            context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
+                .edit().putStringSet("library_favorites", retained).apply()
+        }
+    }
+    var libraryEditDialog by remember { mutableStateOf(false) }
+    var libraryEditUri by remember { mutableStateOf<String?>(null) }
+    var libraryEditName by remember { mutableStateOf("") }
+    var libraryEditCategory by remember { mutableStateOf("Otros") }
+    var libraryEditTags by remember { mutableStateOf("") }
+    var libraryEditNotes by remember { mutableStateOf("") }
+    var libraryEditSource by remember { mutableStateOf("") }
+    var libraryEditProject by remember { mutableStateOf("") }
+    var libraryEditResourceKind by remember { mutableStateOf("Sin clasificar") }
+    var libraryEditRelatedUris by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var libraryRelatedQuery by remember { mutableStateOf("") }
+    var libraryResourceKindExpanded by remember { mutableStateOf(false) }
+    var libraryTransferRunning by remember { mutableStateOf(false) }
+
+    LaunchedEffect(context) {
+        libraryCatalogLoading = true
+        val catalogResult = withContext(Dispatchers.IO) {
+            runCatching { DigitalLibraryCatalog(File(context.filesDir, "digital-library.properties")) }
+        }
+        val catalog = catalogResult.getOrNull()
+        if (catalog == null) {
+            libraryStorageError = catalogResult.exceptionOrNull()?.message ?: "No se pudo abrir el índice de biblioteca."
+        } else {
+            libraryCatalog = catalog
+            val recordsResult = withContext(Dispatchers.IO) {
+                runCatching { catalog.all() to catalog.trashed() }
+            }
+            recordsResult.fold(
+                { (records, trash) ->
+                    libraryRecords = records
+                    libraryTrashRecords = trash
+                    reconcileLibraryFavorites(records, trash)
+                    libraryStorageError = null
+                },
+                { error -> libraryStorageError = error.message ?: "No se pudo leer el índice de biblioteca." }
+            )
+        }
+        libraryCatalogLoading = false
+    }
+
+    val libraryRecordsByUri = remember(libraryRecords) { libraryRecords.associateBy { it.uri } }
+    val libraryKnownUris = remember(libraryRecords) { libraryRecords.mapTo(HashSet()) { it.uri } }
+    val libraryProjects = remember(libraryRecords) {
+        libraryRecords.asSequence()
+            .map { it.project.trim() }
+            .filter { it.isNotEmpty() }
+            .distinctBy { it.lowercase(Locale.ROOT) }
+            .sortedBy { it.lowercase(Locale.ROOT) }
+            .toList()
+    }
+
     val savedPaletteName = context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).getString("palette", null)
     // Cyberpunk is the first-run identity; preserve any palette the user explicitly selected.
     val initialPaletteName = savedPaletteName ?: Palette.CIBERPUNK.name
@@ -211,6 +330,48 @@ fun ArchiveroApp() {
     var selectedKind by rememberSaveable { mutableStateOf(Kind.IMAGES.name) }
     var choosingKind by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
+    LaunchedEffect(query, libraryRecords, libraryCategoryFilter, libraryResourceKindFilter, libraryProjectFilter, librarySortMode, libraryFavoriteUris, libraryFavoritesOnly, libraryResultLimit) {
+        librarySearching = true
+        delay(150)
+        val signature = LibrarySearchSignature(
+            query = query,
+            recordsIdentity = System.identityHashCode(libraryRecords),
+            recordCount = libraryRecords.size,
+            category = libraryCategoryFilter,
+            resourceKind = libraryResourceKindFilter,
+            project = libraryProjectFilter,
+            sortMode = librarySortMode,
+            favoriteUris = libraryFavoriteUris,
+            favoritesOnly = libraryFavoritesOnly
+        )
+        val filterChanged = signature != previousLibrarySearchSignature
+        previousLibrarySearchSignature = signature
+        if (filterChanged && libraryResultLimit != LIBRARY_RESULTS_PAGE_SIZE) {
+            // New filters/catalog should begin at the first page, not keep a stale later offset.
+            libraryResultLimit = LIBRARY_RESULTS_PAGE_SIZE
+            librarySearching = false
+            return@LaunchedEffect
+        }
+        val resultLimit = if (filterChanged) LIBRARY_RESULTS_PAGE_SIZE else libraryResultLimit
+        val requestedLimit = minOf(resultLimit + 1, MAX_LIBRARY_RESULT_LIMIT)
+        val matches = withContext(Dispatchers.Default) {
+            filterLibraryRecords(
+                records = libraryRecords,
+                query = query,
+                category = libraryCategoryFilter,
+                resourceKind = libraryResourceKindFilter,
+                sortMode = librarySortMode,
+                project = libraryProjectFilter,
+                favorites = libraryFavoriteUris,
+                onlyFavorites = libraryFavoritesOnly,
+                limit = requestedLimit
+            )
+        }
+        visibleLibraryRecords = matches.take(resultLimit)
+        libraryMatchesTruncated = matches.size > resultLimit
+        librarySearching = false
+    }
+
     var refresh by remember { mutableIntStateOf(0) }
     var indexed by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
     var listedEntries by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
@@ -406,6 +567,122 @@ fun ArchiveroApp() {
         favoriteUris = next.toSet()
         context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).edit().putStringSet("favorites", next).apply()
     }
+
+    fun editLibraryMetadata(file: DocumentFile) {
+        val catalog = libraryCatalog
+        if (catalog == null) {
+            message = "No se pudo abrir el índice de biblioteca. No se ha sobrescrito ni recreado."
+            return
+        }
+        val uri = file.uri.toString()
+        val existing = catalog.get(uri)
+        val extension = file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT)
+        val detectedCategory = Kind.values().firstOrNull { extension in it.extensions }?.title ?: "Otros"
+        libraryEditUri = uri
+        libraryEditName = existing?.displayName ?: file.name.orEmpty().ifBlank { "Recurso sin nombre" }
+        libraryEditCategory = existing?.category ?: detectedCategory
+        libraryEditTags = existing?.tags?.joinToString(", ").orEmpty()
+        libraryEditNotes = existing?.notes.orEmpty()
+        libraryEditSource = existing?.source.orEmpty()
+        libraryEditProject = existing?.project.orEmpty()
+        libraryEditResourceKind = existing?.resourceKind ?: "Sin clasificar"
+        libraryEditRelatedUris = existing?.relatedUris.orEmpty().toSet()
+        libraryRelatedQuery = ""
+        libraryEditDialog = true
+        actionMenu = false
+    }
+
+    fun refreshLibrary() {
+        val catalog = libraryCatalog ?: return
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching { catalog.all() to catalog.trashed() }
+            }
+            result.fold(
+                { (records, trash) ->
+                    libraryRecords = records
+                    libraryTrashRecords = trash
+                    reconcileLibraryFavorites(records, trash)
+                    libraryStorageError = null
+                },
+                { error -> libraryStorageError = error.message ?: "No se pudo leer el índice de biblioteca." }
+            )
+        }
+    }
+
+    fun restoreLibraryRecord(uri: String) {
+        val catalog = libraryCatalog ?: run {
+            message = "El índice de biblioteca no está disponible."
+            return
+        }
+        libraryTransferRunning = true
+        scope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { catalog.restoreMetadata(uri) } }
+            libraryTransferRunning = false
+            result.fold(
+                { restored ->
+                    refreshLibrary()
+                    message = if (restored) {
+                        "Ficha restaurada en la Biblioteca. El archivo físico no se movió."
+                    } else {
+                        "La ficha ya no estaba en la papelera."
+                    }
+                },
+                { error -> message = "No se pudo restaurar la ficha: ${error.message ?: "error de almacenamiento"}" }
+            )
+        }
+    }
+
+    fun purgeLibraryRecord(uri: String) {
+        val catalog = libraryCatalog ?: run {
+            message = "El índice de biblioteca no está disponible."
+            return
+        }
+        libraryTransferRunning = true
+        scope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { catalog.purgeTrashedMetadata(uri) } }
+            libraryTransferRunning = false
+            result.fold(
+                { removed ->
+                    refreshLibrary()
+                    message = if (removed) {
+                        "Ficha eliminada permanentemente de la papelera. El archivo físico no se borró."
+                    } else {
+                        "La ficha ya no estaba en la papelera."
+                    }
+                },
+                { error -> message = "No se pudo quitar la ficha de la papelera: ${error.message ?: "error de almacenamiento"}" }
+            )
+        }
+    }
+
+    fun toggleLibraryFavorite(uri: String) {
+        val next = libraryFavoriteUris.toMutableSet()
+        if (!next.add(uri)) {
+            next.remove(uri)
+        } else if (next.size > MAX_LIBRARY_FAVORITES) {
+            message = "La biblioteca admite hasta $MAX_LIBRARY_FAVORITES favoritos."
+            return
+        }
+        libraryFavoriteUris = next.toSet()
+        context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
+            .edit().putStringSet("library_favorites", next).apply()
+    }
+
+    fun rememberLibrarySearch() {
+        val term = query.trim().replace('\n', ' ')
+        if (term.isBlank()) return
+        val next = (listOf(term) + libraryRecentSearches.filterNot { it.equals(term, ignoreCase = true) }).take(8)
+        libraryRecentSearches = next
+        context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
+            .edit().putString("library_recent_searches", next.joinToString("\n")).apply()
+    }
+
+    fun clearLibraryRecentSearches() {
+        libraryRecentSearches = emptyList()
+        context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
+            .edit().remove("library_recent_searches").apply()
+    }
     LaunchedEffect(sleepTimerMinutes, mediaController) {
         val minutes = sleepTimerMinutes
         val controller = mediaController
@@ -449,6 +726,89 @@ fun ArchiveroApp() {
             showAppearance = false
         }
     }
+    val exportLibrary = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { destination ->
+        if (destination != null) {
+            val catalog = libraryCatalog
+            if (catalog == null) {
+                message = "No se puede exportar porque el índice de biblioteca no está disponible."
+            } else {
+                libraryTransferRunning = true
+                scope.launch {
+                    val result = withContext(Dispatchers.IO) {
+                        runCatching {
+                            val snapshot = File.createTempFile("archivero-library-export-", ".properties", context.cacheDir)
+                            try {
+                                catalog.exportSnapshot(snapshot)
+                                val output = context.contentResolver.openOutputStream(destination, "wt")
+                                    ?: throw IOException("Android no permitió escribir el archivo de exportación.")
+                                output.use { stream -> snapshot.inputStream().use { input -> input.copyTo(stream) } }
+                                snapshot.length()
+                            } finally {
+                                snapshot.delete()
+                            }
+                        }
+                    }
+                    libraryTransferRunning = false
+                    result.fold(
+                        { bytes -> message = "Exportación completada: $bytes bytes de metadatos. Los archivos originales no se copiaron." },
+                        { error -> message = "No se pudo exportar la biblioteca: ${error.message ?: "error de almacenamiento"}" }
+                    )
+                }
+            }
+        }
+    }
+
+    val importLibrary = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { source ->
+        if (source != null) {
+            val catalog = libraryCatalog
+            if (catalog == null) {
+                message = "No se puede importar porque el índice de biblioteca no está disponible."
+            } else {
+                libraryTransferRunning = true
+                scope.launch {
+                    val result = withContext(Dispatchers.IO) {
+                        runCatching {
+                            val snapshot = File.createTempFile("archivero-library-import-", ".properties", context.cacheDir)
+                            try {
+                                val input = context.contentResolver.openInputStream(source)
+                                    ?: throw IOException("Android no permitió leer el archivo seleccionado.")
+                                input.use { incoming ->
+                                    snapshot.outputStream().use { outgoing ->
+                                        val buffer = ByteArray(8 * 1024)
+                                        var totalBytes = 0L
+                                        while (true) {
+                                            val count = incoming.read(buffer)
+                                            if (count < 0) break
+                                            if (count == 0) continue
+                                            totalBytes += count
+                                            if (totalBytes > MAX_LIBRARY_SNAPSHOT_BYTES) {
+                                                throw IOException("La instantánea supera el límite seguro de 64 MiB.")
+                                            }
+                                            outgoing.write(buffer, 0, count)
+                                        }
+                                    }
+                                }
+                                catalog.importSnapshot(snapshot)
+                            } finally {
+                                snapshot.delete()
+                            }
+                        }
+                    }
+                    libraryTransferRunning = false
+                    result.fold(
+                        { count ->
+                            refreshLibrary()
+                            message = "Importación completada: $count entrada(s) de biblioteca/papelera. Los conflictos se rechazan sin sobrescribir metadatos."
+                        },
+                        { error -> message = "No se importó la biblioteca: ${error.message ?: "archivo inválido o conflicto"}. La biblioteca activa se conserva." }
+                    )
+                }
+            }
+        }
+    }
+
     val pickMusic = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) {
             loadingQueue = true
@@ -1034,6 +1394,7 @@ fun ArchiveroApp() {
                                     Screen.TYPES -> if (choosingKind) "Buscar por tipo" else activeKind.title
                                     Screen.FOLDERS -> "Carpetas y ubicaciones"
                                     Screen.CLEAN -> "Recupera espacio"
+                                    Screen.LIBRARY -> "Fichas y referencias"
                                 }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
@@ -1086,6 +1447,7 @@ fun ArchiveroApp() {
                         NavigationBarItem(screen == Screen.TYPES, { screen = Screen.TYPES; choosingKind = true; query = "" }, { Icon(Icons.Default.Category, null) }, label = { Text("Tipos") })
                         NavigationBarItem(screen == Screen.FOLDERS, { screen = Screen.FOLDERS; choosingKind = false; folderHistory = emptyList(); current = root; currentUri = rootUri; query = ""; refresh++ }, { Icon(Icons.Default.FolderOpen, null) }, label = { Text("Carpetas") })
                         NavigationBarItem(screen == Screen.CLEAN, { screen = Screen.CLEAN; query = ""; cleanupSelectedUris = emptySet() }, { Icon(Icons.Default.CleaningServices, null) }, label = { Text("Limpiar") })
+                        NavigationBarItem(screen == Screen.LIBRARY, { screen = Screen.LIBRARY; choosingKind = false; query = "" }, { Icon(Icons.Default.Bookmark, null) }, label = { Text("Biblioteca") })
                     }
                 }
             },
@@ -1097,7 +1459,7 @@ fun ArchiveroApp() {
         ) { padding ->
             Column(Modifier.fillMaxSize().then(if (screen == Screen.HOME && rootUri != null) Modifier.verticalScroll(rememberScrollState()) else Modifier).padding(padding).padding(horizontal = 16.dp)) {
                 Spacer(Modifier.height(8.dp))
-                if (rootUri == null) {
+                if (rootUri == null && screen != Screen.LIBRARY) {
                     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                         Box(
                             modifier = Modifier.width(180.dp).height(200.dp)
@@ -1527,6 +1889,454 @@ fun ArchiveroApp() {
                             }
                         }
                     }
+                    Screen.LIBRARY -> {
+                        Header("Biblioteca digital", "Fichas locales para clasificar tus recursos")
+                        Text(
+                            "Las fichas guardan etiquetas, notas y procedencia. No copian, mueven ni eliminan el archivo original.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = { exportLibrary.launch("archivero-biblioteca.properties") },
+                                enabled = libraryCatalog != null && !libraryTransferRunning,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                if (libraryTransferRunning) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                else Icon(Icons.Default.FileDownload, null)
+                                Spacer(Modifier.width(5.dp))
+                                Text("Exportar")
+                            }
+                            OutlinedButton(
+                                onClick = { importLibrary.launch(arrayOf("*/*")) },
+                                enabled = libraryCatalog != null && !libraryTransferRunning,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                if (libraryTransferRunning) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                else Icon(Icons.Default.FileUpload, null)
+                                Spacer(Modifier.width(5.dp))
+                                Text("Importar")
+                            }
+                        }
+                        OutlinedButton(
+                            onClick = { libraryTrashDialog = true },
+                            enabled = libraryCatalog != null && !libraryTransferRunning,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.DeleteOutline, contentDescription = null)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Papelera (${libraryTrashRecords.size})")
+                        }
+                        LibraryTrashDialog(
+                            isOpen = libraryTrashDialog,
+                            records = libraryTrashRecords,
+                            transferRunning = libraryTransferRunning,
+                            onDismiss = { libraryTrashDialog = false },
+                            onRestore = { uri -> restoreLibraryRecord(uri) },
+                            onPurge = { uri -> purgeLibraryRecord(uri) }
+                        )
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            LibraryBulkTagEditor(
+                                records = visibleLibraryRecords,
+                                catalog = libraryCatalog,
+                                enabled = libraryCatalog != null && !libraryTransferRunning,
+                                onUpdated = { changedCount, tags ->
+                                    refreshLibrary()
+                                    message = if (changedCount == 0) {
+                                        "Las fichas seleccionadas ya tenían esas etiquetas; no se modificó el índice."
+                                    } else {
+                                        "Se añadieron ${tags.joinToString(", ")} a ${changedCount} ficha(s). Los archivos originales no se modificaron."
+                                    }
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                            LibraryDuplicateScanner(
+                                records = libraryRecords,
+                                recordsByUri = libraryRecordsByUri,
+                                enabled = libraryCatalog != null && !libraryTransferRunning,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        LibrarySimilarImageScanner(
+                            records = visibleLibraryRecords,
+                            enabled = libraryCatalog != null && !libraryTransferRunning,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        LibraryBulkProjectEditor(
+                            records = visibleLibraryRecords,
+                            catalog = libraryCatalog,
+                            enabled = libraryCatalog != null && !libraryTransferRunning,
+                            onUpdated = { changedCount, projectName ->
+                                refreshLibrary()
+                                message = if (changedCount == 0) {
+                                    "Las fichas seleccionadas ya pertenecían a «$projectName»; no se modificó el índice."
+                                } else {
+                                    "Se asignó «$projectName» a $changedCount ficha(s). Los archivos físicos no se movieron."
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            LibraryRelationshipAuditButton(
+                                records = libraryRecords,
+                                enabled = libraryCatalog != null && !libraryTransferRunning,
+                                modifier = Modifier.weight(1f)
+                            )
+                            LibraryResourceAccessAuditButton(
+                                records = libraryRecords,
+                                enabled = libraryCatalog != null && !libraryTransferRunning,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        if (libraryTransferRunning) {
+                            Text("Procesando instantánea de metadatos…", style = MaterialTheme.typography.bodySmall)
+                        }
+                        SearchBox(
+                            query = query,
+                            onChange = { query = it },
+                            onSearch = { rememberLibrarySearch() }
+                        )
+                        if (query.isBlank() && libraryRecentSearches.isNotEmpty()) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Búsquedas recientes", style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                                TextButton(onClick = { clearLibraryRecentSearches() }) { Text("Borrar historial") }
+                            }
+                            Row(
+                                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                libraryRecentSearches.forEach { term ->
+                                    FilterChip(
+                                        selected = false,
+                                        onClick = { query = term },
+                                        label = { Text(term, maxLines = 1) }
+                                    )
+                                }
+                            }
+                        }
+                        Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = libraryCategoryFilter,
+                                onValueChange = { libraryCategoryFilter = it },
+                                label = { Text("Categoría") },
+                                placeholder = { Text("Todas") },
+                                singleLine = true,
+                                modifier = Modifier.width(150.dp),
+                                trailingIcon = {
+                                    if (libraryCategoryFilter.isNotBlank()) IconButton(onClick = { libraryCategoryFilter = "" }) {
+                                        Icon(Icons.Default.Close, "Quitar filtro de categoría")
+                                    }
+                                }
+                            )
+                            OutlinedTextField(
+                                value = libraryResourceKindFilter,
+                                onValueChange = { libraryResourceKindFilter = it },
+                                label = { Text("Tipo de recurso") },
+                                placeholder = { Text("Todos") },
+                                singleLine = true,
+                                modifier = Modifier.width(160.dp),
+                                trailingIcon = {
+                                    if (libraryResourceKindFilter.isNotBlank()) IconButton(onClick = { libraryResourceKindFilter = "" }) {
+                                        Icon(Icons.Default.Close, "Quitar filtro de tipo")
+                                    }
+                                }
+                            )
+                            Box {
+                                OutlinedButton(onClick = { libraryProjectFilterMenuExpanded = true }) {
+                                    Icon(Icons.Default.FolderCopy, contentDescription = null)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(libraryProjectFilter.ifBlank { "Colecciones" }, maxLines = 1)
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                }
+                                DropdownMenu(
+                                    expanded = libraryProjectFilterMenuExpanded,
+                                    onDismissRequest = { libraryProjectFilterMenuExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Todos los proyectos") },
+                                        onClick = {
+                                            libraryProjectFilter = ""
+                                            libraryProjectFilterMenuExpanded = false
+                                        }
+                                    )
+                                    libraryProjects.forEach { project ->
+                                        DropdownMenuItem(
+                                            text = { Text(project, maxLines = 1) },
+                                            onClick = {
+                                                libraryProjectFilter = project
+                                                libraryProjectFilterMenuExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                            Box {
+                                OutlinedButton(onClick = { librarySortMenuExpanded = true }) {
+                                    Icon(Icons.Default.Sort, null)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(librarySortMode)
+                                    Icon(Icons.Default.ArrowDropDown, null)
+                                }
+                                DropdownMenu(
+                                    expanded = librarySortMenuExpanded,
+                                    onDismissRequest = { librarySortMenuExpanded = false }
+                                ) {
+                                    listOf("Nombre", "Recientes", "Proyecto").forEach { sort ->
+                                        DropdownMenuItem(
+                                            text = { Text(sort) },
+                                            onClick = {
+                                                librarySortMode = sort
+                                                librarySortMenuExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                            FilterChip(
+                                selected = libraryFavoritesOnly,
+                                onClick = { libraryFavoritesOnly = !libraryFavoritesOnly },
+                                label = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            if (libraryFavoritesOnly) Icons.Default.Star else Icons.Default.StarBorder,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Solo favoritos")
+                                    }
+                                }
+                            )
+                            TextButton(onClick = {
+                                libraryCategoryFilter = ""
+                                libraryResourceKindFilter = ""
+                                libraryProjectFilter = ""
+                                librarySortMode = "Nombre"
+                                libraryFavoritesOnly = false
+                            }) { Text("Restablecer") }
+                        }
+                        if (libraryCatalogLoading) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 18.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(10.dp))
+                                Text("Cargando índice de biblioteca…")
+                            }
+                        } else if (libraryStorageError != null) {
+                            EmptyNotice(
+                                "Índice de biblioteca no disponible",
+                                "No se ha recreado ni sobrescrito el índice existente. Detalle: ${libraryStorageError}",
+                                Icons.Default.Warning
+                            )
+                        } else {
+                            if (librarySearching) {
+                                Text(
+                                    "Buscando en etiquetas, notas y metadatos…",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Text(
+                                "${if (libraryMatchesTruncated) visibleLibraryRecords.size.toString() + "+" else visibleLibraryRecords.size.toString()} ficha(s) visibles · almacenamiento local",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(vertical = 6.dp)
+                            )
+                            if (libraryRecords.isEmpty()) {
+                                EmptyNotice(
+                                    "Tu biblioteca empieza aquí",
+                                    "Abre el menú de un archivo y elige «Añadir a biblioteca» para guardar etiquetas, notas o la fuente de referencia.",
+                                    Icons.Default.Bookmark
+                                )
+                            } else if (visibleLibraryRecords.isEmpty()) {
+                                EmptyNotice("Sin coincidencias", "Prueba con otro nombre, etiqueta, nota o fuente.", Icons.Default.SearchOff)
+                            } else {
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    TextButton(onClick = { libraryGridView = false }, enabled = libraryGridView) {
+                                        Icon(Icons.Default.ViewList, null)
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Lista")
+                                    }
+                                    TextButton(onClick = { libraryGridView = true }, enabled = !libraryGridView) {
+                                        Icon(Icons.Default.GridView, null)
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Cuadrícula")
+                                    }
+                                }
+                                if (libraryGridView) {
+                                    LazyVerticalGrid(
+                                        columns = GridCells.Adaptive(164.dp),
+                                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                                        contentPadding = PaddingValues(bottom = 12.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        gridItems(visibleLibraryRecords, key = { it.uri }) { record ->
+                                            LibraryRecordCard(
+                                                record = record,
+                                                grid = true,
+                                                transferRunning = libraryTransferRunning,
+                                                libraryRecordsByUri = libraryRecordsByUri,
+                                                isFavorite = record.uri in libraryFavoriteUris,
+                                                onToggleFavorite = { toggleLibraryFavorite(record.uri) },
+                                                onOpen = { document ->
+                                                    requestOpen(document, listOf(document))
+                                                },
+                                                onEdit = { document ->
+                                                    if (document != null) {
+                                                        editLibraryMetadata(document)
+                                                    } else {
+                                                        libraryEditUri = record.uri
+                                                        libraryEditName = record.displayName
+                                                        libraryEditCategory = record.category
+                                                        libraryEditTags = record.tags.joinToString(", ")
+                                                        libraryEditNotes = record.notes
+                                                        libraryEditSource = record.source
+                                                        libraryEditProject = record.project
+                                                        libraryEditResourceKind = record.resourceKind
+                                                        libraryEditRelatedUris = record.relatedUris.toSet()
+                                                        libraryRelatedQuery = ""
+                                                        libraryEditDialog = true
+                                                    }
+                                                },
+                                                onRemove = {
+                                                    val catalog = libraryCatalog
+                                                    if (catalog == null) {
+                                                        message = "El índice de biblioteca no está disponible."
+                                                    } else {
+                                                        libraryTransferRunning = true
+                                                        scope.launch {
+                                                            val result = withContext(Dispatchers.IO) {
+                                                                runCatching { catalog.trashMetadata(record.uri) }
+                                                            }
+                                                            libraryTransferRunning = false
+                                                            result.fold(
+                                                                { removed ->
+                                                                    if (removed) {
+                                                                        refreshLibrary()
+                                                                        message = "Ficha movida a la Papelera. Puedes restaurarla; el archivo físico no se borró."
+                                                                    } else {
+                                                                        message = "La ficha ya no estaba en el catálogo."
+                                                                    }
+                                                                },
+                                                                { error -> message = "No se pudo quitar la ficha: ${error.message ?: "error de almacenamiento"}" }
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    LazyColumn(
+                                        Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        items(visibleLibraryRecords, key = { it.uri }) { record ->
+                                            LibraryRecordCard(
+                                                record = record,
+                                                grid = false,
+                                                transferRunning = libraryTransferRunning,
+                                                libraryRecordsByUri = libraryRecordsByUri,
+                                                isFavorite = record.uri in libraryFavoriteUris,
+                                                onToggleFavorite = { toggleLibraryFavorite(record.uri) },
+                                                onOpen = { document ->
+                                                    requestOpen(document, listOf(document))
+                                                },
+                                                onEdit = { document ->
+                                                    if (document != null) {
+                                                        editLibraryMetadata(document)
+                                                    } else {
+                                                        libraryEditUri = record.uri
+                                                        libraryEditName = record.displayName
+                                                        libraryEditCategory = record.category
+                                                        libraryEditTags = record.tags.joinToString(", ")
+                                                        libraryEditNotes = record.notes
+                                                        libraryEditSource = record.source
+                                                        libraryEditProject = record.project
+                                                        libraryEditResourceKind = record.resourceKind
+                                                        libraryEditRelatedUris = record.relatedUris.toSet()
+                                                        libraryRelatedQuery = ""
+                                                        libraryEditDialog = true
+                                                    }
+                                                },
+                                                onRemove = {
+                                                    val catalog = libraryCatalog
+                                                    if (catalog == null) {
+                                                        message = "El índice de biblioteca no está disponible."
+                                                    } else {
+                                                        libraryTransferRunning = true
+                                                        scope.launch {
+                                                            val result = withContext(Dispatchers.IO) {
+                                                                runCatching { catalog.trashMetadata(record.uri) }
+                                                            }
+                                                            libraryTransferRunning = false
+                                                            result.fold(
+                                                                { removed ->
+                                                                    if (removed) {
+                                                                        refreshLibrary()
+                                                                        message = "Ficha movida a la Papelera. Puedes restaurarla; el archivo físico no se borró."
+                                                                    } else {
+                                                                        message = "La ficha ya no estaba en el catálogo."
+                                                                    }
+                                                                },
+                                                                { error -> message = "No se pudo quitar la ficha: ${error.message ?: "error de almacenamiento"}" }
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                                if (libraryMatchesTruncated && libraryResultLimit < MAX_LIBRARY_RESULT_LIMIT) {
+                                    Text(
+                                        "Se muestran ${visibleLibraryRecords.size} fichas. Carga la siguiente página para continuar sin dibujar toda la biblioteca a la vez.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(vertical = 4.dp)
+                                    )
+                                    OutlinedButton(
+                                        onClick = { libraryResultLimit = nextLibraryResultLimit(libraryResultLimit) },
+                                        enabled = !librarySearching,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("Cargar ${minOf(LIBRARY_RESULTS_PAGE_SIZE, MAX_LIBRARY_RESULT_LIMIT - libraryResultLimit)} fichas más")
+                                    }
+                                } else if (libraryResultLimit == MAX_LIBRARY_RESULT_LIMIT &&
+                                    visibleLibraryRecords.size == MAX_LIBRARY_RESULT_LIMIT
+                                ) {
+                                    Text(
+                                        "Se alcanzó el límite de 10.000 fichas para esta vista. Añade filtros o una búsqueda para acotar los resultados.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(vertical = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
             if (showExitDialog) AlertDialog(
@@ -1599,6 +2409,11 @@ fun ArchiveroApp() {
         onDismissRequest = { actionMenu = false },
         title = { Text(actionFile?.name ?: "Acciones del archivo") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            TextButton(onClick = { actionFile?.let { editLibraryMetadata(it) } }, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.BookmarkAdd, null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (actionFile?.uri?.toString()?.let { libraryCatalog?.get(it) } != null) "Editar ficha de biblioteca" else "Añadir a biblioteca")
+            }
             TextButton(onClick = { renameValue = actionFile?.name.orEmpty(); renameDialog = true; actionMenu = false }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.DriveFileRenameOutline, null); Spacer(Modifier.width(8.dp)); Text("Renombrar") }
             TextButton(onClick = {
                 val file = actionFile
@@ -1691,6 +2506,209 @@ fun ArchiveroApp() {
             TextButton(onClick = { deleteDialog = true; actionMenu = false }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.DeleteOutline, null, tint = MaterialTheme.colorScheme.error); Spacer(Modifier.width(8.dp)); Text("Eliminar", color = MaterialTheme.colorScheme.error) }
         } },
         confirmButton = { TextButton(onClick = { actionMenu = false }) { Text("Cerrar") } }
+    )
+
+    if (libraryEditDialog) AlertDialog(
+        onDismissRequest = { libraryEditDialog = false },
+        title = { Text("Ficha de biblioteca") },
+        text = {
+            Column(
+                Modifier.fillMaxWidth().heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    "Esta ficha solo guarda metadatos locales. No cambia el archivo original.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = libraryEditName,
+                    onValueChange = { libraryEditName = it },
+                    label = { Text("Nombre visible") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = libraryEditCategory,
+                    onValueChange = { libraryEditCategory = it },
+                    label = { Text("Categoría o proyecto") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = libraryEditTags,
+                    onValueChange = { libraryEditTags = it },
+                    label = { Text("Etiquetas separadas por coma") },
+                    supportingText = { Text("Ej.: anime, cabello azul, personaje principal") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = libraryEditProject,
+                    onValueChange = { libraryEditProject = it },
+                    label = { Text("Proyecto, personaje o colección") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text("Tipo de recurso", style = MaterialTheme.typography.labelMedium)
+                Box {
+                    OutlinedButton(onClick = { libraryResourceKindExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text(libraryEditResourceKind, modifier = Modifier.weight(1f))
+                        Icon(Icons.Default.ArrowDropDown, null)
+                    }
+                    DropdownMenu(
+                        expanded = libraryResourceKindExpanded,
+                        onDismissRequest = { libraryResourceKindExpanded = false }
+                    ) {
+                        listOf("Sin clasificar", "Original", "Derivado", "Editado", "Generado", "Referencia", "Personaje").forEach { kind ->
+                            DropdownMenuItem(
+                                text = { Text(kind) },
+                                onClick = {
+                                    libraryEditResourceKind = kind
+                                    libraryResourceKindExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+                Text("Recursos relacionados", style = MaterialTheme.typography.labelMedium)
+                Text(
+                    "Vincula otras fichas de esta biblioteca. La relación guarda identificadores, no duplica los archivos.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = libraryRelatedQuery,
+                    onValueChange = { libraryRelatedQuery = it },
+                    label = { Text("Buscar fichas para relacionar") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                val relatedCandidates = libraryRecords.asSequence()
+                    .filter { it.uri != libraryEditUri }
+                    .filter {
+                        libraryRelatedQuery.isBlank() ||
+                            sequenceOf(it.displayName, it.category, it.project, it.tags.joinToString(" "))
+                                .any { value -> value.contains(libraryRelatedQuery.trim(), ignoreCase = true) }
+                    }
+                    .take(12)
+                    .toList()
+                if (relatedCandidates.isEmpty()) {
+                    Text(
+                        "No hay coincidencias. Puedes guardar la ficha sin relaciones.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    relatedCandidates.forEach { candidate ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable {
+                                libraryEditRelatedUris = if (candidate.uri in libraryEditRelatedUris) {
+                                    libraryEditRelatedUris - candidate.uri
+                                } else if (libraryEditRelatedUris.size < 100) {
+                                    libraryEditRelatedUris + candidate.uri
+                                } else {
+                                    message = "Cada ficha admite hasta 100 relaciones."
+                                    libraryEditRelatedUris
+                                }
+                            }.padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = candidate.uri in libraryEditRelatedUris,
+                                onCheckedChange = { checked ->
+                                    libraryEditRelatedUris = if (checked) {
+                                        if (libraryEditRelatedUris.size < 100) libraryEditRelatedUris + candidate.uri
+                                        else {
+                                            message = "Cada ficha admite hasta 100 relaciones."
+                                            libraryEditRelatedUris
+                                        }
+                                    } else libraryEditRelatedUris - candidate.uri
+                                }
+                            )
+                            Column(Modifier.weight(1f)) {
+                                Text(candidate.displayName, maxLines = 1, fontWeight = FontWeight.Medium)
+                                Text(
+                                    listOf(candidate.project, candidate.category).filter { it.isNotBlank() }.joinToString(" · "),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
+                val unresolvedRelations = libraryEditRelatedUris.count { it !in libraryKnownUris }
+                Text(
+                    "Seleccionadas: ${libraryEditRelatedUris.size}" +
+                        if (unresolvedRelations > 0) " · Referencias que ya no están en la biblioteca: $unresolvedRelations" else "",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (unresolvedRelations > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = libraryEditNotes,
+                    onValueChange = { libraryEditNotes = it },
+                    label = { Text("Notas") },
+                    minLines = 2,
+                    maxLines = 4,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = libraryEditSource,
+                    onValueChange = { libraryEditSource = it },
+                    label = { Text("Procedencia o enlace original") },
+                    minLines = 1,
+                    maxLines = 3,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !libraryTransferRunning,
+                onClick = {
+                    val catalog = libraryCatalog
+                    val uri = libraryEditUri
+                    if (catalog == null || uri == null) {
+                        message = "No se pudo guardar la ficha porque el índice no está disponible. No se modificó el archivo."
+                    } else {
+                        libraryTransferRunning = true
+                        scope.launch {
+                            val result = withContext(Dispatchers.IO) {
+                                runCatching {
+                                    catalog.upsert(
+                                        LibraryRecord(
+                                            uri = uri,
+                                            displayName = libraryEditName,
+                                            category = libraryEditCategory,
+                                            tags = libraryEditTags.split(",").map { it.trim() }.filter { it.isNotEmpty() },
+                                            notes = libraryEditNotes,
+                                            source = libraryEditSource,
+                                            updatedAtMillis = System.currentTimeMillis(),
+                                            project = libraryEditProject,
+                                            resourceKind = libraryEditResourceKind,
+                                            relatedUris = libraryEditRelatedUris.toList()
+                                        )
+                                    )
+                                }
+                            }
+                            libraryTransferRunning = false
+                            result.fold(
+                                {
+                                    refreshLibrary()
+                                    libraryEditDialog = false
+                                    message = "Ficha guardada en la biblioteca local. El archivo original no se modificó."
+                                },
+                                { error -> message = "No se pudo guardar la ficha: ${error.message ?: "comprueba los campos y el almacenamiento"}" }
+                            )
+                        }
+                    }
+                }
+            ) {
+                if (libraryTransferRunning) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                else Text("Guardar ficha")
+            }
+        },
+        dismissButton = { TextButton(onClick = { libraryEditDialog = false }) { Text("Cancelar") } }
     )
 
     if (renameDialog && actionFile != null) AlertDialog(
@@ -2014,8 +3032,31 @@ private fun DiskCard(disk: Disk?, location: String, accent: Color = Color(0xFF80
         }
     }
 }
-@Composable private fun SearchBox(query: String, onChange: (String) -> Unit) {
-    OutlinedTextField(query, onChange, modifier = Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Buscar por nombre...") }, leadingIcon = { Icon(Icons.Default.Search, null) }, trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { onChange("") }) { Icon(Icons.Default.Close, "Limpiar búsqueda") } })
+@Composable private fun SearchBox(
+    query: String,
+    onSearch: (() -> Unit)? = null,
+    onChange: (String) -> Unit
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onChange,
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+        placeholder = { Text("Buscar por nombre...") },
+        leadingIcon = { Icon(Icons.Default.Search, null) },
+        trailingIcon = {
+            if (query.isNotEmpty()) IconButton(onClick = { onChange("") }) {
+                Icon(Icons.Default.Close, "Limpiar búsqueda")
+            }
+        },
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            imeAction = if (onSearch != null) androidx.compose.ui.text.input.ImeAction.Search
+            else androidx.compose.ui.text.input.ImeAction.Done
+        ),
+        keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+            onSearch = { onSearch?.invoke() }
+        )
+    )
 }
 @Composable private fun DocumentRow(file: DocumentFile, onClick: () -> Unit, onMore: () -> Unit) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), shape = RoundedCornerShape(15.dp)) {
@@ -2073,6 +3114,258 @@ private fun ImageGalleryGrid(
             }
         }
     }
+}
+
+private enum class LibraryResourceState { LOADING, AVAILABLE, NOT_FOUND, NO_ACCESS }
+
+private data class LibraryResourceDetails(
+    val state: LibraryResourceState = LibraryResourceState.LOADING,
+    val mimeType: String? = null,
+    val sizeBytes: Long? = null,
+    val modifiedMillis: Long? = null,
+    val width: Int? = null,
+    val height: Int? = null
+)
+
+/**
+ * A virtualized, metadata-aware catalog card. All potentially blocking document-provider queries
+ * and image bounds reads happen in a LaunchedEffect on Dispatchers.IO.
+ */
+@Composable
+private fun LibraryRecordCard(
+    record: LibraryRecord,
+    grid: Boolean,
+    transferRunning: Boolean,
+    libraryRecordsByUri: Map<String, LibraryRecord>,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
+    onOpen: (DocumentFile) -> Unit,
+    onEdit: (DocumentFile?) -> Unit,
+    onRemove: () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val document = remember(context, record.uri) { libraryDocument(context, record.uri) }
+    var details by remember(record.uri) { mutableStateOf(LibraryResourceDetails()) }
+
+    LaunchedEffect(record.uri, document) {
+        details = LibraryResourceDetails()
+        details = withContext(Dispatchers.IO) {
+            inspectLibraryResource(context, record.uri, document)
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp)
+    ) {
+        if (grid) {
+            Column(
+                Modifier.fillMaxWidth().padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    Modifier.fillMaxWidth().height(116.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (document != null) {
+                        FileThumbnail(file = document, size = 104)
+                    } else {
+                        Box(
+                            Modifier.size(104.dp).clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.BrokenImage, null, Modifier.size(34.dp))
+                        }
+                    }
+                    IconButton(
+                        onClick = onToggleFavorite,
+                        modifier = Modifier.align(Alignment.TopEnd).padding(2.dp)
+                            .size(34.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                    ) {
+                        Icon(
+                            if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
+                            contentDescription = if (isFavorite) "Quitar de favoritos" else "Añadir a favoritos",
+                            tint = if (isFavorite) Color(0xFFFFD166) else Color.White
+                        )
+                    }
+                }
+                Text(record.displayName, fontWeight = FontWeight.Bold, maxLines = 2)
+                Text(record.category, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                if (record.project.isNotBlank()) Text("Proyecto: " + record.project, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                Text("Tipo: " + record.resourceKind, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (record.relatedUris.isNotEmpty()) {
+                    val knownRelated = record.relatedUris.count { it in libraryRecordsByUri }
+                    val unresolved = record.relatedUris.size - knownRelated
+                    Text(
+                        "Relacionados: $knownRelated" + if (unresolved > 0) " · Sin ficha: $unresolved" else "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (unresolved > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                LibraryTechnicalDetails(details)
+                if (record.tags.isNotEmpty()) {
+                    Text("Etiquetas: " + record.tags.joinToString(" · "), style = MaterialTheme.typography.bodySmall, maxLines = 3)
+                }
+                if (record.notes.isNotBlank()) Text(record.notes, style = MaterialTheme.typography.bodySmall, maxLines = 3)
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(
+                        enabled = document != null && details.state == LibraryResourceState.AVAILABLE,
+                        onClick = { document?.let(onOpen) },
+                        contentPadding = PaddingValues(horizontal = 6.dp)
+                    ) { Text("Abrir") }
+                    TextButton(onClick = { onEdit(document) }, contentPadding = PaddingValues(horizontal = 6.dp)) { Text("Editar") }
+                    IconButton(onClick = onRemove, enabled = !transferRunning) {
+                        Icon(Icons.Default.BookmarkRemove, "Mover a papelera")
+                    }
+                }
+            }
+        } else {
+            Row(
+                Modifier.fillMaxWidth().padding(11.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                if (document != null) {
+                    FileThumbnail(file = document, size = 72)
+                } else {
+                    Box(
+                        Modifier.size(72.dp).clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.BrokenImage, null, Modifier.size(28.dp))
+                    }
+                }
+                Spacer(Modifier.width(11.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text(record.displayName, fontWeight = FontWeight.Bold, maxLines = 2)
+                    Text(record.category, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    if (record.project.isNotBlank()) Text("Proyecto: " + record.project, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                    Text("Tipo: " + record.resourceKind, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (record.relatedUris.isNotEmpty()) {
+                        val knownRelated = record.relatedUris.count { it in libraryRecordsByUri }
+                        val unresolved = record.relatedUris.size - knownRelated
+                        Text(
+                            "Relacionados: $knownRelated" + if (unresolved > 0) " · Sin ficha: $unresolved" else "",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (unresolved > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    LibraryTechnicalDetails(details)
+                    if (record.tags.isNotEmpty()) {
+                        Text("Etiquetas: " + record.tags.joinToString(" · "), style = MaterialTheme.typography.bodySmall, maxLines = 2)
+                    }
+                    if (record.notes.isNotBlank()) Text(record.notes, style = MaterialTheme.typography.bodySmall, maxLines = 2)
+                    if (record.source.isNotBlank()) {
+                        Text("Procedencia: " + record.source, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = onToggleFavorite) {
+                            Icon(
+                                if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
+                                contentDescription = if (isFavorite) "Quitar de favoritos" else "Añadir a favoritos",
+                                tint = if (isFavorite) Color(0xFFE4A11B) else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        TextButton(
+                            enabled = document != null && details.state == LibraryResourceState.AVAILABLE,
+                            onClick = { document?.let(onOpen) },
+                            contentPadding = PaddingValues(horizontal = 8.dp)
+                        ) { Icon(Icons.Default.OpenInNew, null); Spacer(Modifier.width(3.dp)); Text("Abrir") }
+                        TextButton(
+                            onClick = { onEdit(document) },
+                            contentPadding = PaddingValues(horizontal = 8.dp)
+                        ) { Icon(Icons.Default.Edit, null); Spacer(Modifier.width(3.dp)); Text("Editar") }
+                        TextButton(
+                            onClick = onRemove,
+                            enabled = !transferRunning,
+                            contentPadding = PaddingValues(horizontal = 8.dp)
+                        ) { Icon(Icons.Default.BookmarkRemove, null); Spacer(Modifier.width(3.dp)); Text("Quitar ficha") }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryTechnicalDetails(details: LibraryResourceDetails) {
+    when (details.state) {
+        LibraryResourceState.LOADING -> Text(
+            "Consultando metadatos…",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        LibraryResourceState.NOT_FOUND -> Text(
+            "Recurso no encontrado. La ficha se conserva.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error
+        )
+        LibraryResourceState.NO_ACCESS -> Text(
+            "Sin acceso al recurso. Revisa los permisos.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error
+        )
+        LibraryResourceState.AVAILABLE -> {
+            val detailsLine = buildList {
+                details.mimeType?.takeIf { it.isNotBlank() }?.let(::add)
+                details.sizeBytes?.let { add(formatBytes(it)) }
+                if (details.width != null && details.height != null) add("${details.width} × ${details.height} px")
+                details.modifiedMillis?.let {
+                    add("Modificado " + SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(it)))
+                }
+            }
+            if (detailsLine.isNotEmpty()) {
+                Text(
+                    detailsLine.joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3
+                )
+            } else {
+                Text("Metadatos técnicos no disponibles", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+private fun inspectLibraryResource(
+    context: Context,
+    rawUri: String,
+    document: DocumentFile?
+): LibraryResourceDetails {
+    if (document == null) return LibraryResourceDetails(state = LibraryResourceState.NO_ACCESS)
+    val exists = runCatching { document.exists() }
+    if (exists.isFailure) return LibraryResourceDetails(state = LibraryResourceState.NO_ACCESS)
+    if (exists.getOrDefault(false).not()) return LibraryResourceDetails(state = LibraryResourceState.NOT_FOUND)
+
+    val mimeType = runCatching { document.type }.getOrNull()
+    val size = runCatching { document.length() }.getOrDefault(-1L).takeIf { it >= 0L }
+    val modified = runCatching { document.lastModified() }.getOrDefault(0L).takeIf { it > 0L }
+    val name = runCatching { document.name }.getOrNull().orEmpty()
+    val extension = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
+    val isImage = mimeType?.startsWith("image/", ignoreCase = true) == true || extension in Kind.IMAGES.extensions
+    var width: Int? = null
+    var height: Int? = null
+    if (isImage) {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        val dimensionRead = runCatching {
+            val uri = Uri.parse(rawUri)
+            if (uri.scheme == "file") BitmapFactory.decodeFile(uri.path, bounds)
+            else context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+            if (bounds.outWidth > 0 && bounds.outHeight > 0) bounds.outWidth to bounds.outHeight else null
+        }.getOrNull()
+        width = dimensionRead?.first
+        height = dimensionRead?.second
+    }
+    return LibraryResourceDetails(
+        state = LibraryResourceState.AVAILABLE,
+        mimeType = mimeType ?: extension.takeIf { it.isNotBlank() }?.uppercase(Locale.ROOT),
+        sizeBytes = size,
+        modifiedMillis = modified,
+        width = width,
+        height = height
+    )
 }
 
 @Composable

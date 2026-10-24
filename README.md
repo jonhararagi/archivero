@@ -27,8 +27,35 @@ Los archivos se procesan localmente. La aplicación no tiene una función de sub
 - Búsqueda recursiva manual con progreso, límite de 100.000 elementos y profundidad máxima 20. Entrar a Limpieza no inicia un escaneo automático; debe tocarse «Analizar ubicación». La vista de carpetas carga lotes de 5.000 elementos y permite continuar sin sustituir toda la lista por un array ilimitado. En rutas de almacenamiento local usa `DirectoryStream` y en árboles SAF usa un cursor con desplazamiento; cada lote se acumula solo cuando el usuario lo solicita. Si un proveedor no permite una enumeración acotada, Archivero muestra el motivo y pide volver a elegir la carpeta mediante el selector SAF, en lugar de materializar una lista potencialmente ilimitada.
 - Limpieza revisable de capturas identificables de más de 90 días, vídeos de 100 MB o más y duplicados idénticos.
 - La detección de duplicados agrupa primero por tamaño y confirma el contenido mediante SHA-256; no usa el nombre como prueba.
+- La Biblioteca incluye un análisis manual de duplicados exactos: compara por SHA-256 completo solo recursos del mismo tamaño, permite cancelar el análisis y presenta resultados sin modificar ni eliminar archivos. Los recursos inaccesibles o sin tamaño conocido quedan fuera de la comparación.
 - La limpieza no elimina archivos automáticamente. El usuario revisa y marca elementos y confirma la acción. En los grupos de duplicados, se exige conservar al menos una copia.
 - Mensajes de error cuando Android o un proveedor de documentos no permite leer, crear o eliminar un elemento.
+
+## Biblioteca digital local
+
+La sección **Biblioteca** crea fichas locales para recursos existentes sin copiar, mover ni eliminar el archivo original. Cada ficha puede guardar nombre visible, categoría, etiquetas, notas, procedencia, proyecto/colección, tipo de recurso y relaciones con otras fichas.
+
+- Abre el menú contextual de un archivo y elige **Añadir a biblioteca** para crear o editar su ficha.
+- Busca por nombre, categoría, etiquetas, notas, procedencia, proyecto, tipo o identificadores de recursos relacionados. La búsqueda y los filtros ignoran tildes para facilitar la recuperación en español, pero mantienen la `ñ` distinta de la `n`; la normalización es temporal y no modifica los metadatos guardados.
+- Usa vistas de **cuadrícula** y **lista**, miniaturas de la caché compartida y metadatos técnicos disponibles: formato/MIME, tamaño, fecha de modificación y dimensiones de imágenes cuando Android puede leerlas.
+- Los tipos de recurso distinguen explícitamente entre **Sin clasificar**, **Original**, **Derivado**, **Editado**, **Generado**, **Referencia** y **Personaje**. No se inventan datos cuando un proveedor no devuelve metadatos.
+- Combina búsqueda con filtros de categoría, tipo de recurso y proyecto/colección (valores existentes en las fichas). Ordena por **Nombre**, **Recientes** o **Proyecto**. Las últimas ocho búsquedas se guardan en preferencias locales y pueden borrarse desde la pantalla Biblioteca.
+- El chip **Solo favoritos** reduce los resultados a las fichas marcadas sin perder los filtros de texto, categoría o tipo; al desactivarlo vuelve la búsqueda completa.
+- El etiquetado por lotes permite seleccionar fichas visibles, previsualizar las etiquetas nuevas y aplicarlas en una sola escritura del índice. Conserva las etiquetas anteriores, ignora duplicados por mayúsculas/minúsculas y rechaza operaciones que dejarían cambios parciales.
+- **Asignar colección** permite seleccionar fichas visibles, previsualizar el cambio de proyecto y aplicarlo en una sola escritura del catálogo. Si alguna ficha dejó de existir o el nombre no es válido, se rechaza todo el lote.
+- **Revisar relaciones** detecta URI vinculadas que no tienen ficha en el catálogo y enumera de forma limitada las fichas sin enlaces entrantes. Estas últimas son orientativas: no se consideran errores automáticamente.
+- **Revisar acceso** comprueba manualmente los recursos activos de la Biblioteca y muestra ejemplos de los que no son visibles para el proveedor o no se pueden leer. Se limita a metadatos y permisos; «no visible» no significa necesariamente que el archivo esté borrado.
+- **Buscar fotos parecidas en fichas visibles** analiza un máximo de 500 resultados actualmente filtrados mediante huellas perceptuales de miniaturas. Es una sugerencia para revisión, no una prueba de duplicación; muestra hasta 100 grupos y no modifica archivos ni metadatos.
+- Las fichas pueden vincular hasta 100 recursos. Las referencias solo guardan URI/identificadores: no duplican archivos. Las relaciones cuyo recurso ya no está indexado se indican como pendientes, y la ficha se conserva.
+- **Quitar ficha** elimina solo los metadatos; no borra el archivo físico. Si una URI está ausente o Android ya no permite acceder, se avisa sin borrar el registro.
+- La vista presenta hasta 500 resultados a la vez para mantener controlada la carga visual. El filtrado se ejecuta fuera del hilo de interfaz y ahora mantiene una cola acotada de los mejores resultados, evitando ordenar toda la coincidencia para mostrar solo la primera página.
+- Marca fichas como **favoritas** con la estrella; los favoritos quedan por delante de los demás dentro del orden elegido. Es independiente de los favoritos musicales. Los favoritos se guardan localmente, se limitan a 5.000 y se limpian del historial si se quita la ficha del catálogo.
+
+Las fichas retiradas con «Mover a papelera» quedan recuperables tras cerrar y volver a abrir la aplicación. Desde **Papelera** puedes restaurarlas o eliminar permanentemente solo sus metadatos con confirmación. Esta acción nunca borra el archivo físico. Las instantáneas de biblioteca incluyen los elementos de la papelera para que las exportaciones conserven esa información.
+
+El índice local está versionado y se actualiza mediante un archivo temporal con reemplazo atómico cuando el sistema de archivos lo admite. Las instantáneas se pueden importar/exportar desde los selectores de Android y tienen un límite de 64 MiB. Una importación inválida o con URI en conflicto se rechaza por defecto, sin sobrescribir silenciosamente la biblioteca activa.
+
+El esquema V3 conserva proyecto, tipo de recurso y relaciones, añade la Papelera recuperable de metadatos y sigue leyendo fichas de los esquemas V1/V2: las fichas antiguas conservan sus datos y reciben valores predeterminados para los campos nuevos; se convierten al esquema actual cuando se guardan.
 
 ## Correcciones de fiabilidad recientes
 

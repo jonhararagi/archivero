@@ -24,6 +24,23 @@ internal data class SimilarImageScanResult(
     val truncated: Boolean
 )
 
+/** User-facing summary that never treats perceptual similarity as proof of duplication. */
+internal fun similarImageScanSummary(result: SimilarImageScanResult): String {
+    val base = when {
+        result.truncated ->
+            "Análisis parcial: se alcanzó el límite de candidatas (${result.scanned})."
+        result.groups.isEmpty() ->
+            "No se encontraron grupos de fotos parecidas en ${result.scanned} candidatas."
+        else ->
+            "Se encontraron ${result.groups.size} grupos de fotos parecidas en ${result.scanned} candidatas."
+    }
+    return if (result.unreadable > 0) {
+        "$base ${result.unreadable} recurso(s) no se pudieron leer o inspeccionar."
+    } else {
+        base
+    }
+}
+
 internal val RASTER_IMAGE_EXTENSIONS = setOf(
     "jpg", "jpeg", "jpe", "jfif", "jps", "png", "webp", "gif", "bmp",
     "heic", "heif", "avif", "tif", "tiff"
@@ -36,53 +53,47 @@ internal fun isRasterImageFile(file: DocumentFile): Boolean =
 internal fun perceptualHashDistance(first: Long, second: Long): Int =
     java.lang.Long.bitCount(first xor second)
 
-/** Groups hashes by visual similarity. Exact file names and sizes do not affect the result. */
+/**
+ * Groups visually similar hashes with a deterministic complete-link rule.
+ *
+ * Every pair in a returned group must be within maxDistance. This avoids the false confidence
+ * of single-link/connected-component grouping, where a chain of near matches can join two images
+ * whose hashes are far apart. The greedy partition is stable because input is ordered first.
+ */
 internal fun groupSimilarImageHashes(
     samples: List<ImageHashSample>,
     maxDistance: Int = SIMILAR_IMAGE_DISTANCE_THRESHOLD
 ): List<List<ImageHashSample>> {
     require(maxDistance in 0..64) { "La distancia de comparación debe estar entre 0 y 64." }
     if (samples.size < 2) return emptyList()
-    val parents = IntArray(samples.size) { it }
-    val ranks = IntArray(samples.size)
 
-    fun rootOf(initial: Int): Int {
-        var cursor = initial
-        while (parents[cursor] != cursor) {
-            parents[cursor] = parents[parents[cursor]]
-            cursor = parents[cursor]
-        }
-        return cursor
-    }
+    val ordered = samples.sortedWith(
+        compareBy<ImageHashSample> { it.hash }.thenBy { it.uri }
+    )
+    val clusters = ArrayList<MutableList<ImageHashSample>>()
 
-    fun union(first: Int, second: Int) {
-        var firstRoot = rootOf(first)
-        var secondRoot = rootOf(second)
-        if (firstRoot == secondRoot) return
-        if (ranks[firstRoot] < ranks[secondRoot]) {
-            val swap = firstRoot
-            firstRoot = secondRoot
-            secondRoot = swap
-        }
-        parents[secondRoot] = firstRoot
-        if (ranks[firstRoot] == ranks[secondRoot]) ranks[firstRoot]++
-    }
-
-    for (first in samples.indices) {
-        for (second in first + 1 until samples.size) {
-            if (perceptualHashDistance(samples[first].hash, samples[second].hash) <= maxDistance) {
-                union(first, second)
+    ordered.forEach { sample ->
+        val compatible = clusters.firstOrNull { cluster ->
+            cluster.all { member ->
+                perceptualHashDistance(sample.hash, member.hash) <= maxDistance
             }
         }
+        if (compatible == null) {
+            clusters.add(mutableListOf(sample))
+        } else {
+            compatible.add(sample)
+        }
     }
 
-    return samples.indices.groupBy { rootOf(it) }
-        .values
+    return clusters
         .filter { it.size > 1 }
-        .map { indices -> indices.map(samples::get) }
-        .sortedByDescending { it.size }
+        .map { it.toList() }
+        .sortedWith(
+            compareByDescending<List<ImageHashSample>> { it.size }
+                .thenBy { it.first().hash }
+                .thenBy { it.first().uri }
+        )
 }
-
 /**
  * Hashes only tiny previews and holds no full-resolution images after processing. Candidate
  * discovery is cancellable and stops once the configured cap is proven to be exceeded.
@@ -116,7 +127,13 @@ internal suspend fun findSimilarImages(
 
     for (file in candidates) {
         currentCoroutineContext().ensureActive()
-        val hash = runCatching { perceptualHashForUri(context, file.uri) }.getOrNull()
+        val hash = try {
+            perceptualHashForUri(context, file.uri)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
         if (hash == null) {
             unreadable++
         } else {
@@ -144,20 +161,28 @@ private fun perceptualHashForUri(context: Context, uri: Uri): Long? {
     while (largest / sample > 128) sample *= 2
     val options = BitmapFactory.Options().apply { inSampleSize = sample }
     val decoded = decodeForUri(context, uri, options) ?: return null
-    val tiny = Bitmap.createScaledBitmap(decoded, 9, 8, true)
+    val tiny = try {
+        Bitmap.createScaledBitmap(decoded, 9, 8, true)
+    } catch (error: Throwable) {
+        decoded.recycle()
+        throw error
+    }
     if (tiny !== decoded) decoded.recycle()
 
-    var hash = 0L
-    for (y in 0 until 8) {
-        for (x in 0 until 8) {
-            val left = luminance(tiny.getPixel(x, y))
-            val right = luminance(tiny.getPixel(x + 1, y))
-            hash = hash shl 1
-            if (left > right) hash = hash or 1L
+    try {
+        var hash = 0L
+        for (y in 0 until 8) {
+            for (x in 0 until 8) {
+                val left = luminance(tiny.getPixel(x, y))
+                val right = luminance(tiny.getPixel(x + 1, y))
+                hash = hash shl 1
+                if (left > right) hash = hash or 1L
+            }
         }
+        return hash
+    } finally {
+        tiny.recycle()
     }
-    tiny.recycle()
-    return hash
 }
 
 private fun luminance(color: Int): Int {
