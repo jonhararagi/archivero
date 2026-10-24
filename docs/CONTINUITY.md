@@ -1,27 +1,46 @@
+## Continuidad · instantánea para carga y refresco de Biblioteca · 2026-10-24
+
+- Base de trabajo: main en e492a474e5d8de1786467c69324bc3c93562f209. Rama autorizada: feature/archivero-library-snapshot-load-001. PR e integración pendientes.
+- DigitalLibraryCatalog.recordsSnapshot() devuelve una copia desligada en orden de almacenamiento sin ordenar el catálogo. all() conserva el orden alfabético completo.
+- Las dos lecturas usadas al iniciar y refrescar la pantalla Biblioteca pasan a recordsSnapshot(); el orden final visible continúa a cargo de filterLibraryRecords().
+- Prueba nueva: comprueba el orden de almacenamiento y el orden alfabético antes y después de reabrir el índice.
+- Sin cambios de esquema, persistencia o archivos físicos. CI pendiente para este lote; sin benchmark en el Xiaomi.
+
+---
+
+## Auditoría de ramas y consolidación · 2026-10-24
+
+- PR #3 está fusionado en main en c9da3c2339d26667d3862c8a7d03ae95281677e3; CI del PR y CI posterior de main terminaron PASS.
+- PR #4 está fusionado en main en e492a474e5d8de1786467c69324bc3c93562f209; CI del PR y CI posterior de main terminaron PASS.
+- La rama histórica feature/archivero-android-file-manager está divergida (28 commits exclusivos y 164 commits detrás de main al auditarla) y no tiene PR abierto. Se inspeccionaron los principales cambios de apertura externa, tipos MIME, procesamiento en segundo plano, vistas PDF/vídeo y operaciones ZIP/copia/movimiento; la versión actual de main contiene implementaciones evolucionadas de esas funciones.
+- No se debe fusionar la rama histórica completa: puede reintroducir versiones antiguas de MainActivity.kt, AndroidManifest.xml y actividades multimedia. Si aparece una función concreta ausente, se rescata por separado con una prueba y un PR.
+- Regla persistente: ninguna mejora aprobada se da por entregada hasta comprobar su integración en main y registrar su SHA y su CI.
+
+---
 ## Continuidad · búsqueda acotada del catálogo · 2026-10-24
 
-- Base de trabajo: `main` en `c9da3c2339d26667d3862c8a7d03ae95281677e3`. Rama autorizada de este lote: `feature/archivero-bounded-catalog-search-001`; integrar en `main` solo tras CI PASS y PR aprobado.
+- PR #4 quedó fusionado en main en e492a474e5d8de1786467c69324bc3c93562f209. Su rama ya no contiene cambios pendientes de integración.
 - `DigitalLibraryCatalog.search` ahora mantiene como máximo `limit` coincidencias en una cola de prioridad y ordena únicamente esa ventana. El recorrido de búsqueda sigue siendo lineal sobre los metadatos; la selección acotada reduce la memoria auxiliar y evita el ordenamiento completo.
 - Se preservan favoritos primero, después nombre en minúsculas y URI como desempate estable; filtros por texto, categoría y etiquetas no cambian.
 - Prueba añadida: 180 registros y comparación exacta entre la salida limitada y un ordenamiento completo de referencia, incluidos favoritos y filtros combinados.
 - No se incorporan dependencias, no se modifica el esquema ni se tocan archivos físicos.
-- CI pendiente para esta rama. Sin benchmark en el Xiaomi; no atribuir una mejora porcentual hasta medirla.
+- CI PASS del PR en run 40061589163 y CI PASS posterior en main en run 40061745082. Sin benchmark en el Xiaomi; no atribuir una mejora porcentual hasta medirla.
 
 ---
 
 ## Continuidad · errores de escritura y rollback del catálogo · 2026-10-23
 
-- Rama autorizada: `feature/archivero-digital-library-001`; PR #3 sigue abierto en borrador. No modificar `main` ni fusionar.
+- PR #3 quedó fusionado en main en c9da3c2339d26667d3862c8a7d03ae95281677e3. La rama feature/archivero-digital-library-001 quedó detrás de main y no debe volver a integrarse como bloque.
 - Se añade un punto de inyección opcional al escritor de instantáneas para simular fallos de almacenamiento determinísticamente en pruebas. El camino de producción conserva el escritor normal.
 - Nueva prueba: el guardado falla al editar la ficha y al moverla a papelera; las operaciones propagan `IOException`, la instancia no publica cambios sin persistencia y una reapertura conserva el último catálogo válido.
 - Sin migración de esquema, sin dependencias nuevas y sin operaciones sobre los archivos físicos.
-- CI de este lote: pendiente. TIMER estimado: 30–60 minutos de agente, no una medición de rendimiento en dispositivo.
+- CI PASS del código en run 40024070823 y CI PASS posterior de main en run 40048558887. Sin migración ni dependencias nuevas.
 
 ---
 
 ## Continuidad · búsqueda tolerante a tildes · 2026-10-23
 
-- Rama autorizada: `feature/archivero-digital-library-001`; el PR #3 continúa abierto en borrador. No tocar `main` ni fusionar.
+- Esta mejora se integró en main junto con el PR #3 mediante c9da3c2339d26667d3862c8a7d03ae95281677e3; se conserva la nota histórica para documentar la decisión técnica.
 - Añadida `normalizeLibrarySearchText`: normaliza para buscar sin tildes y conserva la `ñ` como letra distinta de `n`.
 - La regla se reutiliza en las consultas de metadatos y en los filtros visuales por categoría, tipo, proyecto y etiquetas. No modifica el texto almacenado, no cambia el esquema y no añade dependencias.
 - Prueba: consulta `cancion personaje` contra distintos campos, filtros `musica/edicion/coleccion`, etiqueta con tilde, distinción `nino` vs. `niño` y comprobación de que el registro original conserva sus tildes.

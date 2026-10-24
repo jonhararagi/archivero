@@ -100,6 +100,38 @@ class DigitalLibraryCatalogTest {
     }
 
     @Test
+    fun recordsSnapshotPreservesStorageOrderAndAllPreservesAlphabeticOrderAfterReopen() {
+        val directory = Files.createTempDirectory("archivero-library-snapshot-order").toFile()
+        try {
+            val file = File(directory, "catalog.properties")
+            val catalog = DigitalLibraryCatalog(file)
+            val zorro = LibraryRecord(
+                uri = "content://snapshot-order/z",
+                displayName = "Zorro",
+                category = "Imagen",
+                updatedAtMillis = 1L
+            )
+            val anime = LibraryRecord(
+                uri = "content://snapshot-order/a",
+                displayName = "Anime",
+                category = "Imagen",
+                updatedAtMillis = 2L
+            )
+            catalog.upsert(zorro)
+            catalog.upsert(anime)
+
+            assertEquals(listOf(zorro.uri, anime.uri), catalog.recordsSnapshot().map { it.uri })
+            assertEquals(listOf(anime.uri, zorro.uri), catalog.all().map { it.uri })
+
+            val reopened = DigitalLibraryCatalog(file)
+            assertEquals(listOf(zorro.uri, anime.uri), reopened.recordsSnapshot().map { it.uri })
+            assertEquals(listOf(anime.uri, zorro.uri), reopened.all().map { it.uri })
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun normalizedSearchTextIsReusedAndCopiesReflectUpdatedMetadata() {
         val original = LibraryRecord(
             uri = "content://search-cache/item",

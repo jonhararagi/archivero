@@ -1,10 +1,19 @@
+## Carga de Biblioteca sin ordenamiento duplicado · 2026-10-24
+
+- Se añade recordsSnapshot(), que devuelve una copia desligada de las fichas en orden de almacenamiento sin ordenar el catálogo completo.
+- La carga inicial y el refresco de Biblioteca usan esta instantánea porque los filtros visuales ya aplican su propio orden. all() conserva el contrato de devolver una lista alfabética completa.
+- Prueba nueva: verifica el orden de ambas APIs antes y después de reabrir el catálogo.
+- No cambia el esquema ni los datos persistidos. El ahorro esperado es evitar una ordenación O(N log N) durante carga/refresco; aún no hay benchmark de dispositivo.
+- CI de este lote: pendiente.
+
+---
 ## Selección acotada en la búsqueda del catálogo · 2026-10-24
 
 - La búsqueda interna del catálogo conserva solo los mejores N resultados en un heap acotado, en lugar de ordenar y materializar todas las coincidencias para después aplicar `take(limit)`.
 - Se mantienen los criterios de coincidencia, la normalización de tildes, los filtros por categoría y etiquetas, la prioridad de favoritos y el orden determinista por nombre y URI.
 - Prueba añadida con 180 fichas: compara la página acotada con un ordenamiento completo de referencia y valida filtros, favoritos, desempates y tamaño del resultado.
 - La búsqueda sigue inspeccionando los metadatos del catálogo; este cambio no supone indexación de contenido ni se presenta como un benchmark de dispositivo.
-- CI de este lote: pendiente de verificación.
+- **CI PASS:** [run 40061589163](https://github.com/jonhararagi/archivero/actions/runs/40061589163), SHA 52c926f23a1f3492d15f31f787f7aea5f8050860. Pasaron pruebas unitarias, compilación Android, firma/hash y subida. Artefacto APK ID 12547498295, 20.666.176 bytes, digest SHA-256 aa2c68afc0c0c58f0fdbb5b7352e42be547b37b9cb3faad5a23c499ccc4d437c. PR #4 quedó integrado en main mediante e492a474e5d8de1786467c69324bc3c93562f209; CI posterior de main también PASS en [run 40061745082](https://github.com/jonhararagi/archivero/actions/runs/40061745082), artefacto ID 12547402669.
 
 ---
 
@@ -13,7 +22,7 @@
 - Se introduce un punto de inyección interno y opcional para simular un error del escritor de instantáneas en pruebas; el comportamiento normal sigue usando el guardado temporal con reemplazo atómico cuando el sistema lo admite.
 - Se añade una prueba que provoca fallos de escritura al editar una ficha y al moverla a papelera. Comprueba que el error se propaga, el estado en memoria no cambia y al reabrir se recupera la última instantánea válida del disco.
 - No se alteran el esquema, las URI ni los recursos físicos. La prueba es determinista y no depende de permisos de archivos del sistema de CI.
-- CI de este lote: pendiente de ejecución.
+- **CI PASS:** [run 40024070823](https://github.com/jonhararagi/archivero/actions/runs/40024070823), SHA 3fddcf9f0894d8f32844c8e63dce0da19f9f95d2; pasaron pruebas, compilación, firma/hash y subida. Artefacto ID 12531198333, 20.666.637 bytes, digest SHA-256 6f0f739bd30ca40a0ad98ee2cdcab9c47173c561ae53b0ed3f4498e497a743b9. PR #3 quedó integrado en main en c9da3c2339d26667d3862c8a7d03ae95281677e3; la CI posterior de main también terminó PASS en [run 40048558887](https://github.com/jonhararagi/archivero/actions/runs/40048558887), artefacto ID 12542302508.
 
 ---
 
