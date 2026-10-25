@@ -1,3 +1,12 @@
+## Historial de navegación de carpetas · 2026-10-25
+
+- Añade historial atrás/adelante como estado separado de la UI, con funciones puras y cinco pruebas unitarias.
+- Conserva el URI original junto a cada carpeta para no confundir la URI SAF de raíz con la URI de documento que `DocumentFile` expone.
+- Una nueva navegación limpia la pila hacia adelante. Un acceso rápido a una subcarpeta permite volver a la raíz autorizada y avanzar de nuevo a esa carpeta.
+- La CI de este nuevo cambio queda pendiente; el lote anterior de accesos rápidos pasó CI en [run 40151136452](https://github.com/jonhararagi/archivero/actions/runs/40151136452). Sin prueba física en Xiaomi.
+
+---
+
 ## Accesos rápidos persistentes a carpetas · 2026-10-25
 
 - Añade marcadores de carpetas con una lista horizontal de accesos rápidos en la vista Carpetas.

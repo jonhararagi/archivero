@@ -31,6 +31,13 @@ Los archivos se procesan localmente. La aplicación no tiene una función de sub
 - La limpieza no elimina archivos automáticamente. El usuario revisa y marca elementos y confirma la acción. En los grupos de duplicados, se exige conservar al menos una copia.
 - Mensajes de error cuando Android o un proveedor de documentos no permite leer, crear o eliminar un elemento.
 
+## Navegación atrás y adelante
+
+- La vista **Carpetas** conserva un historial de navegación. Usa **Volver** para regresar al último directorio y **Adelante** para rehacer el recorrido.
+- Al entrar en una nueva carpeta después de retroceder, el historial hacia adelante se descarta como en un navegador.
+- Las entradas guardan el URI exacto que se estaba utilizando, para que la raíz seleccionada por SAF no se confunda con la URI de documento que devuelve `DocumentFile`.
+- Si abres un acceso rápido guardado directamente en una subcarpeta, **Volver** regresa a la raíz autorizada y **Adelante** permite volver a la carpeta marcada.
+
 ## Accesos rápidos a carpetas
 
 - Guarda una carpeta desde **Carpetas** con el icono de marcador y vuelve a abrirla desde la fila de accesos rápidos.

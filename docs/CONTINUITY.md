@@ -1,3 +1,12 @@
+## Continuidad · historial atrás/adelante en Carpetas · 2026-10-25
+
+- Se sustituye la pila de `DocumentFile` suelta por `FolderNavigationHistory`, que guarda la carpeta y el URI de navegación exacto en las pilas back/forward.
+- `enterFolderNavigationHistory`, `moveFolderBackward` y `moveFolderForward` son funciones puras con cinco pruebas unitarias. Entrar a otra carpeta limpia forward.
+- La raíz SAF se restaura conservando el URI autorizado original. Los accesos rápidos que apuntan directamente a una subcarpeta admiten regresar a raíz y avanzar nuevamente.
+- Cambio recién incluido en el PR #8; la CI del commit que añade historial está pendiente. No se declara prueba física.
+
+---
+
 ## Continuidad · accesos rápidos a carpetas · 2026-10-25
 
 - Rama de trabajo: `feature/archivero-folder-quick-access-001`, basada en `main` en `9ff54f1f81da57f6c5c6c5131b80b1e911514b94`.

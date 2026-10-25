@@ -325,7 +325,7 @@ fun ArchiveroApp() {
     var permissionRefresh by remember { mutableIntStateOf(0) }
     var hasAllFilesAccess by remember { mutableStateOf(Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager()) }
     var currentUri by remember { mutableStateOf<Uri?>(null) }
-    var folderHistory by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
+    var folderNavigationHistory by remember { mutableStateOf(FolderNavigationHistory<DocumentFile>()) }
     var root by remember { mutableStateOf<DocumentFile?>(null) }
     var current by remember { mutableStateOf<DocumentFile?>(null) }
     val folderQuickAccessLoad = remember(context) {
@@ -725,7 +725,7 @@ fun ArchiveroApp() {
             try { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) } catch (_: SecurityException) { }
             rootUri = uri
             currentUri = uri
-            folderHistory = emptyList()
+            folderNavigationHistory = FolderNavigationHistory<DocumentFile>()
             root = DocumentFile.fromTreeUri(context, uri)
             current = root
             indexed = emptyList()
@@ -892,7 +892,7 @@ fun ArchiveroApp() {
             val storage = DocumentFile.fromFile(Environment.getExternalStorageDirectory())
             root = storage
             current = storage
-            folderHistory = emptyList()
+            folderNavigationHistory = FolderNavigationHistory<DocumentFile>()
             rootUri = storage.uri
             currentUri = storage.uri
             indexed = emptyList()
@@ -1021,8 +1021,8 @@ fun ArchiveroApp() {
             rootUri = savedRootUri
             root = savedRoot
             current = savedFolder
-            currentUri = if (savedFolderUri == savedRootUri) savedRootUri else savedFolder.uri
-            folderHistory = emptyList()
+            currentUri = savedFolderUri
+            folderNavigationHistory = FolderNavigationHistory<DocumentFile>()
             indexed = emptyList()
             hasScanned = false
             scanStatus = ""
@@ -1035,6 +1035,44 @@ fun ArchiveroApp() {
         }
     }
 
+    fun currentFolderNavigationEntry(): FolderNavigationEntry<DocumentFile>? {
+        val folder = current ?: return null
+        return FolderNavigationEntry(folder, (currentUri ?: folder.uri).toString())
+    }
+
+    fun navigateFolderBackward() {
+        val currentEntry = currentFolderNavigationEntry() ?: return
+        val move = moveFolderBackward(folderNavigationHistory, currentEntry)
+        if (move != null) {
+            folderNavigationHistory = move.history
+            current = move.current.folder
+            currentUri = Uri.parse(move.current.uri)
+            refresh++
+            return
+        }
+        // A saved quick-access shortcut can open a child without a breadcrumb trail.
+        // Return to its authorized root, preserving existing forward entries.
+        val rootFolder = root ?: return
+        val authorizedRootUri = rootUri ?: return
+        if (currentEntry.uri == authorizedRootUri.toString()) return
+        folderNavigationHistory = FolderNavigationHistory(
+            back = emptyList(),
+            forward = folderNavigationHistory.forward + currentEntry
+        )
+        current = rootFolder
+        currentUri = authorizedRootUri
+        refresh++
+    }
+
+    fun navigateFolderForward() {
+        val currentEntry = currentFolderNavigationEntry() ?: return
+        val move = moveFolderForward(folderNavigationHistory, currentEntry) ?: return
+        folderNavigationHistory = move.history
+        current = move.current.folder
+        currentUri = Uri.parse(move.current.uri)
+        refresh++
+    }
+
     LaunchedEffect(rootUri, hasAllFilesAccess) {
         val saved = rootUri ?: return@LaunchedEffect
         if (root == null) {
@@ -1042,7 +1080,7 @@ fun ArchiveroApp() {
                 if (saved.scheme == "file" && hasAllFilesAccess) DocumentFile.fromFile(Environment.getExternalStorageDirectory())
                 else DocumentFile.fromTreeUri(context, saved)
             }.getOrNull()
-            if (restored != null && restored.canRead()) { root = restored; current = restored; currentUri = restored.uri }
+            if (restored != null && restored.canRead()) { root = restored; current = restored; currentUri = saved }
             else if (saved.scheme != "file") { rootUri = null; currentUri = null; message = "Android ya no permite acceder a esa ubicación. Elígela otra vez." }
         }
     }
@@ -1460,13 +1498,9 @@ fun ArchiveroApp() {
             showAppearance -> showAppearance = false
             showPlayerPanel -> showPlayerPanel = false
             screen == Screen.TYPES && !choosingKind -> { choosingKind = true; query = "" }
-            screen == Screen.FOLDERS && folderHistory.isNotEmpty() -> {
-                val parent = folderHistory.last()
-                folderHistory = folderHistory.dropLast(1)
-                current = parent
-                currentUri = parent.uri
-                refresh++
-            }
+            screen == Screen.FOLDERS &&
+                (folderNavigationHistory.back.isNotEmpty() || (currentUri != null && currentUri != rootUri)) ->
+                navigateFolderBackward()
             screen != Screen.HOME -> { screen = Screen.HOME; choosingKind = false; query = "" }
             else -> showExitDialog = true
         }
@@ -1586,7 +1620,7 @@ fun ArchiveroApp() {
                     NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                         NavigationBarItem(screen == Screen.HOME, { screen = Screen.HOME; choosingKind = false; query = "" }, { Icon(Icons.Default.Home, null) }, label = { Text("Inicio") })
                         NavigationBarItem(screen == Screen.TYPES, { screen = Screen.TYPES; choosingKind = true; query = "" }, { Icon(Icons.Default.Category, null) }, label = { Text("Tipos") })
-                        NavigationBarItem(screen == Screen.FOLDERS, { screen = Screen.FOLDERS; choosingKind = false; folderHistory = emptyList(); current = root; currentUri = rootUri; query = ""; refresh++ }, { Icon(Icons.Default.FolderOpen, null) }, label = { Text("Carpetas") })
+                        NavigationBarItem(screen == Screen.FOLDERS, { screen = Screen.FOLDERS; choosingKind = false; folderNavigationHistory = FolderNavigationHistory<DocumentFile>(); current = root; currentUri = rootUri; query = ""; refresh++ }, { Icon(Icons.Default.FolderOpen, null) }, label = { Text("Carpetas") })
                         NavigationBarItem(screen == Screen.CLEAN, { screen = Screen.CLEAN; query = ""; cleanupSelectedUris = emptySet() }, { Icon(Icons.Default.CleaningServices, null) }, label = { Text("Limpiar") })
                         NavigationBarItem(screen == Screen.LIBRARY, { screen = Screen.LIBRARY; choosingKind = false; query = "" }, { Icon(Icons.Default.Bookmark, null) }, label = { Text("Biblioteca") })
                     }
@@ -1799,19 +1833,21 @@ fun ArchiveroApp() {
                             }
                             TextButton(onClick = { pickFolder.launch(null) }) { Icon(Icons.Default.Add, null); Text("Ubicación") }
                         }
-                        if (currentUri != null && currentUri != rootUri) {
-                            TextButton(onClick = {
-                                if (folderHistory.isNotEmpty()) {
-                                    val parent = folderHistory.last()
-                                    folderHistory = folderHistory.dropLast(1)
-                                    current = parent
-                                    currentUri = parent.uri
-                                } else {
-                                    current = root
-                                    currentUri = rootUri
+                        val canNavigateBack = folderNavigationHistory.back.isNotEmpty() ||
+                            (currentUri != null && currentUri != rootUri)
+                        if (canNavigateBack || folderNavigationHistory.forward.isNotEmpty()) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                if (canNavigateBack) {
+                                    TextButton(onClick = { navigateFolderBackward() }) {
+                                        Icon(Icons.Default.ArrowBack, null); Text("Volver")
+                                    }
                                 }
-                                refresh++
-                            }) { Icon(Icons.Default.ArrowBack, null); Text("Volver") }
+                                if (folderNavigationHistory.forward.isNotEmpty()) {
+                                    TextButton(onClick = { navigateFolderForward() }) {
+                                        Icon(Icons.Default.ArrowForward, null); Text("Adelante")
+                                    }
+                                }
+                            }
                         }
                         SearchBox(query) { query = it }
                         if (folderQuickAccessError != null) {
@@ -1929,7 +1965,12 @@ fun ArchiveroApp() {
                             items(folderEntries, key = { it.uri.toString() }) { file ->
                                 DocumentRow(file, {
                                     if (file.isDirectory) {
-                                        current?.let { folderHistory = folderHistory + it }
+                                        current?.let { folder ->
+                                            folderNavigationHistory = enterFolderNavigationHistory(
+                                                folderNavigationHistory,
+                                                FolderNavigationEntry(folder, (currentUri ?: folder.uri).toString())
+                                            )
+                                        }
                                         current = file
                                         currentUri = file.uri
                                         refresh++
