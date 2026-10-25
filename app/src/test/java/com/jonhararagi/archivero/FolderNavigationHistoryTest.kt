@@ -41,7 +41,6 @@ class FolderNavigationHistoryTest {
     fun enteringANewFolderClearsTheForwardStack() {
         val root = FolderNavigationEntry("root", "file:///storage")
         val a = FolderNavigationEntry("a", "file:///storage/a")
-        val c = FolderNavigationEntry("c", "file:///storage/c")
 
         // Enter A from root, then go back to root before choosing another branch.
         val afterEnteringA = enterFolderNavigationHistory(FolderNavigationHistory<String>(), root)
@@ -50,7 +49,6 @@ class FolderNavigationHistoryTest {
 
         assertEquals(listOf(root), newBranch.back)
         assertTrue(newBranch.forward.isEmpty())
-        assertEquals(c.folder, "c")
     }
 
     @Test
