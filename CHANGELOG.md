@@ -2,8 +2,8 @@
 
 - Añade marcadores de carpetas con una lista horizontal de accesos rápidos en la vista Carpetas.
 - Cada elemento guarda su URI y la raíz SAF autorizada para reconstruir la ubicación sin ampliar permisos ni manipular archivos.
-- La serialización está versionada, limitada a 100 carpetas y validada; datos malformados generan un aviso y solo se descartan tras una acción explícita del usuario.
-- Ocho pruebas unitarias cubren round-trip con nombres Unicode/líneas nuevas, orden reciente, añadir/quitar, límite, URI repetidas, proveedores incompatibles y datos dañados.
+- La serialización está versionada, limitada a 100 carpetas y 512 KiB, y validada; datos malformados generan un aviso y solo se descartan tras una acción explícita del usuario.
+- Nueve pruebas unitarias cubren round-trip con nombres Unicode/líneas nuevas, orden reciente, añadir/quitar, límite, URI repetidas, proveedores incompatibles y datos dañados.
 - CI y prueba en emuladores pendientes; aún no se ha probado en un Xiaomi físico.
 
 ---

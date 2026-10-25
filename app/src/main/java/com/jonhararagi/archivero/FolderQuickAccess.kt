@@ -6,6 +6,7 @@ import java.util.Base64
 import java.util.Locale
 
 internal const val MAX_FOLDER_QUICK_ACCESS_ENTRIES = 100
+internal const val MAX_FOLDER_QUICK_ACCESS_BYTES = 512 * 1024
 private const val QUICK_ACCESS_HEADER = "ARCHIVERO_FOLDER_SHORTCUTS_V1"
 private const val MAX_QUICK_ACCESS_URI_LENGTH = 8_192
 private const val MAX_QUICK_ACCESS_NAME_LENGTH = 1_024
@@ -52,7 +53,7 @@ internal fun encodeFolderQuickAccess(entries: List<FolderQuickAccessEntry>): Str
     val encoder = Base64.getUrlEncoder().withoutPadding()
     fun encode(value: String): String = encoder.encodeToString(value.toByteArray(StandardCharsets.UTF_8))
 
-    return buildString {
+    val serialized = buildString {
         append(QUICK_ACCESS_HEADER).append('\n')
         normalized.forEach { entry ->
             append(encode(entry.uri)).append('.')
@@ -60,12 +61,19 @@ internal fun encodeFolderQuickAccess(entries: List<FolderQuickAccessEntry>): Str
                 .append(encode(entry.displayName)).append('\n')
         }
     }
+    require(serialized.length <= MAX_FOLDER_QUICK_ACCESS_BYTES) {
+        "Los accesos rápidos ocupan demasiado espacio para guardarse de forma segura."
+    }
+    return serialized
 }
 
 /** Invalid persisted data is rejected instead of silently dropping or partially restoring shortcuts. */
 @Throws(IOException::class)
 internal fun decodeFolderQuickAccess(serialized: String?): List<FolderQuickAccessEntry> {
     if (serialized.isNullOrBlank()) return emptyList()
+    if (serialized.length > MAX_FOLDER_QUICK_ACCESS_BYTES) {
+        throw IOException("La lista de accesos rápidos supera el tamaño máximo permitido.")
+    }
     val lines = serialized.lineSequence().filter { it.isNotBlank() }.toList()
     if (lines.firstOrNull() != QUICK_ACCESS_HEADER) {
         throw IOException("El formato de accesos rápidos no es compatible.")

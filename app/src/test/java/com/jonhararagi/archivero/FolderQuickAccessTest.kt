@@ -128,4 +128,26 @@ class FolderQuickAccessTest {
         }
     }
 
+    @Test
+    fun rejectsSerializedStateAboveTheMemoryBudget() {
+        val oversized = FolderQuickAccessEntry(
+            uri = "file:///" + "a".repeat(8_000),
+            rootUri = "file:///storage",
+            displayName = "Carpeta"
+        )
+        try {
+            encodeFolderQuickAccess(List(MAX_FOLDER_QUICK_ACCESS_ENTRIES) { oversized.copy(uri = oversized.uri + it) })
+            throw AssertionError("La serialización excesiva debía rechazarse.")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+
+        try {
+            decodeFolderQuickAccess("x".repeat(MAX_FOLDER_QUICK_ACCESS_BYTES + 1))
+            throw AssertionError("La lectura de un estado demasiado grande debía rechazarse.")
+        } catch (_: IOException) {
+            // Expected.
+        }
+    }
+
 }
