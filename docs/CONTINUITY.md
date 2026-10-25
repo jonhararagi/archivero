@@ -1,3 +1,10 @@
+## Continuidad · fix de script y resultado real API 26 · 2026-10-25
+
+- Run `40151032693`: las pruebas instrumentadas de API 26 **pasaron 3/3** y Gradle registró `BUILD SUCCESSFUL`, pero el wrapper CI falló en el bloque auxiliar con `Syntax error: end of file unexpected (expecting "fi")`; cada línea del script se ejecutó en un shell separado.
+- Corrección: ejecutar Gradle y la captura condicional de diagnósticos dentro de una única llamada `bash -c`. La captura comprende `adb devices`, `logcat`, `dumpsys instrumentation` y `dumpsys package` cuando el test falla.
+- Se necesita una nueva ejecución para validar el workflow corregido y API 35. Aún no se declara compatibilidad completa ni prueba física.
+
+---
 ## Continuidad · captura diagnóstica del emulador API 35 · 2026-10-25
 
 - PR #7 segundo intento (run 40149635639): API 26 `success` (10 pasos OK); API 35 `failure`. El log de API35 registra `Starting 0 tests`, `Process crashed` y `[EmulatorConsole]: Failed to start Emulator console for 5554`; no contiene `FATAL EXCEPTION` ni aserción concreta. La causa raíz no queda demostrada.

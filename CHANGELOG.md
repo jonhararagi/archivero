@@ -1,3 +1,10 @@
+## Corrección de shell para la CI instrumentada · 2026-10-25
+
+- Tercer intento [run 40151032693](https://github.com/jonhararagi/archivero/actions/runs/40151032693): API 26 reportó `Tests 3/3 completed (0 failed)` y `BUILD SUCCESSFUL`, pero el job terminó FAILURE por `Syntax error: end of file unexpected (expecting "fi")` en el propio bloque de shell diagnóstico, porque el runner ejecutó cada línea por separado.
+- Se reescribe el paso de ejecución como un único `bash -c` para conservar variables, condicionales y capturas ADB en el mismo proceso. Esto corrige un fallo del workflow, no un error de producto ni de las pruebas.
+- Nueva ejecución pendiente; no declarar PASS de la matriz hasta que API 26 y API 35 terminen sin errores de prueba ni de orquestación.
+
+---
 ## Diagnóstico instrumentado y captura de logs · 2026-10-25
 
 - Segundo workflow de compatibilidad PR #7: API 26 pasó; API 35 volvió a fallar antes de ejecutar casos (`Starting 0 tests`, `Process crashed`). El log de consola no mostró `FATAL EXCEPTION` ni una aserción fallida. Se observó además `Failed to start Emulator console for 5554`; no basta para declarar la causa raíz.
