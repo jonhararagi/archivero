@@ -3,7 +3,7 @@
 - Rama de trabajo: `feature/archivero-folder-quick-access-001`, basada en `main` en `9ff54f1f81da57f6c5c6c5131b80b1e911514b94`.
 - Se añade `FolderQuickAccessEntry` con URI de carpeta, raíz autorizada y nombre visible; se almacena hasta 100 entradas en preferencias locales mediante un formato versionado Base64 URL.
 - La UI permite guardar/quitar la carpeta actual y abrir ubicaciones guardadas desde una fila horizontal de acceso rápido. Los fallos de permisos conservan los marcadores, y datos corruptos requieren restablecimiento explícito.
-- Se añaden ocho pruebas unitarias de serialización, límites, eliminación, validación del proveedor y URI raíz. Validación CI pendiente; no se declara prueba física.
+- Se añaden ocho pruebas unitarias de serialización, límites, eliminación, validación del proveedor, URI raíz y pertenencia al árbol SAF. Validación CI pendiente; no se declara prueba física.
 - No hay cambios de esquema de biblioteca ni operaciones sobre archivos originales.
 
 ---

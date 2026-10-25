@@ -981,6 +981,16 @@ fun ArchiveroApp() {
                 savedRoot = DocumentFile.fromFile(rootFile)
                 savedFolder = DocumentFile.fromFile(folderFile)
             } else {
+                if (!DocumentsContract.isTreeUri(savedRootUri) || !DocumentsContract.isTreeUri(savedFolderUri)) {
+                    throw IOException("La ubicación guardada no corresponde a un árbol de documentos de Android.")
+                }
+                val savedTreeId = runCatching { DocumentsContract.getTreeDocumentId(savedRootUri) }
+                    .getOrElse { throw IOException("No se pudo validar la raíz SAF guardada.", it) }
+                val folderTreeId = runCatching { DocumentsContract.getTreeDocumentId(savedFolderUri) }
+                    .getOrElse { throw IOException("No se pudo validar la carpeta SAF guardada.", it) }
+                if (savedTreeId != folderTreeId) {
+                    throw IOException("La carpeta guardada no pertenece al árbol autorizado. Se conservó el acceso rápido.")
+                }
                 savedRoot = DocumentFile.fromTreeUri(context, savedRootUri)
                     ?: throw IOException("Android no pudo reconstruir la ubicación autorizada.")
                 savedFolder = if (savedFolderUri == savedRootUri) {
