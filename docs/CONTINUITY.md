@@ -1,3 +1,10 @@
+## Continuidad · captura diagnóstica del emulador API 35 · 2026-10-25
+
+- PR #7 segundo intento (run 40149635639): API 26 `success` (10 pasos OK); API 35 `failure`. El log de API35 registra `Starting 0 tests`, `Process crashed` y `[EmulatorConsole]: Failed to start Emulator console for 5554`; no contiene `FATAL EXCEPTION` ni aserción concreta. La causa raíz no queda demostrada.
+- Se modifica la CI de PR7 para guardar en caso de fallo `adb devices -l`, `adb logcat -d -b all`, `dumpsys activity instrumentation` y `dumpsys package` del APK de pruebas. Se suben como artefacto por 7 días. El job tiene límite de 20 minutos para no quedar indefinidamente en ejecución.
+- La matriz sigue bloqueando el job de APK hasta pasar ambas API. No se declara compatibilidad de API35 hasta que el runner ejecute los casos y el workflow cierre PASS.
+
+---
 ## Continuidad · investigación del fallo del emulador API 35 · 2026-10-24
 
 - CI inicial PR #7: el job de pruebas instrumentadas API 26 terminó PASS con `3/3 tests`; API 35 terminó en fallo tras `Starting 0 tests` y `Instrumentation run failed due to Process crashed`. No había FATAL EXCEPTION ni fallo de aserción en el log recuperable.

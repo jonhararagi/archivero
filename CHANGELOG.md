@@ -1,3 +1,10 @@
+## Diagnóstico instrumentado y captura de logs · 2026-10-25
+
+- Segundo workflow de compatibilidad PR #7: API 26 pasó; API 35 volvió a fallar antes de ejecutar casos (`Starting 0 tests`, `Process crashed`). El log de consola no mostró `FATAL EXCEPTION` ni una aserción fallida. Se observó además `Failed to start Emulator console for 5554`; no basta para declarar la causa raíz.
+- Se añade una captura de `adb devices`, `adb logcat -b all`, `dumpsys activity instrumentation` y el estado del paquete de tests cuando el paso falla. El artefacto de diagnóstico se conserva durante 7 días para poder distinguir fallo del emulador, instalación o runner.
+- El job de compatibilidad ahora tiene un máximo de 20 minutos. No se considerará PASS hasta que API 26 y API 35 ejecuten y terminen los tests correctamente.
+
+---
 ## Diagnóstico de instrumentación API 35 · 2026-10-24
 
 - Primer resultado del PR #7: API 26 ejecutó las tres pruebas instrumentadas y terminó PASS. API 35 terminó con fallo del proceso de instrumentación antes de ejecutar pruebas (registró 0 tests); el log no contiene una excepción que permita atribuirlo a una aserción concreta.
