@@ -1822,21 +1822,26 @@ fun ArchiveroApp() {
                                     color = MaterialTheme.colorScheme.error
                                 )
                                 TextButton(onClick = {
-                                    runCatching {
-                                        context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
-                                            .edit().remove("folder_quick_access").commit()
-                                    }.fold(
-                                        { saved ->
-                                            if (saved) {
-                                                folderQuickAccess = emptyList()
-                                                folderQuickAccessError = null
-                                                message = "Se restableció la lista de accesos rápidos dañada. No se modificaron archivos ni la biblioteca."
-                                            } else {
-                                                message = "Android no pudo guardar el restablecimiento de accesos rápidos. Los datos originales se conservan."
+                                    scope.launch {
+                                        val result = withContext(Dispatchers.IO) {
+                                            runCatching {
+                                                context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
+                                                    .edit().remove("folder_quick_access").commit()
                                             }
-                                        },
-                                        { error -> message = error.message ?: "No se pudieron restablecer los accesos rápidos." }
-                                    )
+                                        }
+                                        result.fold(
+                                            { saved ->
+                                                if (saved) {
+                                                    folderQuickAccess = emptyList()
+                                                    folderQuickAccessError = null
+                                                    message = "Se restableció la lista de accesos rápidos dañada. No se modificaron archivos ni la biblioteca."
+                                                } else {
+                                                    message = "Android no pudo guardar el restablecimiento de accesos rápidos. Los datos originales se conservan."
+                                                }
+                                            },
+                                            { error -> message = error.message ?: "No se pudieron restablecer los accesos rápidos." }
+                                        )
+                                    }
                                 }) { Text("Restablecer accesos rápidos dañados") }
                             }
                         }
