@@ -9,6 +9,7 @@ permissions:
   contents: read
 jobs:
   build:
+    needs: compatibility-smoke
     runs-on: ubuntu-latest
     env:
       ARCHIVERO_CI_DEBUG_KEYSTORE: /home/runner/.android/debug.keystore
@@ -74,6 +75,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         api-level: [26, 35]
     steps:

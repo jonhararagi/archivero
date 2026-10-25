@@ -1,3 +1,11 @@
+## Continuidad · investigación del fallo del emulador API 35 · 2026-10-24
+
+- CI inicial PR #7: el job de pruebas instrumentadas API 26 terminó PASS con `3/3 tests`; API 35 terminó en fallo tras `Starting 0 tests` y `Instrumentation run failed due to Process crashed`. No había FATAL EXCEPTION ni fallo de aserción en el log recuperable.
+- Las pruebas unitarias JVM, `assembleDebug`, firma/hash y subida del artefacto pasaron. El resultado total del workflow fue FAILURE por el job API 35.
+- Se serializa la matriz de emuladores y se hace depender el job de construcción del resultado positivo de compatibilidad. Así el workflow evita lanzar dos emuladores y la construcción pesada a la vez, y evita publicar la APK de este PR si falla alguna API.
+- Revalidación de API 35 pendiente. No declarar compatibilidad total ni integrar hasta inspeccionar la siguiente ejecución.
+
+---
 ## Continuidad · smoke tests en distintas API de Android · 2026-10-24
 
 - Rama de validación: `test/archivero-android-api-compatibility-001`; base inspeccionada de `main`: `9ff54f1f81da57f6c5c6c5131b80b1e911514b94`.

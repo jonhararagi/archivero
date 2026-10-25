@@ -1,3 +1,11 @@
+## Diagnóstico de instrumentación API 35 · 2026-10-24
+
+- Primer resultado del PR #7: API 26 ejecutó las tres pruebas instrumentadas y terminó PASS. API 35 terminó con fallo del proceso de instrumentación antes de ejecutar pruebas (registró 0 tests); el log no contiene una excepción que permita atribuirlo a una aserción concreta.
+- La compilación y las pruebas JVM pasaron. El resultado API 35 **no** se trata como aprobado ni como un bug de la app confirmado.
+- Ajuste preventivo: limitar a un emulador simultáneo (`max-parallel: 1`) y hacer que el job de compilación/artefacto dependa de la matriz de compatibilidad, evitando que corran dos emuladores más una compilación pesada al mismo tiempo.
+- Pendiente: repetir CI y confirmar si la caída se reproduce sin competencia de recursos.
+
+---
 ## Pruebas instrumentadas de compatibilidad Android · 2026-10-24
 
 - Se añade `AndroidCompatibilitySmokeTest`: comprueba la persistencia/reapertura del catálogo local, la paginación acotada de una carpeta y la resolución MIME de APK/APKS ejecutándose dentro de Android.
