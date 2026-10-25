@@ -3,7 +3,7 @@
 - Se sustituye la pila de `DocumentFile` suelta por `FolderNavigationHistory`, que guarda la carpeta y el URI de navegación exacto en las pilas back/forward.
 - `enterFolderNavigationHistory`, `moveFolderBackward` y `moveFolderForward` son funciones puras con cinco pruebas unitarias. Entrar a otra carpeta limpia forward.
 - La raíz SAF se restaura conservando el URI autorizado original. Los accesos rápidos que apuntan directamente a una subcarpeta admiten regresar a raíz y avanzar nuevamente.
-- Cambio recién incluido en el PR #8; la CI del commit que añade historial está pendiente. No se declara prueba física.
+- **CI PASS:** run [40151749075](https://github.com/jonhararagi/archivero/actions/runs/40151749075), commit `e3e39ef45505b466ca887e9aee90d0693a910e64`. Pasaron `testDebugUnitTest`, `assembleDebug`, firma/hash y subida de APK. APK SHA-256 `f5435f22f33dbc8f07cf359fdedca3aa92cfb8be9d8ea8238b853d45b47e4d20`; artifact `12583101445`, SHA-256 ZIP `bc9e727f64eea287e2b93fa73e8fd980587eb9f70659a0d37a8d7cab4febc26e`. No se declara prueba física.
 
 ---
 

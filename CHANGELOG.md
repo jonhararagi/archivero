@@ -3,7 +3,7 @@
 - Añade historial atrás/adelante como estado separado de la UI, con funciones puras y cinco pruebas unitarias.
 - Conserva el URI original junto a cada carpeta para no confundir la URI SAF de raíz con la URI de documento que `DocumentFile` expone.
 - Una nueva navegación limpia la pila hacia adelante. Un acceso rápido a una subcarpeta permite volver a la raíz autorizada y avanzar de nuevo a esa carpeta.
-- La CI de este nuevo cambio queda pendiente; el lote anterior de accesos rápidos pasó CI en [run 40151136452](https://github.com/jonhararagi/archivero/actions/runs/40151136452). Sin prueba física en Xiaomi.
+- **CI PASS del historial y los accesos rápidos:** [run 40151749075](https://github.com/jonhararagi/archivero/actions/runs/40151749075), SHA `e3e39ef45505b466ca887e9aee90d0693a910e64`. `testDebugUnitTest`, `assembleDebug`, verificación firma/hash y subida completaron correctamente. APK SHA-256 `f5435f22f33dbc8f07cf359fdedca3aa92cfb8be9d8ea8238b853d45b47e4d20`; artefacto ID `12583101445`, 20.693.869 bytes, SHA-256 ZIP `bc9e727f64eea287e2b93fa73e8fd980587eb9f70659a0d37a8d7cab4febc26e`. No se ha probado físicamente en Xiaomi.
 
 ---
 
