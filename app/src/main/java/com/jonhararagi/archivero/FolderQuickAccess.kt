@@ -120,6 +120,9 @@ private fun normalizeFolderQuickAccessEntry(entry: FolderQuickAccessEntry): Fold
     require(rootUri.substringBefore(':').lowercase(Locale.ROOT) in setOf("file", "content")) {
         "El tipo de raíz del acceso rápido no es compatible."
     }
+    require(uri.substringBefore(':').equals(rootUri.substringBefore(':'), ignoreCase = true)) {
+        "La carpeta y la raíz del acceso rápido deben utilizar el mismo proveedor."
+    }
     require(displayName.isNotEmpty() && displayName.length <= MAX_QUICK_ACCESS_NAME_LENGTH) {
         "El nombre del acceso rápido no es válido."
     }

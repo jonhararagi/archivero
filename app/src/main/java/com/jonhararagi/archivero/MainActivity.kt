@@ -962,7 +962,7 @@ fun ArchiveroApp() {
             val savedFolderUri = Uri.parse(entry.uri)
             val savedRoot: DocumentFile
             val savedFolder: DocumentFile
-            if (savedRootUri.scheme == "file") {
+            if (savedRootUri.scheme.equals("file", ignoreCase = true)) {
                 if (Build.VERSION.SDK_INT >= 30 && !hasAllFilesAccess) {
                     message = "Android ya no permite el acceso al almacenamiento. Reactiva el permiso y vuelve a abrir el acceso rápido."
                     return

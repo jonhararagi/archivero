@@ -89,4 +89,43 @@ class FolderQuickAccessTest {
             // Expected.
         }
     }
+
+    @Test
+    fun toggleKeepsNewestShortcutsAndEnforcesValidLimit() {
+        val existing = (1..MAX_FOLDER_QUICK_ACCESS_ENTRIES).map { index ->
+            FolderQuickAccessEntry("file:///storage/$index", "file:///storage", "Carpeta $index")
+        }
+        val newest = FolderQuickAccessEntry("file:///storage/newest", "file:///storage", "Nueva")
+        val updated = toggleFolderQuickAccess(existing, newest)
+
+        assertEquals(MAX_FOLDER_QUICK_ACCESS_ENTRIES, updated.size)
+        assertEquals(newest, updated.first())
+        assertFalse(updated.any { it.uri == existing.last().uri })
+
+        try {
+            toggleFolderQuickAccess(existing, newest, limit = 0)
+            throw AssertionError("Un límite cero debía rechazarse.")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+    }
+
+    @Test
+    fun rejectsFolderAndRootFromDifferentProviders() {
+        try {
+            encodeFolderQuickAccess(
+                listOf(
+                    FolderQuickAccessEntry(
+                        "content://provider/document/1",
+                        "file:///storage/emulated/0",
+                        "Carpeta"
+                    )
+                )
+            )
+            throw AssertionError("La raíz y la carpeta no deben usar proveedores distintos.")
+        } catch (_: IllegalArgumentException) {
+            // Expected.
+        }
+    }
+
 }
