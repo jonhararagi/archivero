@@ -910,19 +910,32 @@ fun ArchiveroApp() {
         }
     }
 
-    fun saveFolderQuickAccess(next: List<FolderQuickAccessEntry>) {
+    fun saveFolderQuickAccess(next: List<FolderQuickAccessEntry>): Boolean {
         if (folderQuickAccessError != null) {
             message = "Los accesos rápidos guardados están dañados. Restablécelos expresamente antes de modificarlos."
-            return
+            return false
         }
         val serialized = runCatching { encodeFolderQuickAccess(next) }
-        serialized.fold(
+        return serialized.fold(
             { value ->
-                folderQuickAccess = next
-                context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
-                    .edit().putString("folder_quick_access", value).apply()
+                runCatching {
+                    context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
+                        .edit().putString("folder_quick_access", value).apply()
+                }.fold(
+                    {
+                        folderQuickAccess = next
+                        true
+                    },
+                    { error ->
+                        message = error.message ?: "No se pudieron guardar los accesos rápidos."
+                        false
+                    }
+                )
             },
-            { error -> message = error.message ?: "No se pudieron guardar los accesos rápidos." }
+            { error ->
+                message = error.message ?: "No se pudieron guardar los accesos rápidos."
+                false
+            }
         )
     }
 
@@ -946,8 +959,7 @@ fun ArchiveroApp() {
         val removing = folderQuickAccess.any { it.uri == entry.uri }
         runCatching { toggleFolderQuickAccess(folderQuickAccess, entry) }.fold(
             { updated ->
-                saveFolderQuickAccess(updated)
-                if (folderQuickAccessError == null) {
+                if (saveFolderQuickAccess(updated)) {
                     message = if (removing) "Se quitó \"${entry.displayName}\" de accesos rápidos."
                     else "Se guardó \"${entry.displayName}\" en accesos rápidos."
                 }
@@ -1810,11 +1822,21 @@ fun ArchiveroApp() {
                                     color = MaterialTheme.colorScheme.error
                                 )
                                 TextButton(onClick = {
-                                    context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
-                                        .edit().remove("folder_quick_access").apply()
-                                    folderQuickAccess = emptyList()
-                                    folderQuickAccessError = null
-                                    message = "Se restableció la lista de accesos rápidos dañada. No se modificaron archivos ni la biblioteca."
+                                    runCatching {
+                                        context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
+                                            .edit().remove("folder_quick_access").commit()
+                                    }.fold(
+                                        { saved ->
+                                            if (saved) {
+                                                folderQuickAccess = emptyList()
+                                                folderQuickAccessError = null
+                                                message = "Se restableció la lista de accesos rápidos dañada. No se modificaron archivos ni la biblioteca."
+                                            } else {
+                                                message = "Android no pudo guardar el restablecimiento de accesos rápidos. Los datos originales se conservan."
+                                            }
+                                        },
+                                        { error -> message = error.message ?: "No se pudieron restablecer los accesos rápidos." }
+                                    )
                                 }) { Text("Restablecer accesos rápidos dañados") }
                             }
                         }
@@ -1840,8 +1862,7 @@ fun ArchiveroApp() {
                                         )
                                         IconButton(
                                             onClick = {
-                                                saveFolderQuickAccess(removeFolderQuickAccess(folderQuickAccess, shortcut.uri))
-                                                if (folderQuickAccessError == null) message = "Se quitó \"${shortcut.displayName}\" de accesos rápidos."
+                                                if (saveFolderQuickAccess(removeFolderQuickAccess(folderQuickAccess, shortcut.uri))) message = "Se quitó \"${shortcut.displayName}\" de accesos rápidos."
                                             },
                                             modifier = Modifier.size(36.dp)
                                         ) {
