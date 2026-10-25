@@ -31,6 +31,13 @@ Los archivos se procesan localmente. La aplicación no tiene una función de sub
 - La limpieza no elimina archivos automáticamente. El usuario revisa y marca elementos y confirma la acción. En los grupos de duplicados, se exige conservar al menos una copia.
 - Mensajes de error cuando Android o un proveedor de documentos no permite leer, crear o eliminar un elemento.
 
+## Accesos rápidos a carpetas
+
+- Guarda una carpeta desde **Carpetas** con el icono de marcador y vuelve a abrirla desde la fila de accesos rápidos.
+- Se conservan hasta 100 accesos, ordenados del más reciente al más antiguo. Se guardan el URI de la carpeta y la raíz autorizada; los marcadores no copian ni modifican archivos.
+- Si Android revoca el permiso o el proveedor ya no expone la carpeta, Archivero muestra el problema y conserva el acceso para no perderlo silenciosamente. En ubicaciones que requieren el permiso de acceso a todos los archivos, debes volver a concederlo.
+- La lista se guarda en preferencias locales. Si sus datos se dañan, se muestra un aviso y el usuario debe confirmar expresamente el restablecimiento.
+
 ## Biblioteca digital local
 
 La sección **Biblioteca** crea fichas locales para recursos existentes sin copiar, mover ni eliminar el archivo original. Cada ficha puede guardar nombre visible, categoría, etiquetas, notas, procedencia, proyecto/colección, tipo de recurso y relaciones con otras fichas.
