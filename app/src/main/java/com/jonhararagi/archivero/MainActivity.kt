@@ -1021,7 +1021,7 @@ fun ArchiveroApp() {
             rootUri = savedRootUri
             root = savedRoot
             current = savedFolder
-            currentUri = savedFolder.uri
+            currentUri = if (savedFolderUri == savedRootUri) savedRootUri else savedFolder.uri
             folderHistory = emptyList()
             indexed = emptyList()
             hasScanned = false
