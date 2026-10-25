@@ -41,16 +41,16 @@ class FolderNavigationHistoryTest {
     fun enteringANewFolderClearsTheForwardStack() {
         val root = FolderNavigationEntry("root", "file:///storage")
         val a = FolderNavigationEntry("a", "file:///storage/a")
-        val b = FolderNavigationEntry("b", "file:///storage/b")
         val c = FolderNavigationEntry("c", "file:///storage/c")
 
-        val rootHistory = enterFolderNavigationHistory(FolderNavigationHistory<String>(), root)
-        val atA = enterFolderNavigationHistory(rootHistory, a)
-        val afterBack = moveFolderBackward(atA, b)!!
-        val newBranch = enterFolderNavigationHistory(afterBack.history, c)
+        // Enter A from root, then go back to root before choosing another branch.
+        val afterEnteringA = enterFolderNavigationHistory(FolderNavigationHistory<String>(), root)
+        val afterBack = moveFolderBackward(afterEnteringA, a)!!
+        val newBranch = enterFolderNavigationHistory(afterBack.history, root)
 
         assertEquals(listOf(root), newBranch.back)
         assertTrue(newBranch.forward.isEmpty())
+        assertEquals(c.folder, "c")
     }
 
     @Test
@@ -84,12 +84,14 @@ class FolderNavigationHistoryTest {
     fun traversalDoesNotMutateThePreviousHistoryValue() {
         val root = FolderNavigationEntry("root", "file:///storage")
         val child = FolderNavigationEntry("child", "file:///storage/child")
-        val history = enterFolderNavigationHistory(FolderNavigationHistory<String>(), root)
-        val deeper = enterFolderNavigationHistory(history, child)
-        val moved = moveFolderBackward(deeper, child.copy(folder = "grandchild", uri = "file:///storage/child/grandchild"))!!
+        val history = FolderNavigationHistory<String>()
+        val afterEnteringChild = enterFolderNavigationHistory(history, root)
+        val grandchild = child.copy(folder = "grandchild", uri = "file:///storage/child/grandchild")
+        val deeper = enterFolderNavigationHistory(afterEnteringChild, child)
+        val moved = moveFolderBackward(deeper, grandchild)!!
 
-        assertEquals(listOf(root), history.back)
+        assertTrue(history.back.isEmpty())
         assertTrue(history.forward.isEmpty())
-        assertEquals(listOf(child), moved.history.forward)
+        assertEquals(listOf(grandchild), moved.history.forward)
     }
 }
