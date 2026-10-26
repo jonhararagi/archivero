@@ -32,9 +32,6 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.nio.ByteBuffer
-import java.nio.charset.StandardCharsets
-import java.security.MessageDigest
 
 internal data class LibraryUnresolvedRelationship(
     val sourceUri: String,
