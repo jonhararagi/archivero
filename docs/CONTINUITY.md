@@ -6,7 +6,8 @@
 - `DigitalLibraryCatalog.applyRelationshipRepair` valida la huella SHA-256 de las relaciones y las URI activas/en papelera. Rechaza una vista previa obsoleta y aplica todos los cambios en una sola instantánea.
 - Las escrituras fallidas no publican estado nuevo en memoria; no se realizan operaciones sobre recursos físicos.
 - Pruebas añadidas: preview determinista, destinos activos/en papelera, persistencia tras aplicar, rechazo si aparece un destino después de la vista previa y rollback ante fallo de escritura.
-- CI: pendiente. No afirmar PASS ni compatibilidad física antes de comprobar el flujo de GitHub Actions.
+- **CI PASS del código funcional** en commit `2bcf8c7beddcc3f523ceb0a61ae63eb513b97854`: [run 40385791080](https://github.com/jonhararagi/archivero/actions/runs/40385791080). `testDebugUnitTest`, `assembleDebug`, verificación de certificado/hash y subida de artefacto terminaron correctamente. APK SHA-256 `b4a11a0bdc68b04e632b906a1994c3d01c5bcb8c24c763f0610bce05d72d0d1d`; artefacto ID `12679724961`.
+- Se añade una prueba específica para la auditoría de enlaces a destinos en papelera; esa actualización y el ajuste de imports requieren una ejecución nueva para validar el HEAD final. Sin prueba física en dispositivo.
 
 ---
 
