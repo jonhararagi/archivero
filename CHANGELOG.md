@@ -6,7 +6,8 @@
 - Todos los cambios se escriben en una única instantánea; el estado en memoria solo se publica tras una escritura exitosa. No se tocan archivos físicos ni se borran fichas.
 - La auditoría de relaciones ahora reconoce destinos conservados en la papelera.
 - Pruebas nuevas cubren el plan, destinos en papelera, persistencia, cambios obsoletos y rollback ante error de escritura.
-- CI de esta rama: pendiente de ejecución y resultado.
+- **CI PASS del código en HEAD `2bcf8c7beddcc3f523ceb0a61ae63eb513b97854`:** [run 40385791080](https://github.com/jonhararagi/archivero/actions/runs/40385791080). Pasaron `testDebugUnitTest`, `assembleDebug`, firma/hash y subida de la APK debug. Certificado SHA-256 `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`; APK SHA-256 `b4a11a0bdc68b04e632b906a1994c3d01c5bcb8c24c763f0610bce05d72d0d1d`. Artefacto ZIP ID `12679724961`, digest SHA-256 `61142ccfb75d1ca1fd84f1221ccd1973a32ff1976a994cb665b9dfc8c11e8bfa`.
+- Se agrega una prueba adicional de la auditoría para confirmar que los enlaces a destinos en papelera no se clasifican como rotos. Esta actualización documental/de prueba requiere una nueva ejecución de CI para validar el HEAD final.
 
 ---
 
