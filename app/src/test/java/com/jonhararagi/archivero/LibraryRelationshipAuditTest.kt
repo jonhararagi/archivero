@@ -64,6 +64,25 @@ class LibraryRelationshipAuditTest {
     }
 
     @Test
+    fun referencesToTrashedTargetsArePreservedInsteadOfReportedAsBroken() {
+        val trashedUri = "content://library/trashed"
+        val records = listOf(
+            LibraryRecord(
+                uri = "content://library/source",
+                displayName = "Referencia",
+                category = "Imagen",
+                relatedUris = listOf(trashedUri)
+            )
+        )
+
+        val report = auditLibraryRelationships(records, retainedTargetUris = setOf(trashedUri))
+
+        assertEquals(0, report.unresolvedRelationCount)
+        // A trashed destination is not broken, but it is not counted as an active incoming edge.
+        assertEquals(1, report.unreferencedRecordCount)
+    }
+
+    @Test
     fun rejectsOutOfRangeSampleLimit() {
         try {
             auditLibraryRelationships(emptyList(), sampleLimit = 0)

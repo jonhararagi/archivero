@@ -1,3 +1,16 @@
+## Continuidad · reparación segura de relaciones · 2026-10-26
+
+- Nuevo lote en `feature/archivero-safe-relationship-repair-001`, basado en main `9ff54f1f81da57f6c5c6c5131b80b1e911514b94`. No modifica `main`.
+- La auditoría reconoce como destinos preservables las fichas activas y las URI guardadas en papelera.
+- `planLibraryRelationshipRepair` genera una vista previa acotada y no muta el catálogo. La UI solicita confirmación antes de aplicar.
+- `DigitalLibraryCatalog.applyRelationshipRepair` valida la huella SHA-256 de las relaciones y las URI activas/en papelera. Rechaza una vista previa obsoleta y aplica todos los cambios en una sola instantánea.
+- Las escrituras fallidas no publican estado nuevo en memoria; no se realizan operaciones sobre recursos físicos.
+- Pruebas añadidas: preview determinista, destinos activos/en papelera, persistencia tras aplicar, rechazo si aparece un destino después de la vista previa y rollback ante fallo de escritura.
+- **CI PASS del código funcional** en commit `2bcf8c7beddcc3f523ceb0a61ae63eb513b97854`: [run 40385791080](https://github.com/jonhararagi/archivero/actions/runs/40385791080). `testDebugUnitTest`, `assembleDebug`, verificación de certificado/hash y subida de artefacto terminaron correctamente. APK SHA-256 `b4a11a0bdc68b04e632b906a1994c3d01c5bcb8c24c763f0610bce05d72d0d1d`; artefacto ID `12679724961`.
+- La prueba adicional de auditoría para destinos en papelera y la limpieza de imports quedaron verificadas en el HEAD `e27356a0a1eebc435cbd440abf31085ae7c0ffdd`. [CI PASS, run 40386346053](https://github.com/jonhararagi/archivero/actions/runs/40386346053). Sin prueba física en dispositivo.
+
+---
+
 ## Continuidad · instantánea para carga y refresco de Biblioteca · 2026-10-24
 
 - PR #5 integrado en main mediante 93e70d016abbe044dbf38a6cd39117c3b6bc40a0. La rama feature/archivero-library-snapshot-load-001 ya no contiene cambios pendientes de integración.

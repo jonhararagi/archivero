@@ -84,3 +84,8 @@ Las compilaciones `debug` de GitHub Actions conservan la clave de depuración me
 Requiere JDK 17 y Android SDK 36 (el workflow instala `platforms;android-36` y `build-tools;36.0.0`). Abre el proyecto en Android Studio y sincroniza Gradle.
 
 [Ver compilaciones y descargar el APK generado por GitHub Actions](https://github.com/jonhararagi/archivero/actions/workflows/android.yml)
+
+
+## Integridad y reparación de relaciones
+
+La herramienta **Reparar enlaces** prepara una vista previa de las relaciones entre fichas cuyo destino ya no existe en la Biblioteca activa ni en la papelera. Al confirmar, elimina solo esos enlaces de metadatos mediante una única escritura del índice. Los enlaces a fichas que continúan en la papelera se conservan para permitir su restauración. Si la Biblioteca o sus relaciones cambian después de la vista previa, la reparación se rechaza y pide prepararla de nuevo. No se borran, mueven ni reescriben archivos físicos.
