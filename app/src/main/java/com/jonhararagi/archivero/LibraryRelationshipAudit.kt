@@ -32,6 +32,9 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 
 internal data class LibraryUnresolvedRelationship(
     val sourceUri: String,
@@ -55,13 +58,22 @@ internal fun auditLibraryRelationships(
     records: Collection<LibraryRecord>,
     sampleLimit: Int = 100,
     checkActive: () -> Unit = {}
+): LibraryRelationshipAuditResult =
+    auditLibraryRelationships(records, emptySet(), sampleLimit, checkActive)
+
+internal fun auditLibraryRelationships(
+    records: Collection<LibraryRecord>,
+    retainedTargetUris: Set<String>,
+    sampleLimit: Int = 100,
+    checkActive: () -> Unit = {}
 ): LibraryRelationshipAuditResult {
     require(sampleLimit in 1..1_000) { "El límite de muestra debe estar entre 1 y 1.000." }
     val stableRecords = records.distinctBy { it.uri }.sortedWith(
         compareBy<LibraryRecord> { it.displayName.lowercase(java.util.Locale.ROOT) }
             .thenBy { it.uri }
     )
-    val knownUris = stableRecords.mapTo(HashSet()) { it.uri }
+    val activeUris = stableRecords.mapTo(HashSet()) { it.uri }
+    val knownUris = activeUris + retainedTargetUris
     val incomingUris = HashSet<String>()
     val unresolvedSamples = ArrayList<LibraryUnresolvedRelationship>(sampleLimit)
     var unresolvedCount = 0
@@ -70,7 +82,7 @@ internal fun auditLibraryRelationships(
         if (index % 128 == 0) checkActive()
         owner.relatedUris.asSequence().distinct().sorted().forEach { targetUri ->
             if (targetUri in knownUris) {
-                incomingUris.add(targetUri)
+                if (targetUri in activeUris) incomingUris.add(targetUri)
             } else {
                 unresolvedCount++
                 if (unresolvedSamples.size < sampleLimit) {
@@ -119,7 +131,7 @@ internal fun LibraryRelationshipAuditButton(
             try {
                 val report = withContext(Dispatchers.Default) {
                     val coroutineContext = currentCoroutineContext()
-                    auditLibraryRelationships(snapshot) { coroutineContext.ensureActive() }
+                    auditLibraryRelationships(snapshot, retainedUris) { coroutineContext.ensureActive() }
                 }
                 result = report
             } catch (cancelled: CancellationException) {

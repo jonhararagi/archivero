@@ -1,3 +1,15 @@
+## Continuidad · reparación segura de relaciones · 2026-10-26
+
+- Nuevo lote en `feature/archivero-safe-relationship-repair-001`, basado en main `9ff54f1f81da57f6c5c6c5131b80b1e911514b94`. No modifica `main`.
+- La auditoría reconoce como destinos preservables las fichas activas y las URI guardadas en papelera.
+- `planLibraryRelationshipRepair` genera una vista previa acotada y no muta el catálogo. La UI solicita confirmación antes de aplicar.
+- `DigitalLibraryCatalog.applyRelationshipRepair` valida la huella SHA-256 de las relaciones y las URI activas/en papelera. Rechaza una vista previa obsoleta y aplica todos los cambios en una sola instantánea.
+- Las escrituras fallidas no publican estado nuevo en memoria; no se realizan operaciones sobre recursos físicos.
+- Pruebas añadidas: preview determinista, destinos activos/en papelera, persistencia tras aplicar, rechazo si aparece un destino después de la vista previa y rollback ante fallo de escritura.
+- CI: pendiente. No afirmar PASS ni compatibilidad física antes de comprobar el flujo de GitHub Actions.
+
+---
+
 ## Continuidad · instantánea para carga y refresco de Biblioteca · 2026-10-24
 
 - PR #5 integrado en main mediante 93e70d016abbe044dbf38a6cd39117c3b6bc40a0. La rama feature/archivero-library-snapshot-load-001 ya no contiene cambios pendientes de integración.

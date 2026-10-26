@@ -1987,7 +1987,8 @@ fun ArchiveroApp() {
                             LibraryRelationshipAuditButton(
                                 records = libraryRecords,
                                 enabled = libraryCatalog != null && !libraryTransferRunning,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f),
+                                retainedTargetUris = libraryTrashRecords.mapTo(HashSet()) { it.record.uri }
                             )
                             LibraryResourceAccessAuditButton(
                                 records = libraryRecords,
@@ -1995,6 +1996,18 @@ fun ArchiveroApp() {
                                 modifier = Modifier.weight(1f)
                             )
                         }
+                        LibraryRelationshipRepairButton(
+                            records = libraryRecords,
+                            trashedRecords = libraryTrashRecords,
+                            catalog = libraryCatalog,
+                            enabled = libraryCatalog != null && !libraryTransferRunning,
+                            onRepaired = { summary ->
+                                refreshLibrary()
+                                message = "Se quitaron " + summary.removedRelationCount + " enlace(s) roto(s) de " +
+                                    summary.changedRecordCount + " ficha(s). No se modificaron archivos físicos."
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
                         if (libraryTransferRunning) {
                             Text("Procesando instantánea de metadatos…", style = MaterialTheme.typography.bodySmall)
                         }

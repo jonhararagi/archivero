@@ -1,3 +1,15 @@
+## Reparación segura de relaciones sin destino · 2026-10-26
+
+- Añade vista previa y confirmación para quitar enlaces de metadatos cuyo destino no está en la Biblioteca activa ni en la papelera.
+- Las relaciones que apuntan a fichas de la papelera se conservan para permitir su restauración posterior.
+- La confirmación valida una huella SHA-256 de las identidades activas/en papelera y de las relaciones; una vista previa obsoleta se rechaza.
+- Todos los cambios se escriben en una única instantánea; el estado en memoria solo se publica tras una escritura exitosa. No se tocan archivos físicos ni se borran fichas.
+- La auditoría de relaciones ahora reconoce destinos conservados en la papelera.
+- Pruebas nuevas cubren el plan, destinos en papelera, persistencia, cambios obsoletos y rollback ante error de escritura.
+- CI de esta rama: pendiente de ejecución y resultado.
+
+---
+
 ## Carga de Biblioteca sin ordenamiento duplicado · 2026-10-24
 
 - Se añade recordsSnapshot(), que devuelve una copia desligada de las fichas en orden de almacenamiento sin ordenar el catálogo completo.
