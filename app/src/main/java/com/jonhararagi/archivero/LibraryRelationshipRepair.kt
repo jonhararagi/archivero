@@ -26,7 +26,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
@@ -169,7 +168,6 @@ internal fun LibraryRelationshipRepairButton(
     onRepaired: (LibraryRelationshipRepairSummary) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val retainedTargetUris = remember(trashedRecords) {
         trashedRecords.mapTo(LinkedHashSet()) { it.record.uri }
