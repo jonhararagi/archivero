@@ -7,7 +7,7 @@
 - La auditoría de relaciones ahora reconoce destinos conservados en la papelera.
 - Pruebas nuevas cubren el plan, destinos en papelera, persistencia, cambios obsoletos y rollback ante error de escritura.
 - **CI PASS del código en HEAD `2bcf8c7beddcc3f523ceb0a61ae63eb513b97854`:** [run 40385791080](https://github.com/jonhararagi/archivero/actions/runs/40385791080). Pasaron `testDebugUnitTest`, `assembleDebug`, firma/hash y subida de la APK debug. Certificado SHA-256 `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`; APK SHA-256 `b4a11a0bdc68b04e632b906a1994c3d01c5bcb8c24c763f0610bce05d72d0d1d`. Artefacto ZIP ID `12679724961`, digest SHA-256 `61142ccfb75d1ca1fd84f1221ccd1973a32ff1976a994cb665b9dfc8c11e8bfa`.
-- Se agrega una prueba adicional de la auditoría para confirmar que los enlaces a destinos en papelera no se clasifican como rotos. Esta actualización documental/de prueba requiere una nueva ejecución de CI para validar el HEAD final.
+- Se agrega una prueba adicional de la auditoría para confirmar que los enlaces a destinos en papelera no se clasifican como rotos. - **CI PASS para el HEAD con la prueba adicional y los imports limpios:** [run 40386346053](https://github.com/jonhararagi/archivero/actions/runs/40386346053), commit `e27356a0a1eebc435cbd440abf31085ae7c0ffdd`. Pasaron las pruebas unitarias, `assembleDebug`, verificación de firma/hash y subida. APK SHA-256 `1eef575efd2a1bc5b90e3763f71f9035142fa3df8e389a4cd5d2efc770341e64`; certificado SHA-256 `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`. Artefacto ZIP ID `12680492138`, tamaño 20.696.602 bytes, digest SHA-256 `92df570d40b13f31fbe3090e5ceebef3fde178fd79268e6202bd15e8ec175548`.
 
 ---
 
