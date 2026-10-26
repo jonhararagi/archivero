@@ -111,9 +111,11 @@ internal fun auditLibraryRelationships(
 internal fun LibraryRelationshipAuditButton(
     records: List<LibraryRecord>,
     enabled: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    retainedTargetUris: Set<String> = emptySet()
 ) {
     val scope = rememberCoroutineScope()
+    val retainedUris = remember(retainedTargetUris) { retainedTargetUris.toSet() }
     var dialogOpen by remember { mutableStateOf(false) }
     var auditing by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<LibraryRelationshipAuditResult?>(null) }
