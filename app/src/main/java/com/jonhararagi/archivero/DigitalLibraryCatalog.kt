@@ -137,6 +137,22 @@ private data class LibraryCatalogSnapshot(
     val trashedRecords: LinkedHashMap<String, TrashedLibraryRecord>
 )
 
+internal data class LibrarySnapshotImportCollision(
+    val uri: String,
+    val incomingDisplayName: String,
+    val existingDisplayName: String,
+    val incomingInTrash: Boolean,
+    val existingInTrash: Boolean
+)
+
+internal data class LibrarySnapshotImportPreview(
+    val activeRecordCount: Int,
+    val trashedRecordCount: Int,
+    val collisionCount: Int,
+    val collisionSamples: List<LibrarySnapshotImportCollision>,
+    val catalogRevision: Long
+)
+
 /**
  * Small, dependency-free, offline metadata catalog.
  *
@@ -154,6 +170,8 @@ internal class DigitalLibraryCatalog(
 ) {
     private var records: LinkedHashMap<String, LibraryRecord> = LinkedHashMap()
     private var trashedRecords: LinkedHashMap<String, TrashedLibraryRecord> = LinkedHashMap()
+    /** Incremented only after a successful persisted mutation, so an import preview cannot go stale silently. */
+    private var catalogRevision: Long = 0L
 
     init {
         val snapshot = loadSnapshotIfPresent(storageFile)
@@ -241,6 +259,7 @@ internal class DigitalLibraryCatalog(
         writeSnapshot(storageFile, updated.values, updatedTrash.values)
         records = updated
         trashedRecords = updatedTrash
+        catalogRevision++
         return normalized
     }
 
@@ -291,6 +310,7 @@ internal class DigitalLibraryCatalog(
         changedRecords.forEach { updated[it.uri] = it }
         writeSnapshot(storageFile, updated.values, trashedRecords.values)
         records = updated
+        catalogRevision++
         return changedRecords.size
     }
 
@@ -346,6 +366,7 @@ internal class DigitalLibraryCatalog(
         writeSnapshot(storageFile, updatedRecords.values, updatedTrash.values)
         records = updatedRecords
         trashedRecords = updatedTrash
+        catalogRevision++
         return true
     }
 
@@ -378,6 +399,7 @@ internal class DigitalLibraryCatalog(
         updatedTrash.remove(key)
         writeSnapshot(storageFile, records.values, updatedTrash.values)
         trashedRecords = updatedTrash
+        catalogRevision++
         return true
     }
 
@@ -391,6 +413,7 @@ internal class DigitalLibraryCatalog(
         updated.remove(key)
         writeSnapshot(storageFile, updated.values, trashedRecords.values)
         records = updated
+        catalogRevision++
         return true
     }
 
@@ -405,13 +428,60 @@ internal class DigitalLibraryCatalog(
     }
 
     /**
+     * Validates an import completely and reports what it would add or collide with, without
+     * writing to the active catalog. The revision token binds confirmation to this exact catalog
+     * state; importSnapshot rejects the plan if any intervening mutation succeeds.
+     */
+    @Synchronized
+    @Throws(IOException::class)
+    fun previewSnapshotImport(source: File): LibrarySnapshotImportPreview {
+        if (sameFile(source, storageFile)) {
+            throw IOException("La importación ya es la biblioteca activa.")
+        }
+        val imported = loadSnapshot(source)
+        val importedUris = imported.records.keys + imported.trashedRecords.keys
+        val collisionUris = importedUris.filter { uri -> uri in records || uri in trashedRecords }
+        val samples = collisionUris.take(5).map { uri ->
+            val incomingActive = imported.records[uri]
+            val incomingTrash = imported.trashedRecords[uri]
+            val existingActive = records[uri]
+            val existingTrash = trashedRecords[uri]
+            val incoming = incomingActive ?: incomingTrash?.record
+                ?: throw IOException("No se pudo preparar una coincidencia de la instantánea.")
+            val existing = existingActive ?: existingTrash?.record
+                ?: throw IOException("La Biblioteca cambió durante la vista previa.")
+            LibrarySnapshotImportCollision(
+                uri = uri,
+                incomingDisplayName = incoming.displayName,
+                existingDisplayName = existing.displayName,
+                incomingInTrash = incomingTrash != null,
+                existingInTrash = existingTrash != null
+            )
+        }
+        return LibrarySnapshotImportPreview(
+            activeRecordCount = imported.records.size,
+            trashedRecordCount = imported.trashedRecords.size,
+            collisionCount = collisionUris.size,
+            collisionSamples = samples,
+            catalogRevision = catalogRevision
+        )
+    }
+
+    /**
      * Imports a complete, validated snapshot. URI collisions are rejected by default so an
      * import cannot overwrite existing metadata silently. Set replaceExisting=true explicitly
      * when replacement is intended. A failed import leaves the current catalog untouched.
      */
     @Synchronized
     @Throws(IOException::class)
-    fun importSnapshot(source: File, replaceExisting: Boolean = false): Int {
+    fun importSnapshot(
+        source: File,
+        replaceExisting: Boolean = false,
+        expectedRevision: Long? = null
+    ): Int {
+        if (expectedRevision != null && expectedRevision != catalogRevision) {
+            throw IOException("La Biblioteca cambió desde la vista previa. Vuelve a seleccionar la instantánea para revisarla otra vez.")
+        }
         if (sameFile(source, storageFile)) {
             throw IOException("La importación ya es la biblioteca activa.")
         }
@@ -440,6 +510,7 @@ internal class DigitalLibraryCatalog(
         writeSnapshot(storageFile, updatedRecords.values, updatedTrash.values)
         records = updatedRecords
         trashedRecords = updatedTrash
+        catalogRevision++
         return importedUris.size
     }
 

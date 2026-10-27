@@ -1,3 +1,10 @@
+## [Unreleased] - 2026-10-27
+
+### Añadido
+- Vista previa de importación de instantáneas de Biblioteca con recuento de fichas activas, papelera y URI coincidentes antes de modificar el catálogo.
+- Reemplazo de coincidencias solo con confirmación explícita; revisión del catálogo asociada a la vista previa para rechazar una confirmación obsoleta.
+- Pruebas unitarias para colisiones entre fichas activas/papelera, ausencia de mutaciones durante la vista previa y protección contra cambios entre revisión y confirmación.
+
 ## Carga de Biblioteca sin ordenamiento duplicado · 2026-10-24
 
 - Se añade recordsSnapshot(), que devuelve una copia desligada de las fichas en orden de almacenamiento sin ordenar el catálogo completo.

@@ -253,6 +253,8 @@ fun ArchiveroApp() {
     var libraryRelatedQuery by remember { mutableStateOf("") }
     var libraryResourceKindExpanded by remember { mutableStateOf(false) }
     var libraryTransferRunning by remember { mutableStateOf(false) }
+    var pendingLibraryImportFile by remember { mutableStateOf<File?>(null) }
+    var pendingLibraryImportPreview by remember { mutableStateOf<LibrarySnapshotImportPreview?>(null) }
 
     LaunchedEffect(context) {
         libraryCatalogLoading = true
@@ -765,47 +767,128 @@ fun ArchiveroApp() {
             val catalog = libraryCatalog
             if (catalog == null) {
                 message = "No se puede importar porque el índice de biblioteca no está disponible."
+            } else if (libraryTransferRunning) {
+                message = "Ya hay otra operación de biblioteca en curso."
             } else {
                 libraryTransferRunning = true
                 scope.launch {
-                    val result = withContext(Dispatchers.IO) {
-                        runCatching {
-                            val snapshot = File.createTempFile("archivero-library-import-", ".properties", context.cacheDir)
-                            try {
-                                val input = context.contentResolver.openInputStream(source)
-                                    ?: throw IOException("Android no permitió leer el archivo seleccionado.")
-                                input.use { incoming ->
-                                    snapshot.outputStream().use { outgoing ->
-                                        val buffer = ByteArray(8 * 1024)
-                                        var totalBytes = 0L
-                                        while (true) {
-                                            val count = incoming.read(buffer)
-                                            if (count < 0) break
-                                            if (count == 0) continue
-                                            totalBytes += count
+                    val result: Result<Pair<File, LibrarySnapshotImportPreview>> = withContext(Dispatchers.IO) {
+                        var staged: File? = null
+                        try {
+                            val snapshot = File.createTempFile(
+                                "archivero-library-import-", ".properties", context.cacheDir
+                            )
+                            staged = snapshot
+                            val input = context.contentResolver.openInputStream(source)
+                                ?: throw IOException("Android no permitió leer el archivo seleccionado.")
+                            input.use { incoming ->
+                                snapshot.outputStream().use { outgoing ->
+                                    val buffer = ByteArray(8 * 1024)
+                                    var totalBytes = 0L
+                                    while (true) {
+                                        val count = incoming.read(buffer)
+                                        if (count < 0) break
+                                        if (count == 0) {
+                                            // Force progress for unusual providers whose stream returns zero.
+                                            val oneByte = incoming.read()
+                                            if (oneByte < 0) break
+                                            totalBytes++
                                             if (totalBytes > MAX_LIBRARY_SNAPSHOT_BYTES) {
                                                 throw IOException("La instantánea supera el límite seguro de 64 MiB.")
                                             }
-                                            outgoing.write(buffer, 0, count)
+                                            outgoing.write(oneByte)
+                                            continue
                                         }
+                                        totalBytes += count
+                                        if (totalBytes > MAX_LIBRARY_SNAPSHOT_BYTES) {
+                                            throw IOException("La instantánea supera el límite seguro de 64 MiB.")
+                                        }
+                                        outgoing.write(buffer, 0, count)
                                     }
                                 }
-                                catalog.importSnapshot(snapshot)
-                            } finally {
-                                snapshot.delete()
                             }
+                            Result.success(snapshot to catalog.previewSnapshotImport(snapshot))
+                        } catch (cancelled: CancellationException) {
+                            staged?.delete()
+                            throw cancelled
+                        } catch (error: Exception) {
+                            staged?.delete()
+                            Result.failure<Pair<File, LibrarySnapshotImportPreview>>(error)
                         }
                     }
                     libraryTransferRunning = false
                     result.fold(
-                        { count ->
-                            refreshLibrary()
-                            message = "Importación completada: $count entrada(s) de biblioteca/papelera. Los conflictos se rechazan sin sobrescribir metadatos."
+                        { (staged, preview) ->
+                            pendingLibraryImportFile?.delete()
+                            pendingLibraryImportFile = staged
+                            pendingLibraryImportPreview = preview
                         },
-                        { error -> message = "No se importó la biblioteca: ${error.message ?: "archivo inválido o conflicto"}. La biblioteca activa se conserva." }
+                        { error ->
+                            message = "No se preparó la importación: ${error.message ?: "archivo inválido"}. La Biblioteca no se modificó."
+                        }
                     )
                 }
             }
+        }
+    }
+
+    fun discardPendingLibraryImport() {
+        if (libraryTransferRunning) return
+        pendingLibraryImportFile?.delete()
+        pendingLibraryImportFile = null
+        pendingLibraryImportPreview = null
+    }
+
+    fun confirmLibraryImport(replaceExisting: Boolean) {
+        val catalog = libraryCatalog ?: run {
+            message = "No se puede importar porque el índice de biblioteca no está disponible."
+            discardPendingLibraryImport()
+            return
+        }
+        val staged = pendingLibraryImportFile ?: return
+        val preview = pendingLibraryImportPreview ?: return
+        if (libraryTransferRunning) return
+        libraryTransferRunning = true
+        scope.launch {
+            val result: Result<Int> = try {
+                withContext(Dispatchers.IO) {
+                    try {
+                        Result.success(
+                            catalog.importSnapshot(
+                                source = staged,
+                                replaceExisting = replaceExisting,
+                                expectedRevision = preview.catalogRevision
+                            )
+                        )
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Exception) {
+                        Result.failure<Int>(error)
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } finally {
+                staged.delete()
+                if (pendingLibraryImportFile == staged) {
+                    pendingLibraryImportFile = null
+                    pendingLibraryImportPreview = null
+                }
+                libraryTransferRunning = false
+            }
+            result.fold(
+                { count ->
+                    refreshLibrary()
+                    message = if (replaceExisting) {
+                        "Importación confirmada: $count entrada(s). Se reemplazaron explícitamente las coincidencias seleccionadas; los archivos originales no se tocaron."
+                    } else {
+                        "Importación completada: $count entrada(s) de biblioteca/papelera. No se sobrescribieron fichas."
+                    }
+                },
+                { error ->
+                    message = "No se importó la Biblioteca: ${error.message ?: "error de almacenamiento"}. No se cambió el catálogo; vuelve a seleccionar el archivo para revisar una vista previa actualizada."
+                }
+            )
         }
     }
 
@@ -2507,6 +2590,65 @@ fun ArchiveroApp() {
         } },
         confirmButton = { TextButton(onClick = { actionMenu = false }) { Text("Cerrar") } }
     )
+
+    pendingLibraryImportPreview?.let { preview ->
+        AlertDialog(
+            onDismissRequest = { discardPendingLibraryImport() },
+            title = { Text("Revisar importación") },
+            text = {
+                Column(
+                    Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("La instantánea se validó y todavía no se han cambiado fichas ni archivos originales.")
+                    Text("Fichas activas: ${preview.activeRecordCount}")
+                    Text("Entradas en papelera: ${preview.trashedRecordCount}")
+                    Text("URI coincidentes con la Biblioteca actual: ${preview.collisionCount}")
+                    if (preview.collisionCount > 0) {
+                        Text(
+                            "Reemplazar coincidencias sustituye explícitamente los metadatos de esas URI y su estado activa/papelera. Los archivos físicos nunca se reemplazan."
+                        )
+                        preview.collisionSamples.forEach { collision ->
+                            val incomingLocation = if (collision.incomingInTrash) "instantánea: papelera" else "instantánea: activa"
+                            val existingLocation = if (collision.existingInTrash) "Biblioteca: papelera" else "Biblioteca: activa"
+                            Text(
+                                "• ${collision.incomingDisplayName} ($incomingLocation) → ${collision.existingDisplayName} ($existingLocation)",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        if (preview.collisionCount > preview.collisionSamples.size) {
+                            Text(
+                                "Se muestran ${preview.collisionSamples.size} ejemplos de ${preview.collisionCount} coincidencias.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        Text("No hay coincidencias de URI. La importación añadirá las entradas sin sobrescribir fichas existentes.")
+                    }
+                    if (libraryTransferRunning) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                            Text("Importando y guardando la instantánea…", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { confirmLibraryImport(replaceExisting = preview.collisionCount > 0) },
+                    enabled = !libraryTransferRunning
+                ) {
+                    Text(if (preview.collisionCount > 0) "Reemplazar coincidencias" else "Importar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { discardPendingLibraryImport() }, enabled = !libraryTransferRunning) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
 
     if (libraryEditDialog) AlertDialog(
         onDismissRequest = { libraryEditDialog = false },

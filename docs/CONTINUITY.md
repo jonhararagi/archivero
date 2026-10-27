@@ -1,3 +1,15 @@
+## Continuidad · importación segura de instantáneas · 2026-10-27
+
+- Rama aislada: `feature/archivero-import-preview-001`, creada desde `main` en `9ff54f1f81da57f6c5c6c5131b80b1e911514b94`. No se modificó `main`.
+- Se incorpora `DigitalLibraryCatalog.previewSnapshotImport()`: valida la instantánea completa sin persistir cambios y muestra recuentos activos/papelera, cantidad de URI coincidentes y hasta cinco ejemplos.
+- La interfaz de importación ahora conserva la instantánea validada en un temporal privado y solicita confirmación. Si no hay conflictos, confirma Añadir; si los hay, el reemplazo exige el botón explícito «Reemplazar coincidencias». Cancelar elimina el temporal.
+- Las vistas previas llevan una revisión del catálogo. Cada mutación persistida incrementa esa revisión y una confirmación con un token obsoleto falla antes de escribir, evitando reemplazos no revisados.
+- Las pruebas cubren la vista previa sin mutación, coincidencias contra fichas activas y papelera, reemplazo explícito y rechazo tras cambios locales concurrentes.
+- Se conserva el límite de 64 MiB, la compatibilidad V1/V2/V3 y el comportamiento de no tocar archivos físicos. Sin dependencias nuevas.
+- CI del lote: pendiente de ejecución en GitHub Actions. Pruebas instrumentadas y dispositivo físico siguen siendo validaciones separadas.
+
+---
+
 ## Continuidad · instantánea para carga y refresco de Biblioteca · 2026-10-24
 
 - PR #5 integrado en main mediante 93e70d016abbe044dbf38a6cd39117c3b6bc40a0. La rama feature/archivero-library-snapshot-load-001 ya no contiene cambios pendientes de integración.

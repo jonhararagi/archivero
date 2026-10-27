@@ -911,4 +911,97 @@ class DigitalLibraryCatalogTest {
             directory.deleteRecursively()
         }
     }
+
+    @Test
+    fun importPreviewCountsActiveTrashAndCollisionsWithoutChangingCatalog() {
+        val directory = Files.createTempDirectory("archivero-library-import-preview").toFile()
+        try {
+            val targetFile = File(directory, "target.properties")
+            val target = DigitalLibraryCatalog(targetFile)
+            val activeCollision = LibraryRecord(
+                "content://preview/active", "Nombre existente", "Imagen", updatedAtMillis = 10L
+            )
+            val trashCollision = LibraryRecord(
+                "content://preview/trash", "Referencia guardada en papelera", "Documento", updatedAtMillis = 11L
+            )
+            target.upsert(activeCollision)
+            target.upsert(trashCollision)
+            target.trashMetadata(trashCollision.uri)
+
+            val source = DigitalLibraryCatalog(File(directory, "source.properties"))
+            source.upsert(activeCollision.copy(displayName = "Nombre entrante", updatedAtMillis = 20L))
+            source.upsert(LibraryRecord("content://preview/new", "Ficha nueva", "Imagen", updatedAtMillis = 21L))
+            source.upsert(trashCollision.copy(displayName = "Referencia importada", updatedAtMillis = 22L))
+            source.trashMetadata(trashCollision.uri)
+            val export = File(directory, "portable.properties")
+            source.exportSnapshot(export)
+
+            val preview = target.previewSnapshotImport(export)
+
+            assertEquals(2, preview.activeRecordCount)
+            assertEquals(1, preview.trashedRecordCount)
+            assertEquals(2, preview.collisionCount)
+            assertEquals(
+                setOf(activeCollision.uri, trashCollision.uri),
+                preview.collisionSamples.map { it.uri }.toSet()
+            )
+            assertEquals(
+                "Nombre entrante",
+                preview.collisionSamples.single { it.uri == activeCollision.uri }.incomingDisplayName
+            )
+            assertEquals(
+                "Referencia guardada en papelera",
+                preview.collisionSamples.single { it.uri == trashCollision.uri }.existingDisplayName
+            )
+            assertEquals(activeCollision, target.get(activeCollision.uri))
+            assertEquals(trashCollision.displayName, target.trashed().single().record.displayName)
+            assertTrue(target.get("content://preview/new") == null)
+            assertEquals(1, DigitalLibraryCatalog(targetFile).all().size)
+
+            assertEquals(3, target.importSnapshot(export, replaceExisting = true, expectedRevision = preview.catalogRevision))
+            assertEquals("Nombre entrante", target.get(activeCollision.uri)?.displayName)
+            assertEquals("Ficha nueva", target.get("content://preview/new")?.displayName)
+            assertEquals("Referencia importada", target.trashed().single().record.displayName)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun importPreviewRevisionRejectsChangesMadeBeforeConfirmation() {
+        val directory = Files.createTempDirectory("archivero-library-import-stale-preview").toFile()
+        try {
+            val targetFile = File(directory, "target.properties")
+            val target = DigitalLibraryCatalog(targetFile)
+            val keep = LibraryRecord("content://preview/stale/keep", "Conservar", "Documento")
+            target.upsert(keep)
+
+            val source = DigitalLibraryCatalog(File(directory, "source.properties"))
+            val incoming = LibraryRecord("content://preview/stale/incoming", "Entrada", "Imagen")
+            source.upsert(incoming)
+            val export = File(directory, "portable.properties")
+            source.exportSnapshot(export)
+            val preview = target.previewSnapshotImport(export)
+
+            val concurrent = LibraryRecord("content://preview/stale/concurrent", "Ficha nueva local", "Imagen")
+            target.upsert(concurrent)
+            val beforeConfirmation = target.all()
+
+            try {
+                target.importSnapshot(export, replaceExisting = true, expectedRevision = preview.catalogRevision)
+                throw AssertionError("La confirmación con una vista previa obsoleta debía rechazarse.")
+            } catch (error: IOException) {
+                assertTrue(error.message.orEmpty().contains("cambió desde la vista previa"))
+            }
+
+            assertEquals(beforeConfirmation, target.all())
+            assertEquals(keep, target.get(keep.uri))
+            assertEquals(concurrent, target.get(concurrent.uri))
+            assertEquals(null, target.get(incoming.uri))
+            assertEquals(beforeConfirmation, DigitalLibraryCatalog(targetFile).all())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
 }
