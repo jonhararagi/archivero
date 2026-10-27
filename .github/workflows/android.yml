@@ -78,7 +78,11 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        api-level: [26, 35]
+        include:
+          - api-level: 26
+            target: default
+          - api-level: 35
+            target: aosp_atd
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -97,10 +101,10 @@ jobs:
         with:
           api-level: ${{ matrix.api-level }}
           arch: x86_64
-          target: default
+          target: ${{ matrix.target }}
           profile: pixel_2
           disable-animations: true
-          script: bash -c 'set +e; gradle --no-daemon connectedDebugAndroidTest; test_status=$?; if [ "$test_status" -ne 0 ]; then mkdir -p build/emulator-diagnostics; adb devices -l > build/emulator-diagnostics/api-${{ matrix.api-level }}-devices.txt 2>&1 || true; adb logcat -d -b all > build/emulator-diagnostics/api-${{ matrix.api-level }}-logcat.txt 2>&1 || true; adb shell dumpsys activity instrumentation > build/emulator-diagnostics/api-${{ matrix.api-level }}-instrumentation.txt 2>&1 || true; adb shell dumpsys package com.jonhararagi.archivero.test > build/emulator-diagnostics/api-${{ matrix.api-level }}-test-package.txt 2>&1 || true; fi; exit "$test_status"'
+          script: bash -c 'set +e; gradle --no-daemon connectedDebugAndroidTest; test_status=$?; if [ "$test_status" -ne 0 ]; then mkdir -p build/emulator-diagnostics; adb devices -l > build/emulator-diagnostics/api-${{ matrix.api-level }}-devices.txt 2>&1 || true; adb logcat -d -b all > build/emulator-diagnostics/api-${{ matrix.api-level }}-logcat.txt 2>&1 || true; adb shell dumpsys activity activities > build/emulator-diagnostics/api-${{ matrix.api-level }}-activities.txt 2>&1 || true; adb shell dumpsys cpuinfo > build/emulator-diagnostics/api-${{ matrix.api-level }}-cpuinfo.txt 2>&1 || true; adb shell top -b -n 1 > build/emulator-diagnostics/api-${{ matrix.api-level }}-top.txt 2>&1 || true; adb shell dumpsys package com.jonhararagi.archivero.test > build/emulator-diagnostics/api-${{ matrix.api-level }}-test-package.txt 2>&1 || true; fi; exit "$test_status"'
       - name: Upload emulator diagnostics when tests fail
         if: failure()
         uses: actions/upload-artifact@v4
