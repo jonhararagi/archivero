@@ -1,3 +1,18 @@
+## Continuidad · avance de paginación ante URI repetidas · 2026-10-27
+
+- Rama `feature/archivero-directory-offset-progress-001`; PR #11: https://github.com/jonhararagi/archivero/pull/11.
+- Base inspeccionada: `main` en `9ff54f1f81da57f6c5c6c5131b80b1e911514b94`. El código fue implementado en `d7a12514468fd030f25188145d41bf18e9229f7a`; no se modificó `main` directamente y el PR permanece abierto.
+- Hallazgo: la pantalla deduplicaba las URI visibles entre páginas y usaba el tamaño de esa lista para calcular el offset siguiente. Si el proveedor devolvía URI repetidas entre lotes, el offset podía retroceder respecto de las filas ya leídas y volver a recorrer entradas.
+- Corrección: `listedReadOffset` mantiene el número de entradas procesadas sin deduplicar; el estado visible conserva su `distinctBy(uri)`. Cada página incrementa el offset por el tamaño bruto del lote. `nextDirectoryPageOffset` valida entradas negativas y desbordamiento.
+- Pruebas añadidas en `DirectoryListingTest.kt`: solapamiento entre URI, avance por filas crudas, cantidad negativa y overflow. CI no es una prueba física en el teléfono.
+- README y CHANGELOG actualizados. Sin migración de datos, dependencias nuevas ni operaciones sobre archivos físicos.
+- **CI PASS del commit funcional** d7a12514468fd030f25188145d41bf18e9229f7a: [run 40450136471](https://github.com/jonhararagi/archivero/actions/runs/40450136471). Pasaron `testDebugUnitTest`, `assembleDebug`, verificación de firma/hash y subida del artefacto.
+- APK SHA-256: `499ecb2bd153a529170ad10336e0022bf8db92ebf3d68805d9d95229cca42a8c`.
+- Certificado SHA-256: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`, coincidente con el keystore de CI.
+- Artefacto `archivero-debug-apk`, ID `12709817052`, tamaño `20,666,714` bytes; digest ZIP SHA-256 `188fe3f33e70b5f2e7e7ae062918692e4500b4dc1537309d570b4470607a629b`.
+- Límite: la paginación SAF por offset depende del proveedor; este cambio evita estancamientos por deduplicación pero no garantiza una instantánea consistente si los contenidos cambian durante el recorrido. Sin benchmark ni validación manual en Xiaomi.
+
+---
 ## Continuidad · instantánea para carga y refresco de Biblioteca · 2026-10-24
 
 - PR #5 integrado en main mediante 93e70d016abbe044dbf38a6cd39117c3b6bc40a0. La rama feature/archivero-library-snapshot-load-001 ya no contiene cambios pendientes de integración.
