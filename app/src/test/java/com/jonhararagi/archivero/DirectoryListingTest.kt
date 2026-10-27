@@ -122,7 +122,7 @@ class DirectoryListingTest {
             keyOf = { directoryEntryOrderKey(it.isDirectory, it.name, it.uri) }
         )
         assertEquals(
-            listOf("content://folder", "content://a", "content://z", "content://file"),
+            listOf("content://folder", "content://file", "content://a", "content://z"),
             sorted.map { it.uri }
         )
     }
