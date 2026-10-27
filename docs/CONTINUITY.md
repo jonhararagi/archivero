@@ -1,3 +1,35 @@
+## Continuidad · fix de script y resultado real API 26 · 2026-10-25
+
+- Run `40151032693`: las pruebas instrumentadas de API 26 **pasaron 3/3** y Gradle registró `BUILD SUCCESSFUL`, pero el wrapper CI falló en el bloque auxiliar con `Syntax error: end of file unexpected (expecting "fi")`; cada línea del script se ejecutó en un shell separado.
+- Corrección: ejecutar Gradle y la captura condicional de diagnósticos dentro de una única llamada `bash -c`. La captura comprende `adb devices`, `logcat`, `dumpsys instrumentation` y `dumpsys package` cuando el test falla.
+- Se necesita una nueva ejecución para validar el workflow corregido y API 35. Aún no se declara compatibilidad completa ni prueba física.
+
+---
+## Continuidad · captura diagnóstica del emulador API 35 · 2026-10-25
+
+- PR #7 segundo intento (run 40149635639): API 26 `success` (10 pasos OK); API 35 `failure`. El log de API35 registra `Starting 0 tests`, `Process crashed` y `[EmulatorConsole]: Failed to start Emulator console for 5554`; no contiene `FATAL EXCEPTION` ni aserción concreta. La causa raíz no queda demostrada.
+- Se modifica la CI de PR7 para guardar en caso de fallo `adb devices -l`, `adb logcat -d -b all`, `dumpsys activity instrumentation` y `dumpsys package` del APK de pruebas. Se suben como artefacto por 7 días. El job tiene límite de 20 minutos para no quedar indefinidamente en ejecución.
+- La matriz sigue bloqueando el job de APK hasta pasar ambas API. No se declara compatibilidad de API35 hasta que el runner ejecute los casos y el workflow cierre PASS.
+
+---
+## Continuidad · investigación del fallo del emulador API 35 · 2026-10-24
+
+- CI inicial PR #7: el job de pruebas instrumentadas API 26 terminó PASS con `3/3 tests`; API 35 terminó en fallo tras `Starting 0 tests` y `Instrumentation run failed due to Process crashed`. No había FATAL EXCEPTION ni fallo de aserción en el log recuperable.
+- Las pruebas unitarias JVM, `assembleDebug`, firma/hash y subida del artefacto pasaron. El resultado total del workflow fue FAILURE por el job API 35.
+- Se serializa la matriz de emuladores y se hace depender el job de construcción del resultado positivo de compatibilidad. Así el workflow evita lanzar dos emuladores y la construcción pesada a la vez, y evita publicar la APK de este PR si falla alguna API.
+- Revalidación de API 35 pendiente. No declarar compatibilidad total ni integrar hasta inspeccionar la siguiente ejecución.
+
+---
+## Continuidad · smoke tests en distintas API de Android · 2026-10-24
+
+- Rama de validación: `test/archivero-android-api-compatibility-001`; base inspeccionada de `main`: `9ff54f1f81da57f6c5c6c5131b80b1e911514b94`.
+- Se agrega el runner de instrumentación y tres checks de dispositivo: escritura/reapertura del catálogo, paginación acotada local sin repetir URI y tipos MIME de APK/APKS.
+- La CI de PR prueba API 26 y API 35 con emuladores. Las dependencias AndroidX agregadas son solo `androidTestImplementation`, no dependencias de ejecución de la aplicación.
+- El resultado se considera pendiente hasta inspeccionar los jobs reales de GitHub Actions. Ninguna prueba física de fabricante está afirmada.
+- Esta rama no se integra en `main` directamente; la validación se presenta por PR.
+
+---
+
 ## Continuidad · instantánea para carga y refresco de Biblioteca · 2026-10-24
 
 - PR #5 integrado en main mediante 93e70d016abbe044dbf38a6cd39117c3b6bc40a0. La rama feature/archivero-library-snapshot-load-001 ya no contiene cambios pendientes de integración.

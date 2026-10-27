@@ -1,3 +1,34 @@
+## Corrección de shell para la CI instrumentada · 2026-10-25
+
+- Tercer intento [run 40151032693](https://github.com/jonhararagi/archivero/actions/runs/40151032693): API 26 reportó `Tests 3/3 completed (0 failed)` y `BUILD SUCCESSFUL`, pero el job terminó FAILURE por `Syntax error: end of file unexpected (expecting "fi")` en el propio bloque de shell diagnóstico, porque el runner ejecutó cada línea por separado.
+- Se reescribe el paso de ejecución como un único `bash -c` para conservar variables, condicionales y capturas ADB en el mismo proceso. Esto corrige un fallo del workflow, no un error de producto ni de las pruebas.
+- Nueva ejecución pendiente; no declarar PASS de la matriz hasta que API 26 y API 35 terminen sin errores de prueba ni de orquestación.
+
+---
+## Diagnóstico instrumentado y captura de logs · 2026-10-25
+
+- Segundo workflow de compatibilidad PR #7: API 26 pasó; API 35 volvió a fallar antes de ejecutar casos (`Starting 0 tests`, `Process crashed`). El log de consola no mostró `FATAL EXCEPTION` ni una aserción fallida. Se observó además `Failed to start Emulator console for 5554`; no basta para declarar la causa raíz.
+- Se añade una captura de `adb devices`, `adb logcat -b all`, `dumpsys activity instrumentation` y el estado del paquete de tests cuando el paso falla. El artefacto de diagnóstico se conserva durante 7 días para poder distinguir fallo del emulador, instalación o runner.
+- El job de compatibilidad ahora tiene un máximo de 20 minutos. No se considerará PASS hasta que API 26 y API 35 ejecuten y terminen los tests correctamente.
+
+---
+## Diagnóstico de instrumentación API 35 · 2026-10-24
+
+- Primer resultado del PR #7: API 26 ejecutó las tres pruebas instrumentadas y terminó PASS. API 35 terminó con fallo del proceso de instrumentación antes de ejecutar pruebas (registró 0 tests); el log no contiene una excepción que permita atribuirlo a una aserción concreta.
+- La compilación y las pruebas JVM pasaron. El resultado API 35 **no** se trata como aprobado ni como un bug de la app confirmado.
+- Ajuste preventivo: limitar a un emulador simultáneo (`max-parallel: 1`) y hacer que el job de compilación/artefacto dependa de la matriz de compatibilidad, evitando que corran dos emuladores más una compilación pesada al mismo tiempo.
+- Pendiente: repetir CI y confirmar si la caída se reproduce sin competencia de recursos.
+
+---
+## Pruebas instrumentadas de compatibilidad Android · 2026-10-24
+
+- Se añade `AndroidCompatibilitySmokeTest`: comprueba la persistencia/reapertura del catálogo local, la paginación acotada de una carpeta y la resolución MIME de APK/APKS ejecutándose dentro de Android.
+- GitHub Actions incorpora una matriz de emuladores API 26 (mínimo declarado) y API 35 (target actual), con `connectedDebugAndroidTest`, sin añadir dependencias de pruebas al APK de producción.
+- La matriz permite detectar incompatibilidades de plataforma en esas API; no demuestra compatibilidad con todas las capas de fabricantes ni sustituye la prueba física en el Xiaomi.
+- Estado de CI del lote: pendiente de ejecución en el PR.
+
+---
+
 ## Carga de Biblioteca sin ordenamiento duplicado · 2026-10-24
 
 - Se añade recordsSnapshot(), que devuelve una copia desligada de las fichas en orden de almacenamiento sin ordenar el catálogo completo.
