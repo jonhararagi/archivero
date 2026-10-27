@@ -350,6 +350,7 @@ internal class DigitalLibraryCatalog(
         changedRecords.forEach { updated[it.uri] = it }
         writeSnapshot(storageFile, updated.values, trashedRecords.values)
         records = updated
+        catalogRevision++
         return changedRecords.size
     }
 
@@ -386,6 +387,7 @@ internal class DigitalLibraryCatalog(
         writeSnapshot(storageFile, updatedRecords.values, updatedTrash.values)
         records = updatedRecords
         trashedRecords = updatedTrash
+        catalogRevision++
         return true
     }
 

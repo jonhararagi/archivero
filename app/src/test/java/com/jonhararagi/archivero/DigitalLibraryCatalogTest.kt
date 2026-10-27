@@ -1004,4 +1004,47 @@ class DigitalLibraryCatalogTest {
         }
     }
 
+
+    @Test
+    fun importPreviewRevisionTracksProjectAssignmentAndTrashRestore() {
+        val directory = Files.createTempDirectory("archivero-library-import-revision-paths").toFile()
+        try {
+            val target = DigitalLibraryCatalog(File(directory, "target.properties"))
+            val active = LibraryRecord("content://preview/revision/active", "Activa", "Imagen")
+            val trashed = LibraryRecord("content://preview/revision/trash", "En papelera", "Documento")
+            target.upsert(active)
+            target.upsert(trashed)
+            target.trashMetadata(trashed.uri)
+
+            val source = DigitalLibraryCatalog(File(directory, "source.properties"))
+            val incoming = LibraryRecord("content://preview/revision/incoming", "Importada", "Imagen")
+            source.upsert(incoming)
+            val export = File(directory, "portable.properties")
+            source.exportSnapshot(export)
+
+            fun assertStaleImportRejected(preview: LibrarySnapshotImportPreview) {
+                try {
+                    target.importSnapshot(export, replaceExisting = true, expectedRevision = preview.catalogRevision)
+                    throw AssertionError("La confirmación debía rechazarse tras cambiar la Biblioteca.")
+                } catch (error: IOException) {
+                    assertTrue(error.message.orEmpty().contains("cambió desde la vista previa"))
+                }
+                assertEquals(null, target.get(incoming.uri))
+            }
+
+            val beforeProjectAssignment = target.previewSnapshotImport(export)
+            assertEquals(1, target.assignProjectToRecords(listOf(active.uri), "Proyecto actualizado"))
+            assertStaleImportRejected(beforeProjectAssignment)
+            assertEquals("Proyecto actualizado", target.get(active.uri)?.project)
+
+            val beforeRestore = target.previewSnapshotImport(export)
+            assertTrue(target.restoreMetadata(trashed.uri))
+            assertStaleImportRejected(beforeRestore)
+            assertEquals(trashed.displayName, target.get(trashed.uri)?.displayName)
+            assertTrue(target.trashed().isEmpty())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
 }
