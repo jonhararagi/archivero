@@ -7,6 +7,12 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+private data class DirectorySortFixture(
+    val name: String,
+    val isDirectory: Boolean,
+    val uri: String
+)
+
 class DirectoryListingTest {
     @Test
     fun filesystemPagesAreBoundedAndDoNotRepeatEntries() {
@@ -71,4 +77,54 @@ class DirectoryListingTest {
             directory.deleteRecursively()
         }
     }
+
+    @Test
+    fun mergingLoadedPagesPreservesGlobalDirectoryFirstAlphabeticalOrder() {
+        val firstPage = sortDirectoryEntries(
+            listOf(
+                DirectorySortFixture("zeta.txt", false, "content://files/zeta"),
+                DirectorySortFixture("same.txt", false, "content://files/same-z"),
+                DirectorySortFixture("Folder B", true, "content://folders/b")
+            ),
+            keyOf = { directoryEntryOrderKey(it.isDirectory, it.name, it.uri) }
+        )
+        val secondPage = sortDirectoryEntries(
+            listOf(
+                DirectorySortFixture("Alpha.txt", false, "content://files/alpha"),
+                DirectorySortFixture("Folder A", true, "content://folders/a"),
+                DirectorySortFixture("SAME.TXT", false, "content://files/same-a")
+            ),
+            keyOf = { directoryEntryOrderKey(it.isDirectory, it.name, it.uri) }
+        )
+        val keys = (firstPage + secondPage).associate { it.uri to directoryEntryOrderKey(it.isDirectory, it.name, it.uri) }
+
+        val merged = mergeSortedDirectoryEntries(firstPage, secondPage) { keys.getValue(it.uri) }
+
+        assertEquals(
+            listOf("Folder A", "Folder B", "Alpha.txt", "SAME.TXT", "same.txt", "zeta.txt"),
+            merged.map { it.name }
+        )
+        assertEquals(
+            listOf("content://files/same-a", "content://files/same-z"),
+            merged.filter { it.name.equals("same.txt", ignoreCase = true) }.map { it.uri }
+        )
+    }
+
+    @Test
+    fun directorySortUsesUriAsStableTieBreakerForSameNamedEntries() {
+        val sorted = sortDirectoryEntries(
+            listOf(
+                DirectorySortFixture("duplicate.png", false, "content://z"),
+                DirectorySortFixture("duplicate.png", false, "content://a"),
+                DirectorySortFixture("Folder", true, "content://folder"),
+                DirectorySortFixture("a.txt", false, "content://file")
+            ),
+            keyOf = { directoryEntryOrderKey(it.isDirectory, it.name, it.uri) }
+        )
+        assertEquals(
+            listOf("content://folder", "content://a", "content://z", "content://file"),
+            sorted.map { it.uri }
+        )
+    }
+
 }

@@ -508,3 +508,14 @@
 3. Revisar proveedores no-tree donde DocumentFile.listFiles() puede cargar demasiadas entradas.
 4. Seguir comparando funciones de Archivero con Files by Google, Solid Explorer, X-plore, Total Commander y CX File Explorer. No afirmar superioridad general sin mediciones directas y fuentes verificadas.
 
+
+
+---
+
+## Continuidad · orden estable de páginas en Carpetas · 2026-10-27
+
+- Rama aislada: `feature/archivero-stable-folder-page-order-001`, desde `main` en `9ff54f1f81da57f6c5c6c5131b80b1e911514b94`. No se modificó `main`.
+- Se añade una clave de orden inmutable por entrada (directorio, nombre normalizado y URI) y una fusión lineal de páginas previamente ordenadas.
+- Al cargar la siguiente página, se filtran URI ya vistas, se conservan las claves de los elementos mostrados y se fusiona el nuevo lote en su posición global. Se evita reconsultar metadatos de todos los elementos existentes en cada paginación.
+- El orden determinista es carpetas primero, nombre case-insensitive y URI ascendente como desempate. La memoria sigue creciendo solo con los lotes que el usuario solicita; no se enumera toda la carpeta de una vez.
+- Pruebas añadidas para orden global tras cargar páginas, directorios antes que archivos y desempate por URI. CI pendiente. El comportamiento de proveedores SAF reales y la prueba física siguen pendientes.
