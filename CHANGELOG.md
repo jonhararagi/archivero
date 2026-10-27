@@ -1,3 +1,15 @@
+## Corrección · avance del offset de carpetas con páginas solapadas · 2026-10-27
+
+- La pantalla Carpetas mantiene el desplazamiento de lectura del proveedor por separado de la lista visible de URI únicas.
+- Al deduplicar URI repetidas entre páginas, el offset avanza por el número de entradas devueltas en el lote, en lugar de depender de cuántas nuevas URI quedaron visibles. Evita relecturas repetidas y que el avance se vaya frenando cuando las páginas se solapan.
+- Se centraliza la validación de desplazamientos negativos, cantidades negativas y desbordamiento entero; se agregan tres pruebas unitarias para estos límites y el caso de solapamiento.
+- No cambia el formato del índice ni modifica archivos físicos; no se añadieron dependencias. El proveedor SAF no ofrece una instantánea universal, por lo que los cambios simultáneos en una carpeta todavía pueden producir omisiones propias del proveedor.
+- **CI PASS del commit funcional** d7a12514468fd030f25188145d41bf18e9229f7a: [run 40450136471](https://github.com/jonhararagi/archivero/actions/runs/40450136471). Pasaron `testDebugUnitTest`, `assembleDebug`, verificación de firma/hash y subida del artefacto.
+- APK SHA-256: `499ecb2bd153a529170ad10336e0022bf8db92ebf3d68805d9d95229cca42a8c`.
+- Certificado SHA-256: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`, coincidente con el keystore de CI.
+- Artefacto `archivero-debug-apk`, ID `12709817052`, tamaño `20,666,714` bytes; digest ZIP SHA-256 `188fe3f33e70b5f2e7e7ae062918692e4500b4dc1537309d570b4470607a629b`.
+
+---
 ## Carga de Biblioteca sin ordenamiento duplicado · 2026-10-24
 
 - Se añade recordsSnapshot(), que devuelve una copia desligada de las fichas en orden de almacenamiento sin ordenar el catálogo completo.

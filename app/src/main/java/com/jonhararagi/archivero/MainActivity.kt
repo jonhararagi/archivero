@@ -375,6 +375,9 @@ fun ArchiveroApp() {
     var refresh by remember { mutableIntStateOf(0) }
     var indexed by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
     var listedEntries by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
+    // Count raw provider entries separately from visible unique URIs. When a provider's pages overlap,
+    // deduplication must not move the next offset backwards or cause the same page to repeat.
+    var listedReadOffset by remember { mutableIntStateOf(0) }
     var listingFailed by remember { mutableStateOf(false) }
     var listingErrorMessage by remember { mutableStateOf("Comprueba los permisos de Android e inténtalo otra vez.") }
     var listingTruncated by remember { mutableStateOf(false) }
@@ -915,6 +918,7 @@ fun ArchiveroApp() {
         listingTruncated = false
         loadingMore = false
         listedEntries = emptyList()
+        listedReadOffset = 0
         val result: Result<BoundedDocumentListing> = withContext(Dispatchers.IO) {
             try {
                 Result.success(
@@ -931,6 +935,7 @@ fun ArchiveroApp() {
         if (currentUri != requestedUri || refresh != requestedRefresh) return@LaunchedEffect
         val listing = result.getOrNull()
         listedEntries = listing?.entries ?: emptyList()
+        listedReadOffset = listing?.entries?.size ?: 0
         listingTruncated = listing?.truncated ?: false
         listingFailed = result.isFailure
         listingErrorMessage = result.exceptionOrNull()?.message
@@ -1677,7 +1682,7 @@ fun ArchiveroApp() {
                                     val folderToPage = current
                                     val pageUri = currentUri
                                     val pageRefresh = refresh
-                                    val offset = entries.size
+                                    val offset = listedReadOffset
                                     if (folderToPage != null && !loadingMore) {
                                         loadingMore = true
                                         scope.launch {
@@ -1691,6 +1696,7 @@ fun ArchiveroApp() {
                                                     current?.uri == folderToPage.uri) {
                                                     listedEntries = (listedEntries + nextPage.entries)
                                                         .distinctBy { it.uri.toString() }
+                                                    listedReadOffset = nextDirectoryPageOffset(listedReadOffset, nextPage.entries.size)
                                                     listingTruncated = nextPage.truncated
                                                 }
                                             } catch (cancelled: CancellationException) {
