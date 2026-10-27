@@ -1,3 +1,14 @@
+## Verificación del flujo de hash para duplicados · 2026-10-26
+
+- El cálculo SHA-256 ahora cuenta todos los bytes observados y rechaza lecturas truncadas o más largas que el tamaño informado, en vez de producir un fingerprint parcial.
+- La detección compara el tamaño y la fecha de modificación informados antes y después de la lectura; si los metadatos detectables cambian o el proveedor los informa de manera inconsistente, no se incorpora ese hash como evidencia de duplicación.
+- La lectura sigue siendo por bloques de 64 KiB, sin almacenar el archivo completo en memoria, y mantiene el punto de cancelación en cada lectura.
+- Pruebas nuevas cubren un vector SHA-256 conocido, flujo truncado/excesivo, recurso vacío, cancelación y metadatos cambiantes.
+- No se guardan hashes persistentes ni se cambia el archivo físico. Si un proveedor no ofrece marcas de modificación (cero en ambas consultas), se valida la longitud exacta y se documenta esa limitación.
+- CI de esta rama: pendiente de ejecución; no se declara PASS antes del resultado de GitHub Actions.
+
+---
+
 ## Carga de Biblioteca sin ordenamiento duplicado · 2026-10-24
 
 - Se añade recordsSnapshot(), que devuelve una copia desligada de las fichas en orden de almacenamiento sin ordenar el catálogo completo.

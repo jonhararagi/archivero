@@ -1,3 +1,14 @@
+## Continuidad · hash de flujo verificado para duplicados · 2026-10-26
+
+- Lote en `feature/archivero-verified-streaming-hash-001`, basado en main `9ff54f1f81da57f6c5c6c5131b80b1e911514b94`; no modifica main ni depende de las PR #7, #8 o #9 abiertas.
+- Se añadió `hashInputStreamSha256`: calcula SHA-256 en bloques de 64 KiB, verifica exactamente el conteo esperado de bytes, permite cancelación por callback y rechaza entradas truncadas/excesivas.
+- `duplicateCandidateMetadataStable` exige estabilidad de tamaño y, cuando el proveedor informa timestamps positivos, igualdad de `lastModified` antes/después. Una consulta de metadatos inconsistente invalida el hash; si ambas marcas son cero el proveedor no las ofrece, por lo que solo se puede comprobar la longitud exacta.
+- `LibraryDuplicateScanner` pasa a usar el helper y descarta recursos cuyo tamaño/fecha cambie durante la lectura.
+- Pruebas unitarias añadidas para hash conocido, lecturas cortas/largas, flujo vacío, cancelación y cambios de metadatos. No se añade dependencia y no se toca ningún archivo físico.
+- CI pendiente de comprobar. No hay benchmark de dispositivo ni validación de proveedor SAF real.
+
+---
+
 ## Continuidad · instantánea para carga y refresco de Biblioteca · 2026-10-24
 
 - PR #5 integrado en main mediante 93e70d016abbe044dbf38a6cd39117c3b6bc40a0. La rama feature/archivero-library-snapshot-load-001 ya no contiene cambios pendientes de integración.
