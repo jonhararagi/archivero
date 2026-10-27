@@ -57,6 +57,10 @@ El índice local está versionado y se actualiza mediante un archivo temporal co
 
 El esquema V3 conserva proyecto, tipo de recurso y relaciones, añade la Papelera recuperable de metadatos y sigue leyendo fichas de los esquemas V1/V2: las fichas antiguas conservan sus datos y reciben valores predeterminados para los campos nuevos; se convierten al esquema actual cuando se guardan.
 
+### Importación segura de la Biblioteca
+
+Al elegir una instantánea de metadatos, Archivero copia primero el archivo a una zona temporal privada, aplica el límite de 64 MiB y valida el esquema completo antes de mostrar una **vista previa**. La vista resume las fichas activas, las entradas de papelera y las URI coincidentes, con hasta cinco ejemplos. No se escribe nada en el catálogo hasta confirmar. Si existen coincidencias, reemplazarlas exige el botón explícito **Reemplazar coincidencias**; cancelar elimina la copia temporal. La confirmación queda ligada a la revisión del catálogo que se inspeccionó y se rechaza si la Biblioteca cambia mientras la vista está abierta. Este flujo solo importa metadatos/URI y nunca sobrescribe ni mueve los archivos originales.
+
 ## Correcciones de fiabilidad recientes
 
 La revisión encontró y corrigió errores en las operaciones con archivos: ahora copiar/mover/comprimir/extraer se realizan fuera del hilo visual, las copias parciales se limpian cuando es posible, y la extracción ZIP valida rutas, impide sobrescrituras y limita el tamaño descomprimido. Mover un archivo a la carpeta donde ya está se rechaza para evitar duplicados confusos.

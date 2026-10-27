@@ -1,3 +1,19 @@
+## Continuidad · importación segura de instantáneas · 2026-10-27
+
+- Rama aislada: `feature/archivero-import-preview-001`, creada desde `main` en `9ff54f1f81da57f6c5c6c5131b80b1e911514b94`. No se modificó `main`.
+- Se incorpora `DigitalLibraryCatalog.previewSnapshotImport()`: valida la instantánea completa sin persistir cambios y muestra recuentos activos/papelera, cantidad de URI coincidentes y hasta cinco ejemplos.
+- La interfaz de importación ahora conserva la instantánea validada en un temporal privado y solicita confirmación. Si no hay conflictos, confirma Añadir; si los hay, el reemplazo exige el botón explícito «Reemplazar coincidencias». Cancelar elimina el temporal.
+- Las vistas previas llevan una revisión del catálogo. Cada mutación persistida incrementa esa revisión y una confirmación con un token obsoleto falla antes de escribir, evitando reemplazos no revisados.
+- Las pruebas cubren la vista previa sin mutación, coincidencias contra fichas activas y papelera, reemplazo explícito y rechazo tras cambios locales concurrentes.
+- Se conserva el límite de 64 MiB, la compatibilidad V1/V2/V3 y el comportamiento de no tocar archivos físicos. Sin dependencias nuevas.
+- **CI PASS del commit funcional** `5f47a306469f485abb9ceb512c469e503a6f6207`: [run 40603819366](https://github.com/jonhararagi/archivero/actions/runs/40603819366). Pasaron `testDebugUnitTest`, `assembleDebug`, verificación de firma/hash y subida del artefacto.
+- APK debug SHA-256: `6be529b9f753ca87ac3e5d26db93a541b090975e3a697adbc64ddc7c10eb3551`.
+- Certificado SHA-256: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`; firma de APK y keystore de CI coinciden.
+- Artefacto `archivero-debug-apk`, ID `12779447479`, tamaño `20.679.692` bytes; digest ZIP SHA-256 `4052e2039c8a07cd29e2f0cf58b58311968d5437492d4820e395f85a911dbea4`.
+- Estas pruebas de CI no sustituyen una prueba instrumentada del diálogo ni una prueba física en Android; ambas siguen pendientes.
+
+---
+
 ## Continuidad · instantánea para carga y refresco de Biblioteca · 2026-10-24
 
 - PR #5 integrado en main mediante 93e70d016abbe044dbf38a6cd39117c3b6bc40a0. La rama feature/archivero-library-snapshot-load-001 ya no contiene cambios pendientes de integración.
