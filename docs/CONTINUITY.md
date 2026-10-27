@@ -508,3 +508,19 @@
 3. Revisar proveedores no-tree donde DocumentFile.listFiles() puede cargar demasiadas entradas.
 4. Seguir comparando funciones de Archivero con Files by Google, Solid Explorer, X-plore, Total Commander y CX File Explorer. No afirmar superioridad general sin mediciones directas y fuentes verificadas.
 
+
+
+---
+
+## Continuidad · orden estable de páginas en Carpetas · 2026-10-27
+
+- Rama aislada: `feature/archivero-stable-folder-page-order-001`, desde `main` en `9ff54f1f81da57f6c5c6c5131b80b1e911514b94`. No se modificó `main`.
+- Se añade una clave de orden inmutable por entrada (directorio, nombre normalizado y URI) y una fusión lineal de páginas previamente ordenadas.
+- Al cargar la siguiente página, se filtran URI ya vistas, se conservan las claves de los elementos mostrados y se fusiona el nuevo lote en su posición global. Se evita reconsultar metadatos de todos los elementos existentes en cada paginación.
+- El orden determinista es carpetas primero, nombre case-insensitive y URI ascendente como desempate. La memoria sigue creciendo solo con los lotes que el usuario solicita; no se enumera toda la carpeta de una vez.
+- Pruebas añadidas para orden global tras cargar páginas, directorios antes que archivos y desempate por URI.
+- **CI PASS del commit funcional** `f08971f1e4a87e925affa85fc60e66a05724d811`: [run 40605045146](https://github.com/jonhararagi/archivero/actions/runs/40605045146). Pasaron `testDebugUnitTest`, `assembleDebug`, la verificación de firma/hash y la subida del artefacto.
+- APK debug SHA-256: `f96d7f62eeed1cf52be45773938ca70f86b1c2cbc7c9b46b1ebf8f41a5662f25`.
+- Certificado SHA-256 coincidente entre APK y keystore de CI: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+- Artefacto `archivero-debug-apk`, ID `12780222785`, tamaño `20.670.272` bytes, digest ZIP SHA-256 `bc528298033b0e80a185edabc190b703464bd7c74ccd64ede7ae10781bc36dd5`.
+- El comportamiento de proveedores SAF reales y la prueba física siguen pendientes.

@@ -564,3 +564,11 @@ GitHub Actions ejecuta ahora testDebugUnitTest antes de construir el APK. El éx
 - El análisis recursivo de directorios, la reproducción en segundo plano y los permisos de borrado necesitan pruebas funcionales en dispositivos reales.
 - Algunos proveedores de Android no permiten crear o borrar todos los elementos. Archivero muestra el error, pero la limpieza de una operación fallida sigue dependiendo de lo que permita ese proveedor.
 - Los límites de extracción son deliberadamente conservadores para evitar archivos ZIP excesivos en dispositivos móviles.
+
+ 
+## Corrección · orden global entre páginas de Carpetas · 2026-10-27
+
+- Las páginas cargadas a demanda se fusionan con el conjunto visible manteniendo un orden global: carpetas primero, nombre sin distinguir mayúsculas/minúsculas y URI como desempate determinista.
+- Se almacenan claves de orden de los elementos ya mostrados; al cargar otro lote no se vuelve a consultar el proveedor para todos los nombres/tipos anteriores.
+- Pruebas unitarias para fusión entre páginas, orden de carpetas/archivos y nombres iguales con URI distintas.
+- **CI PASS del commit funcional** `f08971f1e4a87e925affa85fc60e66a05724d811`: [run 40605045146](https://github.com/jonhararagi/archivero/actions/runs/40605045146). Pruebas unitarias, compilación Android, firma/hash y artefacto: PASS. Prueba física/SAF real pendiente.
