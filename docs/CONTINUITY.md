@@ -6,7 +6,11 @@
 - Las vistas previas llevan una revisión del catálogo. Cada mutación persistida incrementa esa revisión y una confirmación con un token obsoleto falla antes de escribir, evitando reemplazos no revisados.
 - Las pruebas cubren la vista previa sin mutación, coincidencias contra fichas activas y papelera, reemplazo explícito y rechazo tras cambios locales concurrentes.
 - Se conserva el límite de 64 MiB, la compatibilidad V1/V2/V3 y el comportamiento de no tocar archivos físicos. Sin dependencias nuevas.
-- CI del lote: pendiente de ejecución en GitHub Actions. Pruebas instrumentadas y dispositivo físico siguen siendo validaciones separadas.
+- **CI PASS del commit funcional** `5f47a306469f485abb9ceb512c469e503a6f6207`: [run 40603819366](https://github.com/jonhararagi/archivero/actions/runs/40603819366). Pasaron `testDebugUnitTest`, `assembleDebug`, verificación de firma/hash y subida del artefacto.
+- APK debug SHA-256: `6be529b9f753ca87ac3e5d26db93a541b090975e3a697adbc64ddc7c10eb3551`.
+- Certificado SHA-256: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`; firma de APK y keystore de CI coinciden.
+- Artefacto `archivero-debug-apk`, ID `12779447479`, tamaño `20.679.692` bytes; digest ZIP SHA-256 `4052e2039c8a07cd29e2f0cf58b58311968d5437492d4820e395f85a911dbea4`.
+- Estas pruebas de CI no sustituyen una prueba instrumentada del diálogo ni una prueba física en Android; ambas siguen pendientes.
 
 ---
 
