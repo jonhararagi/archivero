@@ -5,7 +5,7 @@
 - La lectura sigue siendo por bloques de 64 KiB, sin almacenar el archivo completo en memoria, y mantiene el punto de cancelación en cada lectura.
 - Pruebas nuevas cubren un vector SHA-256 conocido, flujo truncado/excesivo, recurso vacío, cancelación y metadatos cambiantes.
 - No se guardan hashes persistentes ni se cambia el archivo físico. Si un proveedor no ofrece marcas de modificación (cero en ambas consultas), se valida la longitud exacta y se documenta esa limitación.
-- CI de esta rama: pendiente de ejecución; no se declara PASS antes del resultado de GitHub Actions.
+- **CI PASS de código en HEAD `716d9e01d122053cf3b0602f3e2bc6edb4931ce6`:** [run 40431250403](https://github.com/jonhararagi/archivero/actions/runs/40431250403). Pasaron `testDebugUnitTest`, `assembleDebug`, firma/hash y subida. APK SHA-256 `6caf1c0e20edab89bce63e6f2d119a78c13c1d713ae5c7219f0ae87d9f20581c`; certificado SHA-256 `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`. Artefacto ZIP ID `12701961527`, tamaño 20.667.928 bytes, digest SHA-256 `4ae580b83133aa72ece45dd41d264b0efa7e06ca420fff7de76bd0ce0d459e45`.
 
 ---
 

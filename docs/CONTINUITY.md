@@ -5,7 +5,8 @@
 - `duplicateCandidateMetadataStable` exige estabilidad de tamaño y, cuando el proveedor informa timestamps positivos, igualdad de `lastModified` antes/después. Una consulta de metadatos inconsistente invalida el hash; si ambas marcas son cero el proveedor no las ofrece, por lo que solo se puede comprobar la longitud exacta.
 - `LibraryDuplicateScanner` pasa a usar el helper y descarta recursos cuyo tamaño/fecha cambie durante la lectura.
 - Pruebas unitarias añadidas para hash conocido, lecturas cortas/largas, flujo vacío, cancelación y cambios de metadatos. No se añade dependencia y no se toca ningún archivo físico.
-- CI pendiente de comprobar. No hay benchmark de dispositivo ni validación de proveedor SAF real.
+- **CI PASS del código en HEAD `716d9e01d122053cf3b0602f3e2bc6edb4931ce6`:** [run 40431250403](https://github.com/jonhararagi/archivero/actions/runs/40431250403). Pasaron pruebas unitarias, compilación, firma/hash y subida de APK debug. APK SHA-256 `6caf1c0e20edab89bce63e6f2d119a78c13c1d713ae5c7219f0ae87d9f20581c`; artefacto ID `12701961527`.
+- Sin benchmark de dispositivo ni validación de proveedor SAF real.
 
 ---
 
