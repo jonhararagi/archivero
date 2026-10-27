@@ -571,3 +571,4 @@ GitHub Actions ejecuta ahora testDebugUnitTest antes de construir el APK. El éx
 - Las páginas cargadas a demanda se fusionan con el conjunto visible manteniendo un orden global: carpetas primero, nombre sin distinguir mayúsculas/minúsculas y URI como desempate determinista.
 - Se almacenan claves de orden de los elementos ya mostrados; al cargar otro lote no se vuelve a consultar el proveedor para todos los nombres/tipos anteriores.
 - Pruebas unitarias para fusión entre páginas, orden de carpetas/archivos y nombres iguales con URI distintas.
+- **CI PASS del commit funcional** `f08971f1e4a87e925affa85fc60e66a05724d811`: [run 40605045146](https://github.com/jonhararagi/archivero/actions/runs/40605045146). Pruebas unitarias, compilación Android, firma/hash y artefacto: PASS. Prueba física/SAF real pendiente.
