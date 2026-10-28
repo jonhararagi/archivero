@@ -1,3 +1,19 @@
+## Exportación de Biblioteca verificada al releer el destino · 2026-10-28
+
+- La exportación de la instantánea ahora calcula SHA-256 sobre el flujo escrito y, si el proveedor permite abrir el destino para lectura, vuelve a leerlo y compara tamaño y hash.
+- Si el proveedor no da acceso de lectura de vuelta o la lectura falla, la interfaz informa que no pudo verificar la exportación y evita etiquetarla como verificada. Una diferencia explícita entre hash/tamaño queda visible como advertencia.
+- Se extrae un helper pequeño sin dependencias Android que limita el flujo a 64 MiB, calcula SHA-256 por bloques y fuerza progreso cuando un proveedor devuelve una lectura de bloque de cero bytes.
+- Pruebas unitarias: vector SHA-256 conocido (abc), igualdad del flujo releído, contenido vacío, límite excedido y avance ante lectura de bloque cero.
+- La importación, el formato de instantánea V1/V2/V3 y los archivos físicos no se modifican.
+- **CI PASS del commit funcional** `c8cfe12ec396fa657c931401309156b1d27a8453`: [run 40638910830](https://github.com/jonhararagi/archivero/actions/runs/40638910830). Pasaron `testDebugUnitTest`, `assembleDebug`, la verificación de firma/hash y la subida del artefacto.
+- APK SHA-256: `77b7b10990de9cf9292e9b402707473a8f673058e22e6ef01eaf55ea096cd0b3`. Certificado SHA-256: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba` (coincide con el keystore de CI).
+- Artefacto `archivero-debug-apk`, ID `12794184568`, tamaño ZIP `20.669.750` bytes, digest SHA-256 `c98dec15d38a612c234eb3c91a10a0137f5636a7852425d0b40afead9c164829`.
+- La validación del commit documental `25d98fe39eed2dd58653f0bb19d5a5f30bcae876` terminó **PASS** en [run 40639250604](https://github.com/jonhararagi/archivero/actions/runs/40639250604): pruebas, compilación APK, firma/hash y subida.
+- APK SHA-256 `77b7b10990de9cf9292e9b402707473a8f673058e22e6ef01eaf55ea096cd0b3`. Certificado SHA-256 `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+- Artefacto `archivero-debug-apk`, ID `12794892931`, ZIP `20.669.750` bytes, digest SHA-256 `aa748146ba78b286157cf1a1340c6a24f5f4b8a28dc2b09aaa2082f35067ff31`.
+
+---
+
 ## Carga de Biblioteca sin ordenamiento duplicado · 2026-10-24
 
 - Se añade recordsSnapshot(), que devuelve una copia desligada de las fichas en orden de almacenamiento sin ordenar el catálogo completo.

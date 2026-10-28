@@ -741,10 +741,24 @@ fun ArchiveroApp() {
                             val snapshot = File.createTempFile("archivero-library-export-", ".properties", context.cacheDir)
                             try {
                                 catalog.exportSnapshot(snapshot)
-                                val output = context.contentResolver.openOutputStream(destination, "wt")
-                                    ?: throw IOException("Android no permitió escribir el archivo de exportación.")
-                                output.use { stream -> snapshot.inputStream().use { input -> input.copyTo(stream) } }
-                                snapshot.length()
+                                val written = snapshot.inputStream().use { input ->
+                                    val output = context.contentResolver.openOutputStream(destination, "wt")
+                                        ?: throw IOException("Android no permitió escribir el archivo de exportación.")
+                                    output.use { stream ->
+                                        copyAndFingerprintLibraryStream(input, stream, MAX_LIBRARY_SNAPSHOT_BYTES)
+                                    }
+                                }
+                                val readBack = runCatching {
+                                    context.contentResolver.openInputStream(destination)?.use { input ->
+                                        fingerprintLibraryStream(input, MAX_LIBRARY_SNAPSHOT_BYTES)
+                                    }
+                                }.getOrNull()
+                                val verification = when {
+                                    readBack == null -> LibrarySnapshotVerification.UNAVAILABLE
+                                    readBack == written -> LibrarySnapshotVerification.VERIFIED
+                                    else -> LibrarySnapshotVerification.MISMATCH
+                                }
+                                LibrarySnapshotExportResult(written.byteCount, verification)
                             } finally {
                                 snapshot.delete()
                             }
@@ -752,7 +766,16 @@ fun ArchiveroApp() {
                     }
                     libraryTransferRunning = false
                     result.fold(
-                        { bytes -> message = "Exportación completada: $bytes bytes de metadatos. Los archivos originales no se copiaron." },
+                        { result ->
+                            message = when (result.verification) {
+                                LibrarySnapshotVerification.VERIFIED ->
+                                    "Exportación verificada: ${result.bytesWritten} bytes de metadatos. El SHA-256 coincide al releer el destino; los archivos originales no se copiaron."
+                                LibrarySnapshotVerification.UNAVAILABLE ->
+                                    "Exportación escrita: ${result.bytesWritten} bytes de metadatos, pero Android no permitió verificarla al releer el destino. No se declara verificada."
+                                LibrarySnapshotVerification.MISMATCH ->
+                                    "ADVERTENCIA: el archivo exportado (${result.bytesWritten} bytes) no coincide con lo releído. No lo uses como una exportación válida; conserva la Biblioteca y vuelve a exportar."
+                            }
+                        },
                         { error -> message = "No se pudo exportar la biblioteca: ${error.message ?: "error de almacenamiento"}" }
                     )
                 }
