@@ -8,7 +8,8 @@
 - **CI PASS del commit funcional** c8cfe12ec396fa657c931401309156b1d27a8453: run [40638910830](https://github.com/jonhararagi/archivero/actions/runs/40638910830). Pasaron tests JVM, compilación APK, verificación de firma/hash y publicación del artefacto.
 - APK SHA-256 `77b7b10990de9cf9292e9b402707473a8f673058e22e6ef01eaf55ea096cd0b3`; certificado SHA-256 `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
 - Artefacto APK ID `12794184568`, tamaño ZIP `20.669.750` bytes, digest `c98dec15d38a612c234eb3c91a10a0137f5636a7852425d0b40afead9c164829`.
-- Este registro de evidencia se está añadiendo en un commit documental separado; su CI queda pendiente hasta que finalice el siguiente workflow.
+- La validación CI del commit documental `25d98fe39eed2dd58653f0bb19d5a5f30bcae876` terminó **PASS** en [run 40639250604](https://github.com/jonhararagi/archivero/actions/runs/40639250604), incluidas pruebas JVM, `assembleDebug`, firma/hash y publicación del APK.
+- La rama y la PR #14 continúan abiertas para revisión. No se ha probado en un Xiaomi físico ni se ha modificado main directamente.
 
 ---
 

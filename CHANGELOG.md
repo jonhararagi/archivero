@@ -8,7 +8,9 @@
 - **CI PASS del commit funcional** `c8cfe12ec396fa657c931401309156b1d27a8453`: [run 40638910830](https://github.com/jonhararagi/archivero/actions/runs/40638910830). Pasaron `testDebugUnitTest`, `assembleDebug`, la verificación de firma/hash y la subida del artefacto.
 - APK SHA-256: `77b7b10990de9cf9292e9b402707473a8f673058e22e6ef01eaf55ea096cd0b3`. Certificado SHA-256: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba` (coincide con el keystore de CI).
 - Artefacto `archivero-debug-apk`, ID `12794184568`, tamaño ZIP `20.669.750` bytes, digest SHA-256 `c98dec15d38a612c234eb3c91a10a0137f5636a7852425d0b40afead9c164829`.
-- El commit documental que registra esta evidencia necesita su propio CI antes de considerarse el HEAD final validado.
+- La validación del commit documental `25d98fe39eed2dd58653f0bb19d5a5f30bcae876` terminó **PASS** en [run 40639250604](https://github.com/jonhararagi/archivero/actions/runs/40639250604): pruebas, compilación APK, firma/hash y subida.
+- APK SHA-256 `77b7b10990de9cf9292e9b402707473a8f673058e22e6ef01eaf55ea096cd0b3`. Certificado SHA-256 `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+- Artefacto `archivero-debug-apk`, ID `12794892931`, ZIP `20.669.750` bytes, digest SHA-256 `aa748146ba78b286157cf1a1340c6a24f5f4b8a28dc2b09aaa2082f35067ff31`.
 
 ---
 
