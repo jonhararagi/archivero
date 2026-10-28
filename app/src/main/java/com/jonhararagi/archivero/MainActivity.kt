@@ -741,8 +741,6 @@ fun ArchiveroApp() {
                             val snapshot = File.createTempFile("archivero-library-export-", ".properties", context.cacheDir)
                             try {
                                 catalog.exportSnapshot(snapshot)
-                                val output = context.contentResolver.openOutputStream(destination, "wt")
-                                    ?: throw IOException("Android no permitió escribir el archivo de exportación.")
                                 val written = snapshot.inputStream().use { input ->
                                     val output = context.contentResolver.openOutputStream(destination, "wt")
                                         ?: throw IOException("Android no permitió escribir el archivo de exportación.")
