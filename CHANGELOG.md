@@ -1,3 +1,13 @@
+## Exportación de Biblioteca verificada al releer el destino · 2026-10-28
+
+- La exportación de la instantánea ahora calcula SHA-256 sobre el flujo escrito y, si el proveedor permite abrir el destino para lectura, vuelve a leerlo y compara tamaño y hash.
+- Si el proveedor no da acceso de lectura de vuelta o la lectura falla, la interfaz informa que no pudo verificar la exportación y evita etiquetarla como verificada. Una diferencia explícita entre hash/tamaño queda visible como advertencia.
+- Se extrae un helper pequeño sin dependencias Android que limita el flujo a 64 MiB, calcula SHA-256 por bloques y fuerza progreso cuando un proveedor devuelve una lectura de bloque de cero bytes.
+- Pruebas unitarias: vector SHA-256 conocido (abc), igualdad del flujo releído, contenido vacío, límite excedido y avance ante lectura de bloque cero.
+- La importación, el formato de instantánea V1/V2/V3 y los archivos físicos no se modifican. Validación de CI del nuevo lote: pendiente en esta revisión.
+
+---
+
 ## Carga de Biblioteca sin ordenamiento duplicado · 2026-10-24
 
 - Se añade recordsSnapshot(), que devuelve una copia desligada de las fichas en orden de almacenamiento sin ordenar el catálogo completo.

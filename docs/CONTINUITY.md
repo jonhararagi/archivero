@@ -1,3 +1,14 @@
+## Continuidad · integridad de exportación de Biblioteca · 2026-10-28
+
+- Rama: feature/archivero-verified-library-export-001, basada en main inspeccionado en 9ff54f1f81da57f6c5c6c5131b80b1e911514b94. Main no se modifica directamente.
+- Lote: la exportación calcula SHA-256 del flujo realmente escrito y, cuando se puede volver a abrir el destino, compara bytes y hash con la instantánea temporal original.
+- El estado visual distingue exportación verificada, destino no releíble y contenido que no coincide. Un proveedor que no permita lectura de vuelta no se presenta como verificado.
+- Helper separado de la interfaz, sin nuevas dependencias, con límite de 64 MiB y progreso ante un read(byte[]) que devuelve cero.
+- Cobertura añadida para hash conocido, lectura de vuelta, flujo vacío, límite y lectura de bloque sin progreso.
+- CI, artefacto APK y pruebas del HEAD de esta rama: pendientes hasta ejecutar el workflow de PR.
+
+---
+
 ## Continuidad · instantánea para carga y refresco de Biblioteca · 2026-10-24
 
 - PR #5 integrado en main mediante 93e70d016abbe044dbf38a6cd39117c3b6bc40a0. La rama feature/archivero-library-snapshot-load-001 ya no contiene cambios pendientes de integración.
