@@ -5,7 +5,10 @@
 - El estado visual distingue exportación verificada, destino no releíble y contenido que no coincide. Un proveedor que no permita lectura de vuelta no se presenta como verificado.
 - Helper separado de la interfaz, sin nuevas dependencias, con límite de 64 MiB y progreso ante un read(byte[]) que devuelve cero.
 - Cobertura añadida para hash conocido, lectura de vuelta, flujo vacío, límite y lectura de bloque sin progreso.
-- CI, artefacto APK y pruebas del HEAD de esta rama: pendientes hasta ejecutar el workflow de PR.
+- **CI PASS del commit funcional** c8cfe12ec396fa657c931401309156b1d27a8453: run [40638910830](https://github.com/jonhararagi/archivero/actions/runs/40638910830). Pasaron tests JVM, compilación APK, verificación de firma/hash y publicación del artefacto.
+- APK SHA-256 `77b7b10990de9cf9292e9b402707473a8f673058e22e6ef01eaf55ea096cd0b3`; certificado SHA-256 `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+- Artefacto APK ID `12794184568`, tamaño ZIP `20.669.750` bytes, digest `c98dec15d38a612c234eb3c91a10a0137f5636a7852425d0b40afead9c164829`.
+- Este registro de evidencia se está añadiendo en un commit documental separado; su CI queda pendiente hasta que finalice el siguiente workflow.
 
 ---
 
