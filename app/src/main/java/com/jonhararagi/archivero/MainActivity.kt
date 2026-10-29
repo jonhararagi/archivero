@@ -744,7 +744,37 @@ fun ArchiveroApp() {
                                 val output = context.contentResolver.openOutputStream(destination, "wt")
                                     ?: throw IOException("Android no permitió escribir el archivo de exportación.")
                                 output.use { stream -> snapshot.inputStream().use { input -> input.copyTo(stream) } }
-                                snapshot.length()
+                                val bytesWritten = snapshot.length()
+                                val verification = runCatching {
+                                    val exportedDigest = snapshot.inputStream().use { input ->
+                                        val digest = MessageDigest.getInstance("SHA-256")
+                                        val buffer = ByteArray(64 * 1024)
+                                        while (true) {
+                                            val read = input.read(buffer)
+                                            if (read < 0) break
+                                            if (read > 0) digest.update(buffer, 0, read)
+                                        }
+                                        digest.digest()
+                                    }
+                                    val readBack = context.contentResolver.openInputStream(destination)
+                                        ?: throw IOException("El proveedor no permite releer la exportación.")
+                                    val importedDigest = readBack.use { input ->
+                                        val digest = MessageDigest.getInstance("SHA-256")
+                                        val buffer = ByteArray(64 * 1024)
+                                        while (true) {
+                                            val read = input.read(buffer)
+                                            if (read < 0) break
+                                            if (read > 0) digest.update(buffer, 0, read)
+                                        }
+                                        digest.digest()
+                                    }
+                                    MessageDigest.isEqual(exportedDigest, importedDigest)
+                                }
+                                if (verification.isSuccess && verification.getOrThrow()) {
+                                    bytesWritten to true
+                                } else {
+                                    bytesWritten to false
+                                }
                             } finally {
                                 snapshot.delete()
                             }
@@ -752,7 +782,13 @@ fun ArchiveroApp() {
                     }
                     libraryTransferRunning = false
                     result.fold(
-                        { bytes -> message = "Exportación completada: $bytes bytes de metadatos. Los archivos originales no se copiaron." },
+                        { (bytes, verified) ->
+                            message = if (verified) {
+                                "Exportación verificada: $bytes bytes de metadatos (SHA-256 coincide). Los archivos originales no se copiaron."
+                            } else {
+                                "Exportación escrita: $bytes bytes de metadatos, pero Android no permitió confirmar su integridad al releerla. Comprueba el archivo antes de confiar en él."
+                            }
+                        },
                         { error -> message = "No se pudo exportar la biblioteca: ${error.message ?: "error de almacenamiento"}" }
                     )
                 }
