@@ -69,6 +69,14 @@
 - Artefacto `archivero-debug-apk`, ID `12709817052`, tamaño `20,666,714` bytes; digest ZIP SHA-256 `188fe3f33e70b5f2e7e7ae062918692e4500b4dc1537309d570b4470607a629b`.
 
 ---
+## [Unreleased] - 2026-10-27
+
+### Añadido
+- Vista previa de importación de instantáneas de Biblioteca con recuento de fichas activas, papelera y URI coincidentes antes de modificar el catálogo.
+- Reemplazo de coincidencias solo con confirmación explícita; revisión del catálogo asociada a la vista previa para rechazar una confirmación obsoleta.
+- Pruebas unitarias para colisiones entre fichas activas/papelera, ausencia de mutaciones durante la vista previa y protección contra cambios entre revisión y confirmación.
+- **CI PASS del commit funcional** `5f47a306469f485abb9ceb512c469e503a6f6207`: [run 40603819366](https://github.com/jonhararagi/archivero/actions/runs/40603819366). Pasaron pruebas unitarias, APK debug, firma/hash y publicación del artefacto. La prueba física/instrumentada sigue pendiente.
+
 ## Carga de Biblioteca sin ordenamiento duplicado · 2026-10-24
 
 - Se añade recordsSnapshot(), que devuelve una copia desligada de las fichas en orden de almacenamiento sin ordenar el catálogo completo.
