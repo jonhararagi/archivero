@@ -1,5 +1,14 @@
 ## Continuidad · historial atrás/adelante en Carpetas · 2026-10-25
 
+## Continuidad · revisión compartida por reparación e importación · 2026-11-11
+
+- Hallazgo de integración: `applyRelationshipRepair` persistía y publicaba cambios de relaciones, pero no incrementaba `catalogRevision`. Una vista previa de importación anterior podía parecer vigente después de reparar.
+- Corrección: incrementar `catalogRevision` tras la escritura exitosa de la reparación. Si la escritura falla, ni el estado ni la revisión avanzan.
+- Prueba: generar una vista previa de importación, reparar una relación huérfana y comprobar que la confirmación con la revisión antigua se rechaza por obsoleta.
+- El CI de la rama integrada debe volver a validar este ajuste junto con el resto de cambios.
+
+---
+
 ## Continuidad · progreso de hash ante lecturas sin avance · 2026-11-11
 
 - En la reconciliación de #10 se detectó que el helper de hash manejaba lectura corta, exceso y cancelación, pero un `read(buffer)` que devolviera cero podía repetir el bucle sin avanzar.

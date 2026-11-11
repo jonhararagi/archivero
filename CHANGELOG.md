@@ -1,5 +1,13 @@
 ## Historial de navegación de carpetas · 2026-10-25
 
+## Importación y reparación: invalidación cruzada de vistas previas · 2026-11-11
+
+- La reparación de relaciones ahora incrementa la revisión del catálogo solo después de escribir con éxito el snapshot.
+- Una vista previa de importación preparada antes de la reparación se rechaza al confirmar, evitando aplicar una decisión basada en un catálogo que ya cambió.
+- Se añade una prueba de integración de catálogo que prepara una importación, repara una relación huérfana y verifica el rechazo de la vista previa antigua.
+
+---
+
 ## Hash de duplicados: progreso ante lecturas de bloque cero · 2026-11-11
 
 - La función SHA-256 por streaming ahora fuerza progreso con una lectura de un byte si un proveedor devuelve cero en una lectura por bloques. Evita un bucle sin avance y conserva la comprobación del tamaño exacto esperado.

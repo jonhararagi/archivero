@@ -104,4 +104,32 @@ class LibraryRelationshipRepairCatalogTest {
             directory.deleteRecursively()
         }
     }
+
+    @Test
+    fun relationshipRepairInvalidatesAnExistingImportPreview() {
+        val directory = Files.createTempDirectory("archivero-relationship-import-revision").toFile()
+        try {
+            val catalog = DigitalLibraryCatalog(File(directory, "catalog.properties"))
+            val missing = "content://library/missing"
+            catalog.upsert(record("content://library/a", "A", listOf(missing)))
+
+            val sourceCatalog = DigitalLibraryCatalog(File(directory, "source-catalog.properties"))
+            val snapshot = File(directory, "empty-snapshot.properties")
+            sourceCatalog.exportSnapshot(snapshot)
+            val importPreview = catalog.previewSnapshotImport(snapshot)
+
+            val repair = planLibraryRelationshipRepair(catalog.recordsSnapshot())
+            catalog.applyRelationshipRepair(repair)
+
+            try {
+                catalog.importSnapshot(snapshot, expectedRevision = importPreview.catalogRevision)
+                fail("La reparación debía invalidar la vista previa de importación anterior.")
+            } catch (error: IOException) {
+                assertEquals(true, error.message?.contains("cambió desde la vista previa") == true)
+            }
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
 }

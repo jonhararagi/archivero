@@ -471,6 +471,7 @@ internal class DigitalLibraryCatalog(
         // Publish in-memory state only after the complete snapshot has been written successfully.
         writeSnapshot(storageFile, updated.values, trashedRecords.values)
         records = updated
+        catalogRevision++
         return LibraryRelationshipRepairSummary(
             changedRecordCount = plan.affectedRecordCount,
             removedRelationCount = removedRelationCount
