@@ -1,5 +1,21 @@
 ## Historial de navegación de carpetas · 2026-10-25
 
+## Importación y reparación: invalidación cruzada de vistas previas · 2026-11-11
+
+- La reparación de relaciones ahora incrementa la revisión del catálogo solo después de escribir con éxito el snapshot.
+- Una vista previa de importación preparada antes de la reparación se rechaza al confirmar, evitando aplicar una decisión basada en un catálogo que ya cambió.
+- Se añade una prueba de integración de catálogo que prepara una importación, repara una relación huérfana y verifica el rechazo de la vista previa antigua.
+
+---
+
+## Hash de duplicados: progreso ante lecturas de bloque cero · 2026-11-11
+
+- La función SHA-256 por streaming ahora fuerza progreso con una lectura de un byte si un proveedor devuelve cero en una lectura por bloques. Evita un bucle sin avance y conserva la comprobación del tamaño exacto esperado.
+- Se añaden pruebas para un proveedor simulado que devuelve cero en su primera lectura masiva y para el vector SHA-256 conocido de «abc».
+- Esta corrección no cambia archivos ni metadatos; solo endurece la lectura de los flujos usados para comparar duplicados.
+
+---
+
 - Añade historial atrás/adelante como estado separado de la UI, con funciones puras y cinco pruebas unitarias.
 - Conserva el URI original junto a cada carpeta para no confundir la URI SAF de raíz con la URI de documento que `DocumentFile` expone.
 - Una nueva navegación limpia la pila hacia adelante. Un acceso rápido a una subcarpeta permite volver a la raíz autorizada y avanzar de nuevo a esa carpeta.
@@ -16,6 +32,66 @@
 - **CI PASS:** [run 40150856274](https://github.com/jonhararagi/archivero/actions/runs/40150856274), SHA `b60fd13c99da79a9f1051d451ca19f1ef79e199c`. Pasaron pruebas unitarias, `assembleDebug`, verificación de firma/hash y subida. Artefacto `archivero-debug-apk`, ID `12581419044`, 20.686.512 bytes, digest SHA-256 del ZIP `e535674c6ad304754d132ada2c303676e1c7044443744c14e0bf5884be754799`; SHA-256 de la APK `bafdbf8051f0302f370607152db7ccca41c998d0fdd5fbff5cb973d2c1f09077`; certificado de firma SHA-256 `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`. Sin prueba física en Xiaomi.
 
 ---
+
+## Exportación de Biblioteca verificada al releer el destino · 2026-10-28
+
+- La exportación de la instantánea ahora calcula SHA-256 sobre el flujo escrito y, si el proveedor permite abrir el destino para lectura, vuelve a leerlo y compara tamaño y hash.
+- Si el proveedor no da acceso de lectura de vuelta o la lectura falla, la interfaz informa que no pudo verificar la exportación y evita etiquetarla como verificada. Una diferencia explícita entre hash/tamaño queda visible como advertencia.
+- Se extrae un helper pequeño sin dependencias Android que limita el flujo a 64 MiB, calcula SHA-256 por bloques y fuerza progreso cuando un proveedor devuelve una lectura de bloque de cero bytes.
+- Pruebas unitarias: vector SHA-256 conocido (abc), igualdad del flujo releído, contenido vacío, límite excedido y avance ante lectura de bloque cero.
+- La importación, el formato de instantánea V1/V2/V3 y los archivos físicos no se modifican.
+- **CI PASS del commit funcional** `c8cfe12ec396fa657c931401309156b1d27a8453`: [run 40638910830](https://github.com/jonhararagi/archivero/actions/runs/40638910830). Pasaron `testDebugUnitTest`, `assembleDebug`, la verificación de firma/hash y la subida del artefacto.
+- APK SHA-256: `77b7b10990de9cf9292e9b402707473a8f673058e22e6ef01eaf55ea096cd0b3`. Certificado SHA-256: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba` (coincide con el keystore de CI).
+- Artefacto `archivero-debug-apk`, ID `12794184568`, tamaño ZIP `20.669.750` bytes, digest SHA-256 `c98dec15d38a612c234eb3c91a10a0137f5636a7852425d0b40afead9c164829`.
+- La validación del commit documental `25d98fe39eed2dd58653f0bb19d5a5f30bcae876` terminó **PASS** en [run 40639250604](https://github.com/jonhararagi/archivero/actions/runs/40639250604): pruebas, compilación APK, firma/hash y subida.
+- APK SHA-256 `77b7b10990de9cf9292e9b402707473a8f673058e22e6ef01eaf55ea096cd0b3`. Certificado SHA-256 `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+- Artefacto `archivero-debug-apk`, ID `12794892931`, ZIP `20.669.750` bytes, digest SHA-256 `aa748146ba78b286157cf1a1340c6a24f5f4b8a28dc2b09aaa2082f35067ff31`.
+
+---
+
+## Reparación segura de relaciones sin destino · 2026-10-26
+
+- Añade vista previa y confirmación para quitar enlaces de metadatos cuyo destino no está en la Biblioteca activa ni en la papelera.
+- Las relaciones que apuntan a fichas de la papelera se conservan para permitir su restauración posterior.
+- La confirmación valida una huella SHA-256 de las identidades activas/en papelera y de las relaciones; una vista previa obsoleta se rechaza.
+- Todos los cambios se escriben en una única instantánea; el estado en memoria solo se publica tras una escritura exitosa. No se tocan archivos físicos ni se borran fichas.
+- La auditoría de relaciones ahora reconoce destinos conservados en la papelera.
+- Pruebas nuevas cubren el plan, destinos en papelera, persistencia, cambios obsoletos y rollback ante error de escritura.
+- **CI PASS del código en HEAD `2bcf8c7beddcc3f523ceb0a61ae63eb513b97854`:** [run 40385791080](https://github.com/jonhararagi/archivero/actions/runs/40385791080). Pasaron `testDebugUnitTest`, `assembleDebug`, firma/hash y subida de la APK debug. Certificado SHA-256 `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`; APK SHA-256 `b4a11a0bdc68b04e632b906a1994c3d01c5bcb8c24c763f0610bce05d72d0d1d`. Artefacto ZIP ID `12679724961`, digest SHA-256 `61142ccfb75d1ca1fd84f1221ccd1973a32ff1976a994cb665b9dfc8c11e8bfa`.
+- Se agrega una prueba adicional de la auditoría para confirmar que los enlaces a destinos en papelera no se clasifican como rotos. - **CI PASS para el HEAD con la prueba adicional y los imports limpios:** [run 40386346053](https://github.com/jonhararagi/archivero/actions/runs/40386346053), commit `e27356a0a1eebc435cbd440abf31085ae7c0ffdd`. Pasaron las pruebas unitarias, `assembleDebug`, verificación de firma/hash y subida. APK SHA-256 `1eef575efd2a1bc5b90e3763f71f9035142fa3df8e389a4cd5d2efc770341e64`; certificado SHA-256 `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`. Artefacto ZIP ID `12680492138`, tamaño 20.696.602 bytes, digest SHA-256 `92df570d40b13f31fbe3090e5ceebef3fde178fd79268e6202bd15e8ec175548`.
+
+---
+
+## Verificación del flujo de hash para duplicados · 2026-10-26
+
+- El cálculo SHA-256 ahora cuenta todos los bytes observados y rechaza lecturas truncadas o más largas que el tamaño informado, en vez de producir un fingerprint parcial.
+- La detección compara el tamaño y la fecha de modificación informados antes y después de la lectura; si los metadatos detectables cambian o el proveedor los informa de manera inconsistente, no se incorpora ese hash como evidencia de duplicación.
+- La lectura sigue siendo por bloques de 64 KiB, sin almacenar el archivo completo en memoria, y mantiene el punto de cancelación en cada lectura.
+- Pruebas nuevas cubren un vector SHA-256 conocido, flujo truncado/excesivo, recurso vacío, cancelación y metadatos cambiantes.
+- No se guardan hashes persistentes ni se cambia el archivo físico. Si un proveedor no ofrece marcas de modificación (cero en ambas consultas), se valida la longitud exacta y se documenta esa limitación.
+- **CI PASS de código en HEAD `716d9e01d122053cf3b0602f3e2bc6edb4931ce6`:** [run 40431250403](https://github.com/jonhararagi/archivero/actions/runs/40431250403). Pasaron `testDebugUnitTest`, `assembleDebug`, firma/hash y subida. APK SHA-256 `6caf1c0e20edab89bce63e6f2d119a78c13c1d713ae5c7219f0ae87d9f20581c`; certificado SHA-256 `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`. Artefacto ZIP ID `12701961527`, tamaño 20.667.928 bytes, digest SHA-256 `4ae580b83133aa72ece45dd41d264b0efa7e06ca420fff7de76bd0ce0d459e45`.
+
+---
+
+## Corrección · avance del offset de carpetas con páginas solapadas · 2026-10-27
+
+- La pantalla Carpetas mantiene el desplazamiento de lectura del proveedor por separado de la lista visible de URI únicas.
+- Al deduplicar URI repetidas entre páginas, el offset avanza por el número de entradas devueltas en el lote, en lugar de depender de cuántas nuevas URI quedaron visibles. Evita relecturas repetidas y que el avance se vaya frenando cuando las páginas se solapan.
+- Se centraliza la validación de desplazamientos negativos, cantidades negativas y desbordamiento entero; se agregan tres pruebas unitarias para estos límites y el caso de solapamiento.
+- No cambia el formato del índice ni modifica archivos físicos; no se añadieron dependencias. El proveedor SAF no ofrece una instantánea universal, por lo que los cambios simultáneos en una carpeta todavía pueden producir omisiones propias del proveedor.
+- **CI PASS del commit funcional** d7a12514468fd030f25188145d41bf18e9229f7a: [run 40450136471](https://github.com/jonhararagi/archivero/actions/runs/40450136471). Pasaron `testDebugUnitTest`, `assembleDebug`, verificación de firma/hash y subida del artefacto.
+- APK SHA-256: `499ecb2bd153a529170ad10336e0022bf8db92ebf3d68805d9d95229cca42a8c`.
+- Certificado SHA-256: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`, coincidente con el keystore de CI.
+- Artefacto `archivero-debug-apk`, ID `12709817052`, tamaño `20,666,714` bytes; digest ZIP SHA-256 `188fe3f33e70b5f2e7e7ae062918692e4500b4dc1537309d570b4470607a629b`.
+
+---
+## [Unreleased] - 2026-10-27
+
+### Añadido
+- Vista previa de importación de instantáneas de Biblioteca con recuento de fichas activas, papelera y URI coincidentes antes de modificar el catálogo.
+- Reemplazo de coincidencias solo con confirmación explícita; revisión del catálogo asociada a la vista previa para rechazar una confirmación obsoleta.
+- Pruebas unitarias para colisiones entre fichas activas/papelera, ausencia de mutaciones durante la vista previa y protección contra cambios entre revisión y confirmación.
+- **CI PASS del commit funcional** `5f47a306469f485abb9ceb512c469e503a6f6207`: [run 40603819366](https://github.com/jonhararagi/archivero/actions/runs/40603819366). Pasaron pruebas unitarias, APK debug, firma/hash y publicación del artefacto. La prueba física/instrumentada sigue pendiente.
 
 ## Carga de Biblioteca sin ordenamiento duplicado · 2026-10-24
 
@@ -583,3 +659,11 @@ GitHub Actions ejecuta ahora testDebugUnitTest antes de construir el APK. El éx
 - El análisis recursivo de directorios, la reproducción en segundo plano y los permisos de borrado necesitan pruebas funcionales en dispositivos reales.
 - Algunos proveedores de Android no permiten crear o borrar todos los elementos. Archivero muestra el error, pero la limpieza de una operación fallida sigue dependiendo de lo que permita ese proveedor.
 - Los límites de extracción son deliberadamente conservadores para evitar archivos ZIP excesivos en dispositivos móviles.
+
+ 
+## Corrección · orden global entre páginas de Carpetas · 2026-10-27
+
+- Las páginas cargadas a demanda se fusionan con el conjunto visible manteniendo un orden global: carpetas primero, nombre sin distinguir mayúsculas/minúsculas y URI como desempate determinista.
+- Se almacenan claves de orden de los elementos ya mostrados; al cargar otro lote no se vuelve a consultar el proveedor para todos los nombres/tipos anteriores.
+- Pruebas unitarias para fusión entre páginas, orden de carpetas/archivos y nombres iguales con URI distintas.
+- **CI PASS del commit funcional** `f08971f1e4a87e925affa85fc60e66a05724d811`: [run 40605045146](https://github.com/jonhararagi/archivero/actions/runs/40605045146). Pruebas unitarias, compilación Android, firma/hash y artefacto: PASS. Prueba física/SAF real pendiente.

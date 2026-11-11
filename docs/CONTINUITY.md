@@ -1,5 +1,23 @@
 ## Continuidad · historial atrás/adelante en Carpetas · 2026-10-25
 
+## Continuidad · revisión compartida por reparación e importación · 2026-11-11
+
+- Hallazgo de integración: `applyRelationshipRepair` persistía y publicaba cambios de relaciones, pero no incrementaba `catalogRevision`. Una vista previa de importación anterior podía parecer vigente después de reparar.
+- Corrección: incrementar `catalogRevision` tras la escritura exitosa de la reparación. Si la escritura falla, ni el estado ni la revisión avanzan.
+- Prueba: generar una vista previa de importación, reparar una relación huérfana y comprobar que la confirmación con la revisión antigua se rechaza por obsoleta.
+- El CI de la rama integrada debe volver a validar este ajuste junto con el resto de cambios.
+
+---
+
+## Continuidad · progreso de hash ante lecturas sin avance · 2026-11-11
+
+- En la reconciliación de #10 se detectó que el helper de hash manejaba lectura corta, exceso y cancelación, pero un `read(buffer)` que devolviera cero podía repetir el bucle sin avanzar.
+- Se añadió fallback a `read()` de un byte y comprobación de límite antes de incorporar ese byte al hash.
+- Pruebas añadidas: proveedor simulado con primera lectura masiva igual a cero y vector SHA-256 estándar «abc».
+- CI combinada de la rama debe validar esta corrección; no se considera validada solo por el commit.
+
+---
+
 - Se sustituye la pila de `DocumentFile` suelta por `FolderNavigationHistory`, que guarda la carpeta y el URI de navegación exacto en las pilas back/forward.
 - `enterFolderNavigationHistory`, `moveFolderBackward` y `moveFolderForward` son funciones puras con cinco pruebas unitarias. Entrar a otra carpeta limpia forward.
 - La raíz SAF se restaura conservando el URI autorizado original. Los accesos rápidos que apuntan directamente a una subcarpeta admiten regresar a raíz y avanzar nuevamente.
@@ -14,6 +32,77 @@
 - La UI permite guardar/quitar la carpeta actual y abrir ubicaciones guardadas desde una fila horizontal de acceso rápido. Los fallos de permisos conservan los marcadores, los datos guardados están limitados a 512 KiB y datos corruptos requieren un restablecimiento explícito confirmado por el almacenamiento.
 - Se añaden nueve pruebas unitarias de serialización, límites, eliminación, validación del proveedor, URI raíz y pertenencia al árbol SAF. **CI PASS:** run [40150856274](https://github.com/jonhararagi/archivero/actions/runs/40150856274), SHA `b60fd13c99da79a9f1051d451ca19f1ef79e199c`; pasaron `testDebugUnitTest`, `assembleDebug`, firma/hash y subida de artefacto. APK SHA-256 `bafdbf8051f0302f370607152db7ccca41c998d0fdd5fbff5cb973d2c1f09077`; artifact ID `12581419044`, digest ZIP `e535674c6ad304754d132ada2c303676e1c7044443744c14e0bf5884be754799`. No se declara prueba física en Xiaomi.
 - No hay cambios de esquema de biblioteca ni operaciones sobre archivos originales.
+
+---
+
+## Continuidad · integridad de exportación de Biblioteca · 2026-10-28
+
+- Rama: feature/archivero-verified-library-export-001, basada en main inspeccionado en 9ff54f1f81da57f6c5c6c5131b80b1e911514b94. Main no se modifica directamente.
+- Lote: la exportación calcula SHA-256 del flujo realmente escrito y, cuando se puede volver a abrir el destino, compara bytes y hash con la instantánea temporal original.
+- El estado visual distingue exportación verificada, destino no releíble y contenido que no coincide. Un proveedor que no permita lectura de vuelta no se presenta como verificado.
+- Helper separado de la interfaz, sin nuevas dependencias, con límite de 64 MiB y progreso ante un read(byte[]) que devuelve cero.
+- Cobertura añadida para hash conocido, lectura de vuelta, flujo vacío, límite y lectura de bloque sin progreso.
+- **CI PASS del commit funcional** c8cfe12ec396fa657c931401309156b1d27a8453: run [40638910830](https://github.com/jonhararagi/archivero/actions/runs/40638910830). Pasaron tests JVM, compilación APK, verificación de firma/hash y publicación del artefacto.
+- APK SHA-256 `77b7b10990de9cf9292e9b402707473a8f673058e22e6ef01eaf55ea096cd0b3`; certificado SHA-256 `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+- Artefacto APK ID `12794184568`, tamaño ZIP `20.669.750` bytes, digest `c98dec15d38a612c234eb3c91a10a0137f5636a7852425d0b40afead9c164829`.
+- La validación CI del commit documental `25d98fe39eed2dd58653f0bb19d5a5f30bcae876` terminó **PASS** en [run 40639250604](https://github.com/jonhararagi/archivero/actions/runs/40639250604), incluidas pruebas JVM, `assembleDebug`, firma/hash y publicación del APK.
+- La rama y la PR #14 continúan abiertas para revisión. No se ha probado en un Xiaomi físico ni se ha modificado main directamente.
+
+---
+
+## Continuidad · reparación segura de relaciones · 2026-10-26
+
+- Nuevo lote en `feature/archivero-safe-relationship-repair-001`, basado en main `9ff54f1f81da57f6c5c6c5131b80b1e911514b94`. No modifica `main`.
+- La auditoría reconoce como destinos preservables las fichas activas y las URI guardadas en papelera.
+- `planLibraryRelationshipRepair` genera una vista previa acotada y no muta el catálogo. La UI solicita confirmación antes de aplicar.
+- `DigitalLibraryCatalog.applyRelationshipRepair` valida la huella SHA-256 de las relaciones y las URI activas/en papelera. Rechaza una vista previa obsoleta y aplica todos los cambios en una sola instantánea.
+- Las escrituras fallidas no publican estado nuevo en memoria; no se realizan operaciones sobre recursos físicos.
+- Pruebas añadidas: preview determinista, destinos activos/en papelera, persistencia tras aplicar, rechazo si aparece un destino después de la vista previa y rollback ante fallo de escritura.
+- **CI PASS del código funcional** en commit `2bcf8c7beddcc3f523ceb0a61ae63eb513b97854`: [run 40385791080](https://github.com/jonhararagi/archivero/actions/runs/40385791080). `testDebugUnitTest`, `assembleDebug`, verificación de certificado/hash y subida de artefacto terminaron correctamente. APK SHA-256 `b4a11a0bdc68b04e632b906a1994c3d01c5bcb8c24c763f0610bce05d72d0d1d`; artefacto ID `12679724961`.
+- La prueba adicional de auditoría para destinos en papelera y la limpieza de imports quedaron verificadas en el HEAD `e27356a0a1eebc435cbd440abf31085ae7c0ffdd`. [CI PASS, run 40386346053](https://github.com/jonhararagi/archivero/actions/runs/40386346053). Sin prueba física en dispositivo.
+
+---
+
+## Continuidad · hash de flujo verificado para duplicados · 2026-10-26
+
+- Lote en `feature/archivero-verified-streaming-hash-001`, basado en main `9ff54f1f81da57f6c5c6c5131b80b1e911514b94`; no modifica main ni depende de las PR #7, #8 o #9 abiertas.
+- Se añadió `hashInputStreamSha256`: calcula SHA-256 en bloques de 64 KiB, verifica exactamente el conteo esperado de bytes, permite cancelación por callback y rechaza entradas truncadas/excesivas.
+- `duplicateCandidateMetadataStable` exige estabilidad de tamaño y, cuando el proveedor informa timestamps positivos, igualdad de `lastModified` antes/después. Una consulta de metadatos inconsistente invalida el hash; si ambas marcas son cero el proveedor no las ofrece, por lo que solo se puede comprobar la longitud exacta.
+- `LibraryDuplicateScanner` pasa a usar el helper y descarta recursos cuyo tamaño/fecha cambie durante la lectura.
+- Pruebas unitarias añadidas para hash conocido, lecturas cortas/largas, flujo vacío, cancelación y cambios de metadatos. No se añade dependencia y no se toca ningún archivo físico.
+- **CI PASS del código en HEAD `716d9e01d122053cf3b0602f3e2bc6edb4931ce6`:** [run 40431250403](https://github.com/jonhararagi/archivero/actions/runs/40431250403). Pasaron pruebas unitarias, compilación, firma/hash y subida de APK debug. APK SHA-256 `6caf1c0e20edab89bce63e6f2d119a78c13c1d713ae5c7219f0ae87d9f20581c`; artefacto ID `12701961527`.
+- Sin benchmark de dispositivo ni validación de proveedor SAF real.
+
+---
+
+## Continuidad · avance de paginación ante URI repetidas · 2026-10-27
+
+- Rama `feature/archivero-directory-offset-progress-001`; PR #11: https://github.com/jonhararagi/archivero/pull/11.
+- Base inspeccionada: `main` en `9ff54f1f81da57f6c5c6c5131b80b1e911514b94`. El código fue implementado en `d7a12514468fd030f25188145d41bf18e9229f7a`; no se modificó `main` directamente y el PR permanece abierto.
+- Hallazgo: la pantalla deduplicaba las URI visibles entre páginas y usaba el tamaño de esa lista para calcular el offset siguiente. Si el proveedor devolvía URI repetidas entre lotes, el offset podía retroceder respecto de las filas ya leídas y volver a recorrer entradas.
+- Corrección: `listedReadOffset` mantiene el número de entradas procesadas sin deduplicar; el estado visible conserva su `distinctBy(uri)`. Cada página incrementa el offset por el tamaño bruto del lote. `nextDirectoryPageOffset` valida entradas negativas y desbordamiento.
+- Pruebas añadidas en `DirectoryListingTest.kt`: solapamiento entre URI, avance por filas crudas, cantidad negativa y overflow. CI no es una prueba física en el teléfono.
+- README y CHANGELOG actualizados. Sin migración de datos, dependencias nuevas ni operaciones sobre archivos físicos.
+- **CI PASS del commit funcional** d7a12514468fd030f25188145d41bf18e9229f7a: [run 40450136471](https://github.com/jonhararagi/archivero/actions/runs/40450136471). Pasaron `testDebugUnitTest`, `assembleDebug`, verificación de firma/hash y subida del artefacto.
+- APK SHA-256: `499ecb2bd153a529170ad10336e0022bf8db92ebf3d68805d9d95229cca42a8c`.
+- Certificado SHA-256: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`, coincidente con el keystore de CI.
+- Artefacto `archivero-debug-apk`, ID `12709817052`, tamaño `20,666,714` bytes; digest ZIP SHA-256 `188fe3f33e70b5f2e7e7ae062918692e4500b4dc1537309d570b4470607a629b`.
+- Límite: la paginación SAF por offset depende del proveedor; este cambio evita estancamientos por deduplicación pero no garantiza una instantánea consistente si los contenidos cambian durante el recorrido. Sin benchmark ni validación manual en Xiaomi.
+
+---
+## Continuidad · importación segura de instantáneas · 2026-10-27
+
+- Rama aislada: `feature/archivero-import-preview-001`, creada desde `main` en `9ff54f1f81da57f6c5c6c5131b80b1e911514b94`. No se modificó `main`.
+- Se incorpora `DigitalLibraryCatalog.previewSnapshotImport()`: valida la instantánea completa sin persistir cambios y muestra recuentos activos/papelera, cantidad de URI coincidentes y hasta cinco ejemplos.
+- La interfaz de importación ahora conserva la instantánea validada en un temporal privado y solicita confirmación. Si no hay conflictos, confirma Añadir; si los hay, el reemplazo exige el botón explícito «Reemplazar coincidencias». Cancelar elimina el temporal.
+- Las vistas previas llevan una revisión del catálogo. Cada mutación persistida incrementa esa revisión y una confirmación con un token obsoleto falla antes de escribir, evitando reemplazos no revisados.
+- Las pruebas cubren la vista previa sin mutación, coincidencias contra fichas activas y papelera, reemplazo explícito y rechazo tras cambios locales concurrentes.
+- Se conserva el límite de 64 MiB, la compatibilidad V1/V2/V3 y el comportamiento de no tocar archivos físicos. Sin dependencias nuevas.
+- **CI PASS del commit funcional** `5f47a306469f485abb9ceb512c469e503a6f6207`: [run 40603819366](https://github.com/jonhararagi/archivero/actions/runs/40603819366). Pasaron `testDebugUnitTest`, `assembleDebug`, verificación de firma/hash y subida del artefacto.
+- APK debug SHA-256: `6be529b9f753ca87ac3e5d26db93a541b090975e3a697adbc64ddc7c10eb3551`.
+- Certificado SHA-256: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`; firma de APK y keystore de CI coinciden.
+- Artefacto `archivero-debug-apk`, ID `12779447479`, tamaño `20.679.692` bytes; digest ZIP SHA-256 `4052e2039c8a07cd29e2f0cf58b58311968d5437492d4820e395f85a911dbea4`.
+- Estas pruebas de CI no sustituyen una prueba instrumentada del diálogo ni una prueba física en Android; ambas siguen pendientes.
 
 ---
 
@@ -527,3 +616,19 @@
 3. Revisar proveedores no-tree donde DocumentFile.listFiles() puede cargar demasiadas entradas.
 4. Seguir comparando funciones de Archivero con Files by Google, Solid Explorer, X-plore, Total Commander y CX File Explorer. No afirmar superioridad general sin mediciones directas y fuentes verificadas.
 
+
+
+---
+
+## Continuidad · orden estable de páginas en Carpetas · 2026-10-27
+
+- Rama aislada: `feature/archivero-stable-folder-page-order-001`, desde `main` en `9ff54f1f81da57f6c5c6c5131b80b1e911514b94`. No se modificó `main`.
+- Se añade una clave de orden inmutable por entrada (directorio, nombre normalizado y URI) y una fusión lineal de páginas previamente ordenadas.
+- Al cargar la siguiente página, se filtran URI ya vistas, se conservan las claves de los elementos mostrados y se fusiona el nuevo lote en su posición global. Se evita reconsultar metadatos de todos los elementos existentes en cada paginación.
+- El orden determinista es carpetas primero, nombre case-insensitive y URI ascendente como desempate. La memoria sigue creciendo solo con los lotes que el usuario solicita; no se enumera toda la carpeta de una vez.
+- Pruebas añadidas para orden global tras cargar páginas, directorios antes que archivos y desempate por URI.
+- **CI PASS del commit funcional** `f08971f1e4a87e925affa85fc60e66a05724d811`: [run 40605045146](https://github.com/jonhararagi/archivero/actions/runs/40605045146). Pasaron `testDebugUnitTest`, `assembleDebug`, la verificación de firma/hash y la subida del artefacto.
+- APK debug SHA-256: `f96d7f62eeed1cf52be45773938ca70f86b1c2cbc7c9b46b1ebf8f41a5662f25`.
+- Certificado SHA-256 coincidente entre APK y keystore de CI: `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`.
+- Artefacto `archivero-debug-apk`, ID `12780222785`, tamaño `20.670.272` bytes, digest ZIP SHA-256 `bc528298033b0e80a185edabc190b703464bd7c74ccd64ede7ae10781bc36dd5`.
+- El comportamiento de proveedores SAF reales y la prueba física siguen pendientes.

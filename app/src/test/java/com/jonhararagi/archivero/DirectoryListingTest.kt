@@ -7,6 +7,13 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+private data class DirectorySortFixture(
+    val name: String,
+    val isDirectory: Boolean,
+    val uri: String
+)
+
+
 class DirectoryListingTest {
     @Test
     fun filesystemPagesAreBoundedAndDoNotRepeatEntries() {
@@ -71,4 +78,77 @@ class DirectoryListingTest {
             directory.deleteRecursively()
         }
     }
+    @Test
+    fun pageOffsetAdvancesByRawProviderRowsEvenWhenVisibleUrisAreDeduplicated() {
+        val alreadyVisible = listOf("content://folder/a", "content://folder/b")
+        val rawNextPage = listOf("content://folder/b", "content://folder/c", "content://folder/d")
+        val visibleAfterMerge = (alreadyVisible + rawNextPage).distinct()
+
+        assertEquals(4, visibleAfterMerge.size)
+        // The next offset must include all 3 provider rows, including the repeated URI.
+        assertEquals(5, nextDirectoryPageOffset(currentOffset = 2, entriesRead = rawNextPage.size))
+        assertEquals(10_000, nextDirectoryPageOffset(currentOffset = 5_000, entriesRead = 5_000))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsNegativePageOffsetAdvance() {
+        nextDirectoryPageOffset(currentOffset = 3, entriesRead = -1)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsPageOffsetOverflow() {
+        nextDirectoryPageOffset(currentOffset = Int.MAX_VALUE, entriesRead = 1)
+    }
+
+
+
+    @Test
+    fun mergingLoadedPagesPreservesGlobalDirectoryFirstAlphabeticalOrder() {
+        val firstPage = sortDirectoryEntries(
+            listOf(
+                DirectorySortFixture("zeta.txt", false, "content://files/zeta"),
+                DirectorySortFixture("same.txt", false, "content://files/same-z"),
+                DirectorySortFixture("Folder B", true, "content://folders/b")
+            ),
+            keyOf = { directoryEntryOrderKey(it.isDirectory, it.name, it.uri) }
+        )
+        val secondPage = sortDirectoryEntries(
+            listOf(
+                DirectorySortFixture("Alpha.txt", false, "content://files/alpha"),
+                DirectorySortFixture("Folder A", true, "content://folders/a"),
+                DirectorySortFixture("SAME.TXT", false, "content://files/same-a")
+            ),
+            keyOf = { directoryEntryOrderKey(it.isDirectory, it.name, it.uri) }
+        )
+        val keys = (firstPage + secondPage).associate { it.uri to directoryEntryOrderKey(it.isDirectory, it.name, it.uri) }
+
+        val merged = mergeSortedDirectoryEntries(firstPage, secondPage) { keys.getValue(it.uri) }
+
+        assertEquals(
+            listOf("Folder A", "Folder B", "Alpha.txt", "SAME.TXT", "same.txt", "zeta.txt"),
+            merged.map { it.name }
+        )
+        assertEquals(
+            listOf("content://files/same-a", "content://files/same-z"),
+            merged.filter { it.name.equals("same.txt", ignoreCase = true) }.map { it.uri }
+        )
+    }
+
+    @Test
+    fun directorySortUsesUriAsStableTieBreakerForSameNamedEntries() {
+        val sorted = sortDirectoryEntries(
+            listOf(
+                DirectorySortFixture("duplicate.png", false, "content://z"),
+                DirectorySortFixture("duplicate.png", false, "content://a"),
+                DirectorySortFixture("Folder", true, "content://folder"),
+                DirectorySortFixture("a.txt", false, "content://file")
+            ),
+            keyOf = { directoryEntryOrderKey(it.isDirectory, it.name, it.uri) }
+        )
+        assertEquals(
+            listOf("content://folder", "content://file", "content://a", "content://z"),
+            sorted.map { it.uri }
+        )
+    }
+
 }
