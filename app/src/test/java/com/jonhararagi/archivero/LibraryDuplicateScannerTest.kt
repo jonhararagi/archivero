@@ -5,6 +5,70 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LibraryDuplicateScannerTest {
+
+    @Test
+    fun hashesIncrementallyAndMatchesKnownSha256Vector() {
+        val hash = hashInputStreamSha256("abc".toByteArray().inputStream(), expectedSizeBytes = 3L)
+
+        assertEquals(
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            hash
+        )
+    }
+
+    @Test
+    fun rejectsTruncatedStreamInsteadOfProducingFingerprint() {
+        try {
+            hashInputStreamSha256(byteArrayOf(1, 2, 3).inputStream(), expectedSizeBytes = 4L)
+            throw AssertionError("Una lectura truncada no debe producir un hash válido.")
+        } catch (_: java.io.IOException) {
+            // Expected.
+        }
+    }
+
+    @Test
+    fun rejectsStreamLongerThanReportedSize() {
+        try {
+            hashInputStreamSha256(byteArrayOf(1, 2, 3).inputStream(), expectedSizeBytes = 2L)
+            throw AssertionError("Una lectura más larga que el tamaño informado debe rechazarse.")
+        } catch (_: java.io.IOException) {
+            // Expected.
+        }
+    }
+
+    @Test
+    fun hashesEmptyStreamCorrectlyButDuplicateMetadataRejectsEmptyResource() {
+        assertEquals(
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            hashInputStreamSha256(byteArrayOf().inputStream(), expectedSizeBytes = 0L)
+        )
+        assertEquals(false, duplicateCandidateMetadataStable(0L, 0L, 0L, 0L, 0L))
+    }
+
+    @Test
+    fun cooperativelyChecksCancellationForEveryReadChunk() {
+        val calls = java.util.concurrent.atomic.AtomicInteger()
+        val bytes = ByteArray(150_000) { (it % 251).toByte() }
+
+        val hash = hashInputStreamSha256(
+            bytes.inputStream(),
+            expectedSizeBytes = bytes.size.toLong()
+        ) { calls.incrementAndGet() }
+
+        assertEquals(64, hash.length)
+        assertTrue("La cancelación debe comprobarse en cada lectura", calls.get() >= 3)
+    }
+
+    @Test
+    fun changingOrInconsistentlyReportedMetadataInvalidatesHash() {
+        assertTrue(duplicateCandidateMetadataStable(10L, 10L, 10L, 42L, 42L))
+        assertTrue(duplicateCandidateMetadataStable(10L, 10L, 10L, 0L, 0L))
+        assertEquals(false, duplicateCandidateMetadataStable(10L, 10L, 10L, 42L, 43L))
+        assertEquals(false, duplicateCandidateMetadataStable(10L, 10L, 10L, 0L, 42L))
+        assertEquals(false, duplicateCandidateMetadataStable(10L, 10L, 10L, -1L, -1L))
+        assertEquals(false, duplicateCandidateMetadataStable(10L, 10L, 9L, 42L, 42L))
+    }
+
     @Test
     fun groupsOnlyDifferentUrisWithSamePositiveSizeAndFullSha256() {
         val lowerHash = "a".repeat(64)

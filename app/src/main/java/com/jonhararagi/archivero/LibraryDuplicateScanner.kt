@@ -33,7 +33,6 @@ import androidx.documentfile.provider.DocumentFile
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
-import java.security.MessageDigest
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -245,7 +244,13 @@ private suspend fun hashExactCandidate(
     candidate: SizedCandidate<LibraryRecord>
 ): LibraryHashEntry? {
     val document = duplicateDocument(context, candidate.value.uri) ?: return null
-    if (!document.exists() || document.isDirectory || document.length() != candidate.size) return null
+    if (!document.exists() || document.isDirectory) return null
+
+    val sizeBefore = document.length()
+    if (sizeBefore != candidate.size || sizeBefore <= 0L) return null
+    // Android providers may return zero when the timestamp is unavailable. That case is handled
+    // conservatively after reading; a changed or inconsistently reported timestamp invalidates it.
+    val modifiedBefore = runCatching { document.lastModified() }.getOrDefault(-1L)
     val uri = Uri.parse(candidate.value.uri)
     val input = if (uri.scheme == "file") {
         val path = uri.path ?: throw IOException("La ruta local no está disponible.")
@@ -254,21 +259,27 @@ private suspend fun hashExactCandidate(
         context.contentResolver.openInputStream(uri)
             ?: throw IOException("Android no permitió leer el recurso.")
     }
-    val digest = MessageDigest.getInstance("SHA-256")
-    input.use { stream ->
-        val buffer = ByteArray(64 * 1024)
-        while (true) {
-            currentCoroutineContext().ensureActive()
-            val count = stream.read(buffer)
-            if (count < 0) break
-            if (count > 0) digest.update(buffer, 0, count)
+
+    val readingContext = currentCoroutineContext()
+    val hash = input.use { stream ->
+        hashInputStreamSha256(stream, candidate.size) {
+            readingContext.ensureActive()
         }
     }
-    currentCoroutineContext().ensureActive()
-    // Avoid returning a fingerprint if the provider reports that the item changed while it was read.
-    if (runCatching { document.length() }.getOrDefault(-1L) != candidate.size) return null
-    val hash = digest.digest().joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
-        .lowercase(Locale.ROOT)
+    readingContext.ensureActive()
+
+    val sizeAfter = runCatching { document.length() }.getOrDefault(-1L)
+    val modifiedAfter = runCatching { document.lastModified() }.getOrDefault(-1L)
+    if (!duplicateCandidateMetadataStable(
+            expectedSizeBytes = candidate.size,
+            sizeBeforeBytes = sizeBefore,
+            sizeAfterBytes = sizeAfter,
+            lastModifiedBeforeMillis = modifiedBefore,
+            lastModifiedAfterMillis = modifiedAfter
+        )
+    ) {
+        return null
+    }
     return LibraryHashEntry(candidate.value.uri, candidate.size, hash)
 }
 
