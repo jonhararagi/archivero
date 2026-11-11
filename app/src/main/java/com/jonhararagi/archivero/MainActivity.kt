@@ -396,6 +396,7 @@ fun ArchiveroApp() {
     // Count raw provider entries separately from visible unique URIs. When a provider's pages overlap,
     // deduplication must not move the next offset backwards or cause the same page to repeat.
     var listedReadOffset by remember { mutableIntStateOf(0) }
+    val directorySortKeys = remember { mutableMapOf<String, DirectoryEntryOrderKey>() }
     var listingFailed by remember { mutableStateOf(false) }
     var listingErrorMessage by remember { mutableStateOf("Comprueba los permisos de Android e inténtalo otra vez.") }
     var listingTruncated by remember { mutableStateOf(false) }
@@ -1204,11 +1205,12 @@ fun ArchiveroApp() {
         loadingMore = false
         listedEntries = emptyList()
         listedReadOffset = 0
+        directorySortKeys.clear()
         val result: Result<BoundedDocumentListing> = withContext(Dispatchers.IO) {
             try {
                 Result.success(
                     folderToList?.let {
-                        listDocumentChildrenBounded(context, it, MAX_DIRECTORY_ENTRIES)
+                        listDocumentChildrenBounded(context, it, MAX_DIRECTORY_ENTRIES, includeSortKeys = true)
                     } ?: BoundedDocumentListing(emptyList(), false)
                 )
             } catch (cancelled: CancellationException) {
@@ -1219,6 +1221,8 @@ fun ArchiveroApp() {
         }
         if (currentUri != requestedUri || refresh != requestedRefresh) return@LaunchedEffect
         val listing = result.getOrNull()
+        directorySortKeys.clear()
+        directorySortKeys.putAll(listing?.sortKeys.orEmpty())
         listedEntries = listing?.entries ?: emptyList()
         listedReadOffset = listing?.entries?.size ?: 0
         listingTruncated = listing?.truncated ?: false
@@ -2042,13 +2046,23 @@ fun ArchiveroApp() {
                                             try {
                                                 val nextPage = withContext(Dispatchers.IO) {
                                                     listDocumentChildrenBounded(
-                                                        context, folderToPage, MAX_DIRECTORY_ENTRIES, offset
+                                                        context, folderToPage, MAX_DIRECTORY_ENTRIES, offset,
+                                                        includeSortKeys = true
                                                     )
                                                 }
                                                 if (currentUri == pageUri && refresh == pageRefresh &&
                                                     current?.uri == folderToPage.uri) {
-                                                    listedEntries = (listedEntries + nextPage.entries)
-                                                        .distinctBy { it.uri.toString() }
+                                                    val knownUris = listedEntries.mapTo(HashSet()) { it.uri.toString() }
+                                                    val incoming = nextPage.entries.filter { knownUris.add(it.uri.toString()) }
+                                                    val incomingUris = incoming.mapTo(HashSet()) { it.uri.toString() }
+                                                    nextPage.sortKeys.forEach { (uri, key) ->
+                                                        if (uri in incomingUris) directorySortKeys[uri] = key
+                                                    }
+                                                    listedEntries = mergeSortedDirectoryEntries(
+                                                        existing = listedEntries,
+                                                        incoming = incoming,
+                                                        keyOf = { file -> directorySortKeys.getValue(file.uri.toString()) }
+                                                    )
                                                     listedReadOffset = nextDirectoryPageOffset(listedReadOffset, nextPage.entries.size)
                                                     listingTruncated = nextPage.truncated
                                                 }
