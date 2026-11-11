@@ -394,6 +394,64 @@ internal class DigitalLibraryCatalog(
         return true
     }
 
+    /**
+     * Applies a previewed repair to unresolved relationship metadata in one atomic catalog write.
+     * It rejects stale previews, preserves links to trashed records, and never touches resources.
+     */
+    @Synchronized
+    @Throws(IOException::class)
+    fun applyRelationshipRepair(plan: LibraryRelationshipRepairPlan): LibraryRelationshipRepairSummary {
+        if (plan.checkedRecordCount != records.size ||
+            plan.activeUris != records.keys.toSet() ||
+            plan.retainedTargetUris != trashedRecords.keys.toSet() ||
+            plan.relationshipFingerprint != libraryRelationshipFingerprint(records.values, trashedRecords.keys)
+        ) {
+            throw IOException("La Biblioteca cambió desde la vista previa; vuelve a revisar las relaciones.")
+        }
+        if (plan.affectedRecordCount != plan.changes.size ||
+            plan.removedRelationCount != plan.changes.sumOf {
+                it.expectedRelatedUris.size - it.replacementRelatedUris.size
+            }
+        ) {
+            throw IOException("El plan de reparación no es válido; no se modificó la Biblioteca.")
+        }
+        if (plan.changes.isEmpty()) {
+            return LibraryRelationshipRepairSummary(changedRecordCount = 0, removedRelationCount = 0)
+        }
+
+        val validTargets = records.keys + trashedRecords.keys
+        val updated = LinkedHashMap(records)
+        var removedRelationCount = 0
+        plan.changes.forEach { change ->
+            val current = records[change.uri]
+                ?: throw IOException("Una ficha de la vista previa ya no existe; vuelve a revisar.")
+            if (current.relatedUris != change.expectedRelatedUris) {
+                throw IOException("Las relaciones cambiaron desde la vista previa; vuelve a revisar.")
+            }
+            val expectedReplacement = current.relatedUris.filter { it in validTargets }
+            if (change.replacementRelatedUris != expectedReplacement) {
+                throw IOException("El plan intentaría modificar relaciones ajenas a la reparación; se canceló.")
+            }
+            val removed = current.relatedUris.size - expectedReplacement.size
+            if (removed <= 0) {
+                throw IOException("El plan ya no contiene cambios válidos; vuelve a revisar.")
+            }
+            updated[change.uri] = normalizeRecord(current.copy(relatedUris = expectedReplacement))
+            removedRelationCount += removed
+        }
+        if (removedRelationCount != plan.removedRelationCount) {
+            throw IOException("El recuento de enlaces cambió; no se modificó la Biblioteca.")
+        }
+
+        // Publish in-memory state only after the complete snapshot has been written successfully.
+        writeSnapshot(storageFile, updated.values, trashedRecords.values)
+        records = updated
+        return LibraryRelationshipRepairSummary(
+            changedRecordCount = plan.affectedRecordCount,
+            removedRelationCount = removedRelationCount
+        )
+    }
+
     /** Writes a portable metadata-only snapshot without moving any referenced resources. */
     @Synchronized
     @Throws(IOException::class)
