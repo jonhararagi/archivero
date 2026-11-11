@@ -11,6 +11,17 @@ import java.util.Locale
 internal const val MAX_DIRECTORY_ENTRIES = 5_000
 internal const val MAX_SCAN_ENTRIES = 100_000
 
+/**
+ * Advances the offset by raw entries consumed from a provider, not by the visible URI count.
+ * The UI deduplicates overlapping pages, so using its visible count can otherwise repeat pages.
+ */
+internal fun nextDirectoryPageOffset(currentOffset: Int, entriesRead: Int): Int {
+    require(currentOffset >= 0) { "El desplazamiento actual no puede ser negativo." }
+    require(entriesRead >= 0) { "La cantidad de entradas leídas no puede ser negativa." }
+    require(currentOffset <= Int.MAX_VALUE - entriesRead) { "El desplazamiento de la carpeta excede el límite permitido." }
+    return currentOffset + entriesRead
+}
+
 internal data class BoundedFileListing(
     val files: List<File>,
     val truncated: Boolean
