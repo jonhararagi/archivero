@@ -1,5 +1,14 @@
 ## Continuidad · historial atrás/adelante en Carpetas · 2026-10-25
 
+## Continuidad · progreso de hash ante lecturas sin avance · 2026-11-11
+
+- En la reconciliación de #10 se detectó que el helper de hash manejaba lectura corta, exceso y cancelación, pero un `read(buffer)` que devolviera cero podía repetir el bucle sin avanzar.
+- Se añadió fallback a `read()` de un byte y comprobación de límite antes de incorporar ese byte al hash.
+- Pruebas añadidas: proveedor simulado con primera lectura masiva igual a cero y vector SHA-256 estándar «abc».
+- CI combinada de la rama debe validar esta corrección; no se considera validada solo por el commit.
+
+---
+
 - Se sustituye la pila de `DocumentFile` suelta por `FolderNavigationHistory`, que guarda la carpeta y el URI de navegación exacto en las pilas back/forward.
 - `enterFolderNavigationHistory`, `moveFolderBackward` y `moveFolderForward` son funciones puras con cinco pruebas unitarias. Entrar a otra carpeta limpia forward.
 - La raíz SAF se restaura conservando el URI autorizado original. Los accesos rápidos que apuntan directamente a una subcarpeta admiten regresar a raíz y avanzar nuevamente.

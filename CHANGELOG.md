@@ -1,5 +1,13 @@
 ## Historial de navegación de carpetas · 2026-10-25
 
+## Hash de duplicados: progreso ante lecturas de bloque cero · 2026-11-11
+
+- La función SHA-256 por streaming ahora fuerza progreso con una lectura de un byte si un proveedor devuelve cero en una lectura por bloques. Evita un bucle sin avance y conserva la comprobación del tamaño exacto esperado.
+- Se añaden pruebas para un proveedor simulado que devuelve cero en su primera lectura masiva y para el vector SHA-256 conocido de «abc».
+- Esta corrección no cambia archivos ni metadatos; solo endurece la lectura de los flujos usados para comparar duplicados.
+
+---
+
 - Añade historial atrás/adelante como estado separado de la UI, con funciones puras y cinco pruebas unitarias.
 - Conserva el URI original junto a cada carpeta para no confundir la URI SAF de raíz con la URI de documento que `DocumentFile` expone.
 - Una nueva navegación limpia la pila hacia adelante. Un acceso rápido a una subcarpeta permite volver a la raíz autorizada y avanzar de nuevo a esa carpeta.

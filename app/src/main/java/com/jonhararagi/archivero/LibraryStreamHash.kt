@@ -22,7 +22,18 @@ internal fun hashInputStreamSha256(
         checkActive()
         val count = input.read(buffer)
         if (count < 0) break
-        if (count == 0) continue
+        if (count == 0) {
+            // Some document providers return zero for a non-empty bulk read. Force progress
+            // with a one-byte read instead of spinning forever on the same offset.
+            val single = input.read()
+            if (single < 0) break
+            if (bytesRead >= expectedSizeBytes) {
+                throw IOException("El recurso contiene más bytes que el tamaño informado; se descartó el hash.")
+            }
+            digest.update(single.toByte())
+            bytesRead++
+            continue
+        }
         if (count.toLong() > expectedSizeBytes - bytesRead) {
             throw IOException("El recurso contiene más bytes que el tamaño informado; se descartó el hash.")
         }
