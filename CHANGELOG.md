@@ -1,3 +1,22 @@
+## Historial de navegación de carpetas · 2026-10-25
+
+- Añade historial atrás/adelante como estado separado de la UI, con funciones puras y cinco pruebas unitarias.
+- Conserva el URI original junto a cada carpeta para no confundir la URI SAF de raíz con la URI de documento que `DocumentFile` expone.
+- Una nueva navegación limpia la pila hacia adelante. Un acceso rápido a una subcarpeta permite volver a la raíz autorizada y avanzar de nuevo a esa carpeta.
+- **CI PASS del historial y los accesos rápidos:** [run 40151749075](https://github.com/jonhararagi/archivero/actions/runs/40151749075), SHA `e3e39ef45505b466ca887e9aee90d0693a910e64`. `testDebugUnitTest`, `assembleDebug`, verificación firma/hash y subida completaron correctamente. APK SHA-256 `f5435f22f33dbc8f07cf359fdedca3aa92cfb8be9d8ea8238b853d45b47e4d20`; artefacto ID `12583101445`, 20.693.869 bytes, SHA-256 ZIP `bc9e727f64eea287e2b93fa73e8fd980587eb9f70659a0d37a8d7cab4febc26e`. No se ha probado físicamente en Xiaomi.
+
+---
+
+## Accesos rápidos persistentes a carpetas · 2026-10-25
+
+- Añade marcadores de carpetas con una lista horizontal de accesos rápidos en la vista Carpetas.
+- Cada elemento guarda su URI y la raíz SAF autorizada para reconstruir la ubicación sin ampliar permisos ni manipular archivos.
+- La serialización está versionada, limitada a 100 carpetas y 512 KiB, y validada; datos malformados generan un aviso y solo se descartan tras una acción explícita del usuario.
+- Nueve pruebas unitarias cubren round-trip con nombres Unicode/líneas nuevas, orden reciente, añadir/quitar, límite, URI repetidas, proveedores incompatibles y datos dañados.
+- **CI PASS:** [run 40150856274](https://github.com/jonhararagi/archivero/actions/runs/40150856274), SHA `b60fd13c99da79a9f1051d451ca19f1ef79e199c`. Pasaron pruebas unitarias, `assembleDebug`, verificación de firma/hash y subida. Artefacto `archivero-debug-apk`, ID `12581419044`, 20.686.512 bytes, digest SHA-256 del ZIP `e535674c6ad304754d132ada2c303676e1c7044443744c14e0bf5884be754799`; SHA-256 de la APK `bafdbf8051f0302f370607152db7ccca41c998d0fdd5fbff5cb973d2c1f09077`; certificado de firma SHA-256 `ca95ba2d2407d9eda63c0568c3ad080928db773997c467ad73013a69493875ba`. Sin prueba física en Xiaomi.
+
+---
+
 ## Carga de Biblioteca sin ordenamiento duplicado · 2026-10-24
 
 - Se añade recordsSnapshot(), que devuelve una copia desligada de las fichas en orden de almacenamiento sin ordenar el catálogo completo.

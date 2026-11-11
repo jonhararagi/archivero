@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -58,6 +59,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
@@ -323,9 +325,23 @@ fun ArchiveroApp() {
     var permissionRefresh by remember { mutableIntStateOf(0) }
     var hasAllFilesAccess by remember { mutableStateOf(Build.VERSION.SDK_INT < 30 || Environment.isExternalStorageManager()) }
     var currentUri by remember { mutableStateOf<Uri?>(null) }
-    var folderHistory by remember { mutableStateOf<List<DocumentFile>>(emptyList()) }
+    var folderNavigationHistory by remember { mutableStateOf(FolderNavigationHistory<DocumentFile>()) }
     var root by remember { mutableStateOf<DocumentFile?>(null) }
     var current by remember { mutableStateOf<DocumentFile?>(null) }
+    val folderQuickAccessLoad = remember(context) {
+        runCatching {
+            decodeFolderQuickAccess(
+                context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
+                    .getString("folder_quick_access", null)
+            )
+        }
+    }
+    var folderQuickAccess by remember(context) {
+        mutableStateOf(folderQuickAccessLoad.getOrDefault(emptyList()))
+    }
+    var folderQuickAccessError by remember(context) {
+        mutableStateOf(folderQuickAccessLoad.exceptionOrNull()?.message)
+    }
     var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
     var selectedKind by rememberSaveable { mutableStateOf(Kind.IMAGES.name) }
     var choosingKind by rememberSaveable { mutableStateOf(false) }
@@ -709,7 +725,7 @@ fun ArchiveroApp() {
             try { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) } catch (_: SecurityException) { }
             rootUri = uri
             currentUri = uri
-            folderHistory = emptyList()
+            folderNavigationHistory = FolderNavigationHistory<DocumentFile>()
             root = DocumentFile.fromTreeUri(context, uri)
             current = root
             indexed = emptyList()
@@ -876,7 +892,7 @@ fun ArchiveroApp() {
             val storage = DocumentFile.fromFile(Environment.getExternalStorageDirectory())
             root = storage
             current = storage
-            folderHistory = emptyList()
+            folderNavigationHistory = FolderNavigationHistory<DocumentFile>()
             rootUri = storage.uri
             currentUri = storage.uri
             indexed = emptyList()
@@ -894,6 +910,169 @@ fun ArchiveroApp() {
         }
     }
 
+    fun saveFolderQuickAccess(next: List<FolderQuickAccessEntry>): Boolean {
+        if (folderQuickAccessError != null) {
+            message = "Los accesos rápidos guardados están dañados. Restablécelos expresamente antes de modificarlos."
+            return false
+        }
+        val serialized = runCatching { encodeFolderQuickAccess(next) }
+        return serialized.fold(
+            { value ->
+                runCatching {
+                    context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
+                        .edit().putString("folder_quick_access", value).apply()
+                }.fold(
+                    {
+                        folderQuickAccess = next
+                        true
+                    },
+                    { error ->
+                        message = error.message ?: "No se pudieron guardar los accesos rápidos."
+                        false
+                    }
+                )
+            },
+            { error ->
+                message = error.message ?: "No se pudieron guardar los accesos rápidos."
+                false
+            }
+        )
+    }
+
+    fun toggleCurrentFolderQuickAccess() {
+        val folder = current
+        if (folder == null || !runCatching { folder.isDirectory }.getOrDefault(false)) {
+            message = "Abre una carpeta antes de guardarla en accesos rápidos."
+            return
+        }
+        val uri = (currentUri ?: folder.uri).toString()
+        val rootString = rootUri?.toString().orEmpty()
+        if (uri.isBlank() || rootString.isBlank()) {
+            message = "No se pudo determinar la ubicación autorizada de esta carpeta."
+            return
+        }
+        val entry = FolderQuickAccessEntry(
+            uri = uri,
+            rootUri = rootString,
+            displayName = folder.name?.trim()?.takeIf { it.isNotEmpty() } ?: "Carpeta sin nombre"
+        )
+        val removing = folderQuickAccess.any { it.uri == entry.uri }
+        runCatching { toggleFolderQuickAccess(folderQuickAccess, entry) }.fold(
+            { updated ->
+                if (saveFolderQuickAccess(updated)) {
+                    message = if (removing) "Se quitó \"${entry.displayName}\" de accesos rápidos."
+                    else "Se guardó \"${entry.displayName}\" en accesos rápidos."
+                }
+            },
+            { error -> message = error.message ?: "No se pudo actualizar el acceso rápido." }
+        )
+    }
+
+    fun openFolderQuickAccess(entry: FolderQuickAccessEntry) {
+        try {
+            val savedRootUri = Uri.parse(entry.rootUri)
+            val savedFolderUri = Uri.parse(entry.uri)
+            val savedRoot: DocumentFile
+            val savedFolder: DocumentFile
+            if (savedRootUri.scheme.equals("file", ignoreCase = true)) {
+                if (Build.VERSION.SDK_INT >= 30 && !hasAllFilesAccess) {
+                    message = "Android ya no permite el acceso al almacenamiento. Reactiva el permiso y vuelve a abrir el acceso rápido."
+                    return
+                }
+                val rootPath = savedRootUri.path?.takeIf { it.isNotBlank() }
+                    ?: throw IOException("La ruta raíz guardada no está disponible.")
+                val folderPath = savedFolderUri.path?.takeIf { it.isNotBlank() }
+                    ?: throw IOException("La ruta de la carpeta guardada no está disponible.")
+                val rootFile = File(rootPath).canonicalFile
+                val folderFile = File(folderPath).canonicalFile
+                val rootPathCanonical = rootFile.toPath()
+                val folderPathCanonical = folderFile.toPath()
+                if (folderPathCanonical != rootPathCanonical && !folderPathCanonical.startsWith(rootPathCanonical)) {
+                    throw IOException("La carpeta guardada no pertenece a la raíz autorizada. Se conservó el acceso rápido.")
+                }
+                savedRoot = DocumentFile.fromFile(rootFile)
+                savedFolder = DocumentFile.fromFile(folderFile)
+            } else {
+                if (!DocumentsContract.isTreeUri(savedRootUri) || !DocumentsContract.isTreeUri(savedFolderUri)) {
+                    throw IOException("La ubicación guardada no corresponde a un árbol de documentos de Android.")
+                }
+                val savedTreeId = runCatching { DocumentsContract.getTreeDocumentId(savedRootUri) }
+                    .getOrElse { throw IOException("No se pudo validar la raíz SAF guardada.", it) }
+                val folderTreeId = runCatching { DocumentsContract.getTreeDocumentId(savedFolderUri) }
+                    .getOrElse { throw IOException("No se pudo validar la carpeta SAF guardada.", it) }
+                if (savedTreeId != folderTreeId) {
+                    throw IOException("La carpeta guardada no pertenece al árbol autorizado. Se conservó el acceso rápido.")
+                }
+                savedRoot = DocumentFile.fromTreeUri(context, savedRootUri)
+                    ?: throw IOException("Android no pudo reconstruir la ubicación autorizada.")
+                savedFolder = if (savedFolderUri == savedRootUri) {
+                    savedRoot
+                } else {
+                    DocumentFile.fromSingleUri(context, savedFolderUri)
+                        ?: throw IOException("Android no pudo reconstruir la carpeta guardada.")
+                }
+            }
+            if (!savedRoot.exists() || !savedRoot.isDirectory || !savedRoot.canRead()) {
+                throw IOException("No hay acceso a la ubicación raíz guardada. Selecciona la carpeta de nuevo.")
+            }
+            if (!savedFolder.exists() || !savedFolder.isDirectory || !savedFolder.canRead()) {
+                throw IOException("La carpeta ya no está disponible o se revocó su permiso. El acceso rápido se conserva.")
+            }
+            rootUri = savedRootUri
+            root = savedRoot
+            current = savedFolder
+            currentUri = savedFolderUri
+            folderNavigationHistory = FolderNavigationHistory<DocumentFile>()
+            indexed = emptyList()
+            hasScanned = false
+            scanStatus = ""
+            query = ""
+            choosingKind = false
+            screen = Screen.FOLDERS
+            refresh++
+        } catch (error: Exception) {
+            message = error.message ?: "No se pudo abrir este acceso rápido. Comprueba el permiso de la carpeta."
+        }
+    }
+
+    fun currentFolderNavigationEntry(): FolderNavigationEntry<DocumentFile>? {
+        val folder = current ?: return null
+        return FolderNavigationEntry(folder, (currentUri ?: folder.uri).toString())
+    }
+
+    fun navigateFolderBackward() {
+        val currentEntry = currentFolderNavigationEntry() ?: return
+        val move = moveFolderBackward(folderNavigationHistory, currentEntry)
+        if (move != null) {
+            folderNavigationHistory = move.history
+            current = move.current.folder
+            currentUri = Uri.parse(move.current.uri)
+            refresh++
+            return
+        }
+        // A saved quick-access shortcut can open a child without a breadcrumb trail.
+        // Return to its authorized root, preserving existing forward entries.
+        val rootFolder = root ?: return
+        val authorizedRootUri = rootUri ?: return
+        if (currentEntry.uri == authorizedRootUri.toString()) return
+        folderNavigationHistory = FolderNavigationHistory(
+            back = emptyList(),
+            forward = folderNavigationHistory.forward + currentEntry
+        )
+        current = rootFolder
+        currentUri = authorizedRootUri
+        refresh++
+    }
+
+    fun navigateFolderForward() {
+        val currentEntry = currentFolderNavigationEntry() ?: return
+        val move = moveFolderForward(folderNavigationHistory, currentEntry) ?: return
+        folderNavigationHistory = move.history
+        current = move.current.folder
+        currentUri = Uri.parse(move.current.uri)
+        refresh++
+    }
+
     LaunchedEffect(rootUri, hasAllFilesAccess) {
         val saved = rootUri ?: return@LaunchedEffect
         if (root == null) {
@@ -901,7 +1080,7 @@ fun ArchiveroApp() {
                 if (saved.scheme == "file" && hasAllFilesAccess) DocumentFile.fromFile(Environment.getExternalStorageDirectory())
                 else DocumentFile.fromTreeUri(context, saved)
             }.getOrNull()
-            if (restored != null && restored.canRead()) { root = restored; current = restored; currentUri = restored.uri }
+            if (restored != null && restored.canRead()) { root = restored; current = restored; currentUri = saved }
             else if (saved.scheme != "file") { rootUri = null; currentUri = null; message = "Android ya no permite acceder a esa ubicación. Elígela otra vez." }
         }
     }
@@ -1319,13 +1498,9 @@ fun ArchiveroApp() {
             showAppearance -> showAppearance = false
             showPlayerPanel -> showPlayerPanel = false
             screen == Screen.TYPES && !choosingKind -> { choosingKind = true; query = "" }
-            screen == Screen.FOLDERS && folderHistory.isNotEmpty() -> {
-                val parent = folderHistory.last()
-                folderHistory = folderHistory.dropLast(1)
-                current = parent
-                currentUri = parent.uri
-                refresh++
-            }
+            screen == Screen.FOLDERS &&
+                (folderNavigationHistory.back.isNotEmpty() || (currentUri != null && currentUri != rootUri)) ->
+                navigateFolderBackward()
             screen != Screen.HOME -> { screen = Screen.HOME; choosingKind = false; query = "" }
             else -> showExitDialog = true
         }
@@ -1445,7 +1620,7 @@ fun ArchiveroApp() {
                     NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                         NavigationBarItem(screen == Screen.HOME, { screen = Screen.HOME; choosingKind = false; query = "" }, { Icon(Icons.Default.Home, null) }, label = { Text("Inicio") })
                         NavigationBarItem(screen == Screen.TYPES, { screen = Screen.TYPES; choosingKind = true; query = "" }, { Icon(Icons.Default.Category, null) }, label = { Text("Tipos") })
-                        NavigationBarItem(screen == Screen.FOLDERS, { screen = Screen.FOLDERS; choosingKind = false; folderHistory = emptyList(); current = root; currentUri = rootUri; query = ""; refresh++ }, { Icon(Icons.Default.FolderOpen, null) }, label = { Text("Carpetas") })
+                        NavigationBarItem(screen == Screen.FOLDERS, { screen = Screen.FOLDERS; choosingKind = false; folderNavigationHistory = FolderNavigationHistory<DocumentFile>(); current = root; currentUri = rootUri; query = ""; refresh++ }, { Icon(Icons.Default.FolderOpen, null) }, label = { Text("Carpetas") })
                         NavigationBarItem(screen == Screen.CLEAN, { screen = Screen.CLEAN; query = ""; cleanupSelectedUris = emptySet() }, { Icon(Icons.Default.CleaningServices, null) }, label = { Text("Limpiar") })
                         NavigationBarItem(screen == Screen.LIBRARY, { screen = Screen.LIBRARY; choosingKind = false; query = "" }, { Icon(Icons.Default.Bookmark, null) }, label = { Text("Biblioteca") })
                     }
@@ -1649,24 +1824,96 @@ fun ArchiveroApp() {
                     Screen.FOLDERS -> {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) { Header(current?.name ?: "Carpetas", "Solo las ubicaciones que autorizaste") }
+                            val currentIsQuickAccess = folderQuickAccess.any { it.uri == (currentUri?.toString() ?: current?.uri?.toString()) }
+                            IconButton(onClick = { toggleCurrentFolderQuickAccess() }, enabled = current != null) {
+                                Icon(
+                                    if (currentIsQuickAccess) Icons.Default.BookmarkRemove else Icons.Default.BookmarkAdd,
+                                    contentDescription = if (currentIsQuickAccess) "Quitar de accesos rápidos" else "Guardar en accesos rápidos"
+                                )
+                            }
                             TextButton(onClick = { pickFolder.launch(null) }) { Icon(Icons.Default.Add, null); Text("Ubicación") }
                         }
-                        if (currentUri != null && currentUri != rootUri) {
-                            TextButton(onClick = {
-                                if (folderHistory.isNotEmpty()) {
-                                    val parent = folderHistory.last()
-                                    folderHistory = folderHistory.dropLast(1)
-                                    current = parent
-                                    currentUri = parent.uri
-                                } else {
-                                    current = root
-                                    currentUri = rootUri
+                        val canNavigateBack = folderNavigationHistory.back.isNotEmpty() ||
+                            (currentUri != null && currentUri != rootUri)
+                        if (canNavigateBack || folderNavigationHistory.forward.isNotEmpty()) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                if (canNavigateBack) {
+                                    TextButton(onClick = { navigateFolderBackward() }) {
+                                        Icon(Icons.Default.ArrowBack, null); Text("Volver")
+                                    }
                                 }
-                                refresh++
-                            }) { Icon(Icons.Default.ArrowBack, null); Text("Volver") }
+                                if (folderNavigationHistory.forward.isNotEmpty()) {
+                                    TextButton(onClick = { navigateFolderForward() }) {
+                                        Icon(Icons.Default.ArrowForward, null); Text("Adelante")
+                                    }
+                                }
+                            }
                         }
                         SearchBox(query) { query = it }
-                                                if (listingTruncated) {
+                        if (folderQuickAccessError != null) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    "No se pudieron recuperar los accesos rápidos guardados: ${folderQuickAccessError}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                                TextButton(onClick = {
+                                    scope.launch {
+                                        val result = withContext(Dispatchers.IO) {
+                                            runCatching {
+                                                context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE)
+                                                    .edit().remove("folder_quick_access").commit()
+                                            }
+                                        }
+                                        result.fold(
+                                            { saved ->
+                                                if (saved) {
+                                                    folderQuickAccess = emptyList()
+                                                    folderQuickAccessError = null
+                                                    message = "Se restableció la lista de accesos rápidos dañada. No se modificaron archivos ni la biblioteca."
+                                                } else {
+                                                    message = "Android no pudo guardar el restablecimiento de accesos rápidos. Los datos originales se conservan."
+                                                }
+                                            },
+                                            { error -> message = error.message ?: "No se pudieron restablecer los accesos rápidos." }
+                                        )
+                                    }
+                                }) { Text("Restablecer accesos rápidos dañados") }
+                            }
+                        }
+                        if (folderQuickAccess.isNotEmpty()) {
+                            Text("Accesos rápidos", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 4.dp))
+                            LazyRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                items(folderQuickAccess, key = { it.uri }) { shortcut ->
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        AssistChip(
+                                            onClick = { openFolderQuickAccess(shortcut) },
+                                            label = {
+                                                Text(
+                                                    shortcut.displayName,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.widthIn(max = 160.dp)
+                                                )
+                                            },
+                                            leadingIcon = { Icon(Icons.Default.FolderOpen, null) }
+                                        )
+                                        IconButton(
+                                            onClick = {
+                                                if (saveFolderQuickAccess(removeFolderQuickAccess(folderQuickAccess, shortcut.uri))) message = "Se quitó \"${shortcut.displayName}\" de accesos rápidos."
+                                            },
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Icon(Icons.Default.Close, contentDescription = "Quitar ${shortcut.displayName} de accesos rápidos")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (listingTruncated) {
                             Text(
                                 "Se han cargado ${entries.size} elementos. Hay más en esta carpeta; puedes traer otro lote sin abrir una lista ilimitada de golpe.",
                                 color = if (isCyberpunk) activePalette.secondary else MaterialTheme.colorScheme.primary,
@@ -1718,7 +1965,12 @@ fun ArchiveroApp() {
                             items(folderEntries, key = { it.uri.toString() }) { file ->
                                 DocumentRow(file, {
                                     if (file.isDirectory) {
-                                        current?.let { folderHistory = folderHistory + it }
+                                        current?.let { folder ->
+                                            folderNavigationHistory = enterFolderNavigationHistory(
+                                                folderNavigationHistory,
+                                                FolderNavigationEntry(folder, (currentUri ?: folder.uri).toString())
+                                            )
+                                        }
                                         current = file
                                         currentUri = file.uri
                                         refresh++

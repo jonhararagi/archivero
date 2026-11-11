@@ -1,3 +1,22 @@
+## Continuidad · historial atrás/adelante en Carpetas · 2026-10-25
+
+- Se sustituye la pila de `DocumentFile` suelta por `FolderNavigationHistory`, que guarda la carpeta y el URI de navegación exacto en las pilas back/forward.
+- `enterFolderNavigationHistory`, `moveFolderBackward` y `moveFolderForward` son funciones puras con cinco pruebas unitarias. Entrar a otra carpeta limpia forward.
+- La raíz SAF se restaura conservando el URI autorizado original. Los accesos rápidos que apuntan directamente a una subcarpeta admiten regresar a raíz y avanzar nuevamente.
+- **CI PASS:** run [40151749075](https://github.com/jonhararagi/archivero/actions/runs/40151749075), commit `e3e39ef45505b466ca887e9aee90d0693a910e64`. Pasaron `testDebugUnitTest`, `assembleDebug`, firma/hash y subida de APK. APK SHA-256 `f5435f22f33dbc8f07cf359fdedca3aa92cfb8be9d8ea8238b853d45b47e4d20`; artifact `12583101445`, SHA-256 ZIP `bc9e727f64eea287e2b93fa73e8fd980587eb9f70659a0d37a8d7cab4febc26e`. No se declara prueba física.
+
+---
+
+## Continuidad · accesos rápidos a carpetas · 2026-10-25
+
+- Rama de trabajo: `feature/archivero-folder-quick-access-001`, basada en `main` en `9ff54f1f81da57f6c5c6c5131b80b1e911514b94`.
+- Se añade `FolderQuickAccessEntry` con URI de carpeta, raíz autorizada y nombre visible; se almacena hasta 100 entradas (512 KiB) en preferencias locales mediante un formato versionado Base64 URL.
+- La UI permite guardar/quitar la carpeta actual y abrir ubicaciones guardadas desde una fila horizontal de acceso rápido. Los fallos de permisos conservan los marcadores, los datos guardados están limitados a 512 KiB y datos corruptos requieren un restablecimiento explícito confirmado por el almacenamiento.
+- Se añaden nueve pruebas unitarias de serialización, límites, eliminación, validación del proveedor, URI raíz y pertenencia al árbol SAF. **CI PASS:** run [40150856274](https://github.com/jonhararagi/archivero/actions/runs/40150856274), SHA `b60fd13c99da79a9f1051d451ca19f1ef79e199c`; pasaron `testDebugUnitTest`, `assembleDebug`, firma/hash y subida de artefacto. APK SHA-256 `bafdbf8051f0302f370607152db7ccca41c998d0fdd5fbff5cb973d2c1f09077`; artifact ID `12581419044`, digest ZIP `e535674c6ad304754d132ada2c303676e1c7044443744c14e0bf5884be754799`. No se declara prueba física en Xiaomi.
+- No hay cambios de esquema de biblioteca ni operaciones sobre archivos originales.
+
+---
+
 ## Continuidad · instantánea para carga y refresco de Biblioteca · 2026-10-24
 
 - PR #5 integrado en main mediante 93e70d016abbe044dbf38a6cd39117c3b6bc40a0. La rama feature/archivero-library-snapshot-load-001 ya no contiene cambios pendientes de integración.
