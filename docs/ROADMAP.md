@@ -4,25 +4,31 @@
 
 **Principio de seguridad:** Archivero administra referencias, metadatos y vistas de los archivos. Ninguna operación de catálogo, clasificación, análisis, reparación o copia de seguridad del índice debe modificar el contenido de los archivos originales. Las acciones físicas de archivo deben ser explícitas, confirmadas y recuperables cuando el proveedor lo permita.
 
-## Estado de la consolidación
+## Estado de la consolidación · actualizado 2026-11-14
 
-- PR #8, accesos rápidos e historial atrás/adelante: integrada en `main` el 11 de noviembre de 2026. Commit de squash: `8b80f152c5af980213d6186ff7199c00e8f6aef7`.
-- PR #9, reparación segura de relaciones; #10, hash de flujo verificado; #11, progreso de paginación; #12, vista previa de importación; #13, orden estable de páginas; y #14, exportación verificada: siguen como cambios pendientes de reconciliación. Sus HEAD tenían CI exitoso antes de la integración de #8, pero sus ramas quedaron con conflictos contra el nuevo `main`. Requieren resolución, nueva CI combinada y revisión antes de integrar.
-- PR #15 propone una segunda implementación de verificación de exportación sobre `MainActivity.kt`. Se debe comparar con #14 y evitar integrar ambas implementaciones por duplicado. #14 aporta un helper separado, pruebas específicas y estados diferenciados `VERIFIED`, `UNAVAILABLE` y `MISMATCH`.
-- PR #7, compatibilidad instrumentada Android API 26/35: no se considera aprobada. La ejecución del HEAD inspeccionado terminó `failure`; no atribuir el fallo a la aplicación sin diagnóstico reproducible.
+- `main` está en el commit integrado `600ea5f415f2805a62fbde063ad538b26e533eaa`.
+- PR #8 (accesos rápidos), #16 (hoja de ruta) y #17 (reconciliación de seguridad, importación/exportación y paginación) están fusionadas.
+- Los cambios útiles de PR #9 a #14 quedaron incluidos y verificados dentro de la integración de PR #17. PR #15 se cerró como duplicada de la solución de exportación ya integrada. Las ramas de respaldo se conservaron.
+- PR #7 sigue abierta y separada para validar compatibilidad instrumentada API 26/35. Su último intento conocido falló en API 35; no se atribuye esa falla a la aplicación sin evidencia reproducible.
+- La CI posterior al merge de `main`, ejecución [#42975948337](https://github.com/jonhararagi/archivero/actions/runs/42975948337), terminó PASS: pruebas JVM, compilación, firma, SHA-256 y publicación de APK.
+- La CI no sustituye las pruebas instrumentadas ni la validación física en el Xiaomi objetivo.
 
 Este documento es una hoja de ruta. Los elementos de las siguientes etapas son propuestas hasta que sus cambios estén implementados, probados y fusionados.
 
-## Etapa 1. Reconciliación y fiabilidad del núcleo
+## Etapa 1. Núcleo fiable e integrado
 
-1. Reconciliar las PR pendientes sobre una base actualizada, preservando todos los cambios útiles y resolviendo conflictos de forma explícita.
-2. Mantener paginación progresiva y acotada para carpetas y catálogos grandes. Contar las entradas realmente leídas por el proveedor, no solo las URI visibles después de deduplicar.
-3. Procesar hashes, copias y validaciones por bloques, con límites de tamaño, cancelación cooperativa y protección frente a lecturas de cero bytes.
-4. Tratar los permisos SAF como revocables: validar URI y permisos antes de operar, conservar accesos recuperables y explicar cómo volver a conceder acceso.
-5. Proteger el índice con escritura transaccional, snapshots, rollback ante errores, migraciones comprobables y recuperación tras cierre inesperado.
-6. Añadir backup/restauración del índice y un historial de cambios que permita recuperar metadatos sin tocar los archivos físicos.
+La base de esta etapa está integrada en `main`:
 
-**Criterios de aceptación:** ningún resultado parcial se presenta como íntegro; una importación no reemplaza coincidencias sin revisión y confirmación; una vista previa caducada se rechaza; fallos de escritura conservan el último índice válido; los escaneos se pueden cancelar; los límites de memoria y tamaño están probados.
+1. Paginación SAF progresiva y acotada, con avance correcto ante páginas solapadas y orden global estable.
+2. Hash SHA-256 por streaming, validación de longitud/estabilidad y protección ante lecturas de cero bytes.
+3. Reparación segura de relaciones con vista previa, confirmación, rollback y conservación de enlaces hacia fichas en papelera.
+4. Importación de instantáneas con validación previa, detección de coincidencias, confirmación explícita y rechazo de vistas previas obsoletas.
+5. Exportación con límite de tamaño, fingerprint SHA-256 y verificación de lectura de vuelta cuando el proveedor lo permite.
+6. Catálogo local versionado, papelera de metadatos y persistencia transaccional.
+
+**Pendiente de evolución:** un historial de auditoría de cambios del catálogo no debe confundirse con las instantáneas y la recuperación de escrituras que ya existen. La matriz instrumentada API 26/35 y las pruebas físicas siguen pendientes.
+
+**Estado:** núcleo integrado y CI posterior al merge PASS; validación de dispositivo PARTIAL.
 
 ## Etapa 2. Biblioteca visual y centro de previsualización
 
@@ -33,6 +39,19 @@ Este documento es una hoja de ruta. Los elementos de las siguientes etapas son p
 5. Estados claros para contenido sin permiso, desconectado, ilegible, no compatible o todavía en carga.
 
 **Criterios de aceptación:** listas fluidas con grandes bibliotecas; límite de memoria de caché comprobable; miniaturas no bloquean la interfaz; errores de proveedor no provocan cierres; la previsualización nunca modifica el original.
+
+**Base ya existente:** cuadrícula/lista virtualizada, metadatos técnicos de las fichas, miniaturas de imágenes y primera página de PDF, caché LRU de memoria de 24 MiB y previsualización integrada de formatos compatibles. Esta etapa amplía esa base; no la reconstruye.
+
+**Iteración 2A · caché persistente de miniaturas:**
+- Añadir caché de disco dentro del directorio privado de caché de la aplicación, separada del catálogo de metadatos.
+- Mantener 24 MiB de caché LRU en memoria y limitar el disco a 48 MiB, 2.048 entradas y 1 MiB por miniatura.
+- Usar identidad versionada por URI, nombre, tamaño y fecha de modificación. Persistir solo cuando tamaño y fecha están disponibles; en proveedores que no los informan, usar únicamente memoria para evitar conservar miniaturas potencialmente obsoletas.
+- Escribir mediante archivo temporal y reemplazo atómico; descartar entradas corruptas o fuera de límite y aplicar expulsión por antigüedad.
+- La caché es regenerable y nunca se usa como fuente de verdad. La limpieza automática de caché no afecta archivos originales ni fichas del catálogo.
+
+**Estado de iteración 2A:** en desarrollo en la rama `feature/archivero-visual-library-disk-cache-001`; los criterios siguen pendientes de CI y revisión.
+
+
 
 ## Etapa 3. Clasificación y búsqueda inteligente
 

@@ -3931,19 +3931,56 @@ private fun FileThumbnail(file: DocumentFile, size: Int) {
     }
 }
 
-private fun thumbnailCacheKey(file: DocumentFile): String {
+private data class ThumbnailCacheIdentity(
+    val value: String,
+    val canPersist: Boolean
+)
+
+/**
+ * A provider timestamp and size form the persistent cache identity. When either is unavailable,
+ * thumbnails remain memory-only so Archivero does not keep a potentially stale disk preview.
+ */
+private fun thumbnailCacheKey(file: DocumentFile): ThumbnailCacheIdentity {
     val uri = file.uri.toString()
+    val name = runCatching { file.name.orEmpty() }.getOrDefault("")
     val length = runCatching { file.length() }.getOrDefault(-1L)
     val modified = runCatching { file.lastModified() }.getOrDefault(-1L)
-    return "$uri|$length|$modified"
+    return ThumbnailCacheIdentity(
+        value = "thumbnail-v1|360|$uri|$name|$length|$modified",
+        canPersist = length >= 0L && modified > 0L
+    )
 }
 
 private object ThumbnailCache : LruCache<String, Bitmap>(24 * 1024 * 1024) {
+    @Volatile private var persistentDiskCache: LibraryThumbnailDiskCache? = null
+
     override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount.coerceAtLeast(1)
 
-    fun load(context: Context, file: DocumentFile, key: String): Bitmap? {
-        get(key)?.let { return it }
+    private fun diskCache(context: Context): LibraryThumbnailDiskCache =
+        persistentDiskCache ?: synchronized(this) {
+            persistentDiskCache ?: LibraryThumbnailDiskCache(
+                File(context.cacheDir, "archivero-thumbnail-cache")
+            ).also { persistentDiskCache = it }
+        }
+
+    fun load(context: Context, file: DocumentFile, key: ThumbnailCacheIdentity): Bitmap? {
+        get(key.value)?.let { return it }
         if (runCatching { file.isDirectory }.getOrDefault(true)) return null
+
+        val persistent = if (key.canPersist) diskCache(context) else null
+        if (persistent != null) {
+            val cachedBytes = persistent.read(key.value)
+            if (cachedBytes != null) {
+                val cachedBitmap = runCatching {
+                    BitmapFactory.decodeByteArray(cachedBytes, 0, cachedBytes.size)
+                }.getOrNull()
+                if (cachedBitmap != null && !cachedBitmap.isRecycled) {
+                    put(key.value, cachedBitmap)
+                    return cachedBitmap
+                }
+                persistent.remove(key.value)
+            }
+        }
 
         val extension = runCatching { file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) }.getOrDefault("")
         val decoded = runCatching {
@@ -3954,7 +3991,19 @@ private object ThumbnailCache : LruCache<String, Bitmap>(24 * 1024 * 1024) {
                 else -> null
             }
         }.getOrNull()
-        if (decoded != null && !decoded.isRecycled) put(key, decoded)
+
+        if (decoded != null && !decoded.isRecycled) {
+            put(key.value, decoded)
+            if (persistent != null) {
+                // Thumbnails are at most 360 px; PNG preserves transparent image edges.
+                runCatching {
+                    val output = java.io.ByteArrayOutputStream()
+                    if (decoded.compress(Bitmap.CompressFormat.PNG, 100, output)) {
+                        persistent.write(key.value, output.toByteArray())
+                    }
+                }
+            }
+        }
         return decoded
     }
 

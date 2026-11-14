@@ -1,3 +1,15 @@
+## Continuidad · biblioteca visual · caché persistente de miniaturas · 2026-11-14
+
+- Base: `main` en `600ea5f415f2805a62fbde063ad538b26e533eaa`. Trabajo aislado en `feature/archivero-visual-library-disk-cache-001`.
+- Se conserva la caché LRU de memoria de 24 MiB y se añade una capa regenerable en `cacheDir/archivero-thumbnail-cache`, con 48 MiB, 2.048 entradas y 1 MiB por miniatura.
+- Las claves se versionan e incluyen URI, nombre, tamaño y fecha de modificación. Solo se escribe al disco cuando tamaño y fecha están disponibles; el resto de proveedores conserva el comportamiento de caché en memoria.
+- El disco se actualiza con archivos temporales y reemplazo atómico. Las entradas más antiguas se expulsan al superar los límites; las entradas no decodificables se invalidan.
+- Pruebas JVM añadidas para restauración tras crear una nueva instancia, límites, expulsión y aislamiento de rutas.
+- No se cambia `DigitalLibraryCatalog`, su esquema, snapshots, permisos SAF ni el contenido de archivos originales.
+- Estado hasta que concluya Actions: implementación en rama; CI, APK y revisión todavía no declaradas PASS.
+
+---
+
 ## Continuidad · historial atrás/adelante en Carpetas · 2026-10-25
 
 ## Continuidad · revisión compartida por reparación e importación · 2026-11-11

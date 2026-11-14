@@ -1,3 +1,13 @@
+## Biblioteca visual · caché persistente de miniaturas · 2026-11-14
+
+- Añade una caché de disco regenerable y separada del catálogo, limitada a 48 MiB, 2.048 entradas y 1 MiB por miniatura; conserva la LRU de memoria de 24 MiB.
+- Usa una identidad versionada por URI, nombre, tamaño y fecha de modificación. Si el proveedor no informa tamaño o fecha fiable, no persiste esa miniatura y utiliza solo memoria.
+- Las escrituras se hacen en temporal y se sustituyen de forma atómica; las entradas antiguas se expulsan y las miniaturas corruptas se descartan.
+- Incluye pruebas JVM de persistencia entre instancias, límites de tamaño, expulsión y aislamiento del nombre de archivo.
+- No altera el catálogo ni los archivos originales. Validación CI y revisión de la PR pendientes.
+
+---
+
 ## Historial de navegación de carpetas · 2026-10-25
 
 ## Importación y reparación: invalidación cruzada de vistas previas · 2026-11-11
