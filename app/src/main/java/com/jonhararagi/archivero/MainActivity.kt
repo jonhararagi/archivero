@@ -3895,8 +3895,8 @@ private fun FileThumbnail(file: DocumentFile, size: Int) {
 
     LaunchedEffect(file) {
         val loaded = withContext(Dispatchers.IO) {
-            val isDirectory = runCatching { file.isDirectory }.getOrDefault(false)
-            val name = runCatching { file.name }.getOrNull().orEmpty()
+            val isDirectory = thumbnailMetadataOr(false) { file.isDirectory }
+            val name = thumbnailMetadataOr("") { file.name.orEmpty() }
             val preview = if (isDirectory) null else ThumbnailCache.load(context, file, thumbnailCacheKey(file))
             Triple(preview, isDirectory, name.substringAfterLast('.', "").uppercase(Locale.ROOT).take(5))
         }
