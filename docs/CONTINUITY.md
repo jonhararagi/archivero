@@ -1,3 +1,16 @@
+## Continuidad · PR #18 · endurecimiento de caché persistente · 2026-11-19
+
+- Rama de trabajo existente: feature/archivero-visual-library-disk-cache-001; PR #18 abierta contra main. Checkpoint de entrada: dea68f4dd382b61e95437d0cf299137841b53329.
+- CI histórica confirmada para ese checkpoint: [run #43654800991](https://github.com/jonhararagi/archivero/actions/runs/43654800991), concluida success. El trabajo completó pruebas JVM, assembleDebug, verificación de firma/SHA-256 y subida del artefacto histórico 14137278947.
+- 2A.1 conserva memoria LRU de 24 MiB, disco de 48 MiB, 2.048 entradas y 1 MiB por entrada. No cambia catálogo, SAF, recursos originales, PR #7 ni main.
+- Se añade limpieza acotada de temporales abandonados con prefijo/sufijo propios. No se recorren subdirectorios ni se borran .thumb válidos o temporales ajenos.
+- Lecturas, escrituras, eliminación, trimming e inicialización pasan a ser de mejor esfuerzo. El error de disco debe equivaler a cache miss y no impedir la generación desde el URI original.
+- Un helper sin dependencias Android permite probar decodificación, invalidación de corruptos y regeneración. La política de persistencia acepta tamaño >= 0 y fecha > 0; cualquier dato desconocido mantiene la miniatura solo en memoria.
+- Se conservan las cinco pruebas JVM de la iteración inicial y se incorporan siete pruebas de endurecimiento.
+- Nuevo HEAD y ejecución CI de 2A.1: pendientes de publicación/Actions al preparar esta actualización; no se atribuye al nuevo código el PASS histórico anterior.
+- Las pruebas instrumentadas y la comprobación física en el Xiaomi continúan pendientes hasta ejecutarse explícitamente.
+
+---
 ## Continuidad · biblioteca visual · caché persistente de miniaturas · 2026-11-14
 
 - Base: `main` en `600ea5f415f2805a62fbde063ad538b26e533eaa`. Trabajo aislado en `feature/archivero-visual-library-disk-cache-001`.

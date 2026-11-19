@@ -49,7 +49,9 @@ La base de esta etapa está integrada en `main`:
 - Escribir mediante archivo temporal y reemplazo atómico; descartar entradas corruptas o fuera de límite y aplicar expulsión por antigüedad.
 - La caché es regenerable y nunca se usa como fuente de verdad. La limpieza automática de caché no afecta archivos originales ni fichas del catálogo.
 
-**Estado de iteración 2A:** en desarrollo en la rama `feature/archivero-visual-library-disk-cache-001`; los criterios siguen pendientes de CI y revisión.
+**Iteración 2A · estado:** la caché persistente está implementada en la PR #18 sobre la rama `feature/archivero-visual-library-disk-cache-001`. El CI histórico del checkpoint inicial `dea68f4dd382b61e95437d0cf299137841b53329` quedó confirmado PASS en [run #43654800991](https://github.com/jonhararagi/archivero/actions/runs/43654800991); no valida los cambios posteriores.
+
+**Iteración 2A.1 · endurecimiento:** recuperación de temporales propios abandonados, fallos de caché no bloqueantes, generación desde la fuente ante cache miss/corrupción, helper JVM para decodificación y regeneración, sobrescritura comprobable y política pura para metadatos ausentes. La nueva CI debe ejecutarse y verificarse sobre el nuevo HEAD antes de marcar esta iteración como PASS.
 
 
 

@@ -2,7 +2,7 @@ package com.jonhararagi.archivero
 
 import java.io.File
 import java.io.FileOutputStream
-import java.io.IOException
+import java.util.concurrent.CancellationException
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -11,9 +11,8 @@ import java.security.MessageDigest
 /**
  * Small, regenerable disk cache for encoded thumbnails.
  *
- * It stores only cache bytes in the supplied app-private cache directory. Keys are hashed before
- * becoming filenames, writes use a sibling temporary file and atomic replacement when supported,
- * and both entry count and total bytes are bounded.
+ * All paths remain below the supplied app-private cache directory. Cache failures are misses,
+ * never reasons to interrupt browsing or thumbnail generation.
  */
 internal class LibraryThumbnailDiskCache(
     private val directory: File,
@@ -25,29 +24,48 @@ internal class LibraryThumbnailDiskCache(
         require(maxBytes > 0L) { "El límite de caché debe ser positivo." }
         require(maxEntries > 0) { "El número máximo de entradas debe ser positivo." }
         require(maxEntryBytes > 0) { "El tamaño máximo por entrada debe ser positivo." }
+        cleanupAbandonedTemporaries()
+    }
+
+    /**
+     * Remove only this cache's own abandoned sibling temporaries. Valid .thumb entries,
+     * unrelated temporary files and nested content are deliberately left untouched.
+     */
+    private fun cleanupAbandonedTemporaries() {
+        val children = safe(null as Array<File>?) { directory.listFiles() } ?: return
+        children.forEach { file ->
+            val ownedTemporary = safe(false) {
+                file.isFile && file.name.startsWith(TEMP_PREFIX) && file.name.endsWith(TEMP_SUFFIX)
+            }
+            if (ownedTemporary) deleteQuietly(file)
+        }
     }
 
     @Synchronized
     fun read(key: String): ByteArray? {
-        val file = cacheFile(key) ?: return null
-        if (!file.isFile) return null
-        val length = file.length()
-        if (length <= 0L || length > maxEntryBytes.toLong() || length > Int.MAX_VALUE) {
-            file.delete()
-            return null
-        }
-
         return try {
+            val file = cacheFile(key) ?: return null
+            if (!file.isFile) return null
+            val expectedLength = file.length()
+            if (expectedLength <= 0L ||
+                expectedLength > maxEntryBytes.toLong() ||
+                expectedLength > Int.MAX_VALUE
+            ) {
+                deleteQuietly(file)
+                return null
+            }
+
             val bytes = file.inputStream().use { it.readBytes() }
-            if (bytes.size.toLong() != length) {
-                file.delete()
+            if (bytes.size.toLong() != expectedLength || bytes.size > maxEntryBytes) {
+                deleteQuietly(file)
                 null
             } else {
                 file.setLastModified(System.currentTimeMillis())
                 bytes
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
-            file.delete()
             null
         }
     }
@@ -56,48 +74,60 @@ internal class LibraryThumbnailDiskCache(
     fun write(key: String, bytes: ByteArray): Boolean {
         if (key.isBlank() || bytes.isEmpty()) return false
         if (bytes.size > maxEntryBytes || bytes.size.toLong() > maxBytes) return false
-        if (!directory.exists() && !directory.mkdirs()) return false
-        if (!directory.isDirectory) return false
 
-        val destination = cacheFile(key) ?: return false
         var temporary: File? = null
         return try {
-            temporary = File.createTempFile("thumbnail-", ".tmp", directory)
-            FileOutputStream(temporary).use { output ->
+            if (!directory.exists() && !directory.mkdirs() && !directory.isDirectory) return false
+            if (!directory.isDirectory) return false
+
+            val destination = cacheFile(key) ?: return false
+            val temporaryFile = File.createTempFile(TEMP_PREFIX, TEMP_SUFFIX, directory)
+            temporary = temporaryFile
+            FileOutputStream(temporaryFile).use { output ->
                 output.write(bytes)
                 output.fd.sync()
             }
+
             try {
                 Files.move(
-                    temporary.toPath(),
+                    temporaryFile.toPath(),
                     destination.toPath(),
                     StandardCopyOption.ATOMIC_MOVE,
                     StandardCopyOption.REPLACE_EXISTING
                 )
             } catch (_: AtomicMoveNotSupportedException) {
                 Files.move(
-                    temporary.toPath(),
+                    temporaryFile.toPath(),
                     destination.toPath(),
                     StandardCopyOption.REPLACE_EXISTING
                 )
             }
+
             if (!destination.isFile || destination.length() != bytes.size.toLong()) {
-                destination.delete()
+                deleteQuietly(destination)
                 false
             } else {
                 trimToBounds()
                 true
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
             false
         } finally {
-            temporary?.delete()
+            temporary?.let(::deleteQuietly)
         }
     }
 
     @Synchronized
     fun remove(key: String) {
-        cacheFile(key)?.delete()
+        try {
+            cacheFile(key)?.let(::deleteQuietly)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // Deleting a cache entry is best-effort and must not affect browsing.
+        }
     }
 
     private fun cacheFile(key: String): File? {
@@ -109,33 +139,50 @@ internal class LibraryThumbnailDiskCache(
     }
 
     /**
-     * The cache directory is private to this feature and is kept bounded after each successful
-     * write. At most maxEntries thumbnail files are retained.
+     * Keep only .thumb files within the configured limits. Failed listings/deletions are ignored;
+     * they must not make the cache mandatory for the caller.
      */
     private fun trimToBounds() {
-        val files = directory.listFiles()
-            ?.filter { it.isFile && it.name.endsWith(".thumb") }
-            ?: return
-        var remainingBytes = files.sumOf { it.length().coerceAtLeast(0L) }
+        val children = safe(null as Array<File>?) { directory.listFiles() } ?: return
+        val files = children.filter { file ->
+            safe(false) { file.isFile && file.name.endsWith(THUMB_SUFFIX) }
+        }
+        val sizes = files.associateWith { file ->
+            safe(0L) { file.length().coerceAtLeast(0L) }
+        }
+        var remainingBytes = sizes.values.sum()
         var remainingEntries = files.size
         if (remainingBytes <= maxBytes && remainingEntries <= maxEntries) return
 
         val oldestFirst = files.sortedWith(
-            compareBy<File> { it.lastModified() }.thenBy { it.name }
+            compareBy<File> { safe(0L) { it.lastModified() } }.thenBy { safe("") { it.name } }
         )
         for (file in oldestFirst) {
             if (remainingBytes <= maxBytes && remainingEntries <= maxEntries) break
-            val fileBytes = file.length().coerceAtLeast(0L)
-            if (file.delete()) {
-                remainingBytes = (remainingBytes - fileBytes).coerceAtLeast(0L)
+            if (deleteQuietly(file)) {
+                remainingBytes = (remainingBytes - (sizes[file] ?: 0L)).coerceAtLeast(0L)
                 remainingEntries--
             }
         }
+    }
+
+    private fun deleteQuietly(file: File): Boolean = safe(false) { file.delete() }
+
+    private inline fun <T> safe(fallback: T, operation: () -> T): T = try {
+        operation()
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        fallback
     }
 
     internal companion object {
         const val DEFAULT_MAX_BYTES: Long = 48L * 1024L * 1024L
         const val DEFAULT_MAX_ENTRIES: Int = 2_048
         const val DEFAULT_MAX_ENTRY_BYTES: Int = 1 * 1024 * 1024
+
+        private const val TEMP_PREFIX = "thumbnail-"
+        private const val TEMP_SUFFIX = ".tmp"
+        private const val THUMB_SUFFIX = ".thumb"
     }
 }

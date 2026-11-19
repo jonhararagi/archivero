@@ -1,3 +1,13 @@
+## Biblioteca visual · endurecimiento de caché persistente · 2026-11-19
+
+- La inicialización elimina exclusivamente archivos propios thumbnail-*.tmp abandonados; conserva miniaturas .thumb y temporales ajenos.
+- Los errores de caché de disco se convierten en fallos recuperables. La generación desde el recurso original continúa aunque el almacenamiento persistente no esté disponible.
+- La lectura, decodificación, invalidación y regeneración se separan en un helper JVM puro; la política de metadatos no inventa tamaño ni fecha.
+- Se conservan las cinco pruebas existentes y se añaden siete pruebas JVM para temporales, archivos ajenos, sobrescritura, corrupción, regeneración, metadatos y ubicación inválida.
+- CI histórica confirmada para el checkpoint dea68f4dd382b61e95437d0cf299137841b53329: [run #43654800991](https://github.com/jonhararagi/archivero/actions/runs/43654800991), PASS; artefacto histórico ID 14137278947. No valida este cambio.
+- La validación de la nueva revisión queda pendiente hasta que Actions termine sobre su nuevo HEAD.
+
+---
 ## Biblioteca visual · caché persistente de miniaturas · 2026-11-14
 
 - Añade una caché de disco regenerable y separada del catálogo, limitada a 48 MiB, 2.048 entradas y 1 MiB por miniatura; conserva la LRU de memoria de 24 MiB.
