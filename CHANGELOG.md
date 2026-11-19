@@ -5,7 +5,7 @@
 - La lectura, decodificación, invalidación y regeneración se separan en un helper JVM puro; la política de metadatos no inventa tamaño ni fecha.
 - Se conservan las cinco pruebas existentes y se añaden siete pruebas JVM para temporales, archivos ajenos, sobrescritura, corrupción, regeneración, metadatos y ubicación inválida.
 - CI histórica confirmada para el checkpoint dea68f4dd382b61e95437d0cf299137841b53329: [run #43654800991](https://github.com/jonhararagi/archivero/actions/runs/43654800991), PASS; artefacto histórico ID 14137278947. No valida este cambio.
-- La validación de la nueva revisión queda pendiente hasta que Actions termine sobre su nuevo HEAD.
+- **CI PASS del HEAD final** `9c97c3667ae39a9d2bf550b64d591d6c00023173`: [run #44631726724](https://github.com/jonhararagi/archivero/actions/runs/44631726724). Pasaron `testDebugUnitTest`, `assembleDebug`, verificación de firma y SHA-256, y publicación del artefacto. APK SHA-256 `8bae7bae9b7b13e060f356e478b1c5aac1bc704816505ff6875f0bd16fd1013e`; certificado de firma SHA-256 `04a9b5a0be458dacecf9e8dd44ad70891896f6e1f2bfa3cab2eec9aa9f38f308` (coincide con el keystore de CI). Artefacto `archivero-debug-apk`, ID `14583150572`, 20.751.972 bytes; digest SHA-256 ZIP `c2b484062e652ae9a6d5f260d9268baa6a2fc0130b0bc9d201d72d2455a00f5d`.
 
 ---
 ## Biblioteca visual · caché persistente de miniaturas · 2026-11-14
