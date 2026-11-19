@@ -51,7 +51,7 @@ La base de esta etapa está integrada en `main`:
 
 **Iteración 2A · estado:** la caché persistente está implementada en la PR #18 sobre la rama `feature/archivero-visual-library-disk-cache-001`. El CI histórico del checkpoint inicial `dea68f4dd382b61e95437d0cf299137841b53329` quedó confirmado PASS en [run #43654800991](https://github.com/jonhararagi/archivero/actions/runs/43654800991); no valida los cambios posteriores.
 
-**Iteración 2A.1 · endurecimiento:** recuperación de temporales propios abandonados, fallos de caché no bloqueantes, generación desde la fuente ante cache miss/corrupción, helper JVM para decodificación y regeneración, sobrescritura comprobable y política pura para metadatos ausentes. La nueva CI debe ejecutarse y verificarse sobre el nuevo HEAD antes de marcar esta iteración como PASS.
+**Iteración 2A.1 · endurecimiento · CI PASS:** recuperación de temporales propios abandonados, fallos de caché no bloqueantes, generación desde la fuente ante cache miss/corrupción, helper JVM para decodificación y regeneración, sobrescritura comprobable y política pura para metadatos ausentes. HEAD `9c97c3667ae39a9d2bf550b64d591d6c00023173`, validado en [run #44631726724](https://github.com/jonhararagi/archivero/actions/runs/44631726724): pruebas JVM, `assembleDebug`, firma/SHA-256 y publicación de artefacto PASS. La validación física e instrumentada permanece pendiente.
 
 
 
