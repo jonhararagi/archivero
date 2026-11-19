@@ -1,3 +1,23 @@
+## Biblioteca visual · endurecimiento de caché persistente · 2026-11-19
+
+- La inicialización elimina exclusivamente archivos propios thumbnail-*.tmp abandonados; conserva miniaturas .thumb y temporales ajenos.
+- Los errores de caché de disco se convierten en fallos recuperables. La generación desde el recurso original continúa aunque el almacenamiento persistente no esté disponible.
+- La lectura, decodificación, invalidación y regeneración se separan en un helper JVM puro; la política de metadatos no inventa tamaño ni fecha.
+- Se conservan las cinco pruebas existentes y se añaden siete pruebas JVM para temporales, archivos ajenos, sobrescritura, corrupción, regeneración, metadatos y ubicación inválida.
+- CI histórica confirmada para el checkpoint dea68f4dd382b61e95437d0cf299137841b53329: [run #43654800991](https://github.com/jonhararagi/archivero/actions/runs/43654800991), PASS; artefacto histórico ID 14137278947. No valida este cambio.
+- **CI PASS del HEAD final** `9c97c3667ae39a9d2bf550b64d591d6c00023173`: [run #44631726724](https://github.com/jonhararagi/archivero/actions/runs/44631726724). Pasaron `testDebugUnitTest`, `assembleDebug`, verificación de firma y SHA-256, y publicación del artefacto. APK SHA-256 `8bae7bae9b7b13e060f356e478b1c5aac1bc704816505ff6875f0bd16fd1013e`; certificado de firma SHA-256 `04a9b5a0be458dacecf9e8dd44ad70891896f6e1f2bfa3cab2eec9aa9f38f308` (coincide con el keystore de CI). Artefacto `archivero-debug-apk`, ID `14583150572`, 20.751.972 bytes; digest SHA-256 ZIP `c2b484062e652ae9a6d5f260d9268baa6a2fc0130b0bc9d201d72d2455a00f5d`.
+
+---
+## Biblioteca visual · caché persistente de miniaturas · 2026-11-14
+
+- Añade una caché de disco regenerable y separada del catálogo, limitada a 48 MiB, 2.048 entradas y 1 MiB por miniatura; conserva la LRU de memoria de 24 MiB.
+- Usa una identidad versionada por URI, nombre, tamaño y fecha de modificación. Si el proveedor no informa tamaño o fecha fiable, no persiste esa miniatura y utiliza solo memoria.
+- Las escrituras se hacen en temporal y se sustituyen de forma atómica; las entradas antiguas se expulsan y las miniaturas corruptas se descartan.
+- Incluye pruebas JVM de persistencia entre instancias, límites de tamaño, expulsión y aislamiento del nombre de archivo.
+- No altera el catálogo ni los archivos originales. Validación CI y revisión de la PR pendientes.
+
+---
+
 ## Historial de navegación de carpetas · 2026-10-25
 
 ## Importación y reparación: invalidación cruzada de vistas previas · 2026-11-11

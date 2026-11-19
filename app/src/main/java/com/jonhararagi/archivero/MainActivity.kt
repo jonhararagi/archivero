@@ -3895,8 +3895,8 @@ private fun FileThumbnail(file: DocumentFile, size: Int) {
 
     LaunchedEffect(file) {
         val loaded = withContext(Dispatchers.IO) {
-            val isDirectory = runCatching { file.isDirectory }.getOrDefault(false)
-            val name = runCatching { file.name }.getOrNull().orEmpty()
+            val isDirectory = thumbnailMetadataOr(false) { file.isDirectory }
+            val name = thumbnailMetadataOr("") { file.name.orEmpty() }
             val preview = if (isDirectory) null else ThumbnailCache.load(context, file, thumbnailCacheKey(file))
             Triple(preview, isDirectory, name.substringAfterLast('.', "").uppercase(Locale.ROOT).take(5))
         }
@@ -3931,30 +3931,84 @@ private fun FileThumbnail(file: DocumentFile, size: Int) {
     }
 }
 
-private fun thumbnailCacheKey(file: DocumentFile): String {
-    val uri = file.uri.toString()
-    val length = runCatching { file.length() }.getOrDefault(-1L)
-    val modified = runCatching { file.lastModified() }.getOrDefault(-1L)
-    return "$uri|$length|$modified"
+private inline fun <T> thumbnailMetadataOr(fallback: T, read: () -> T): T = try {
+    read()
+} catch (cancelled: CancellationException) {
+    throw cancelled
+} catch (_: Exception) {
+    fallback
+}
+
+/** SAF size/date are never fabricated. Unknown metadata disables only disk persistence. */
+private fun thumbnailCacheKey(file: DocumentFile): ThumbnailCacheIdentity {
+    val uri = thumbnailMetadataOr("") { file.uri.toString() }
+    val name = thumbnailMetadataOr("") { file.name.orEmpty() }
+    val size = thumbnailMetadataOr(-1L) { file.length() }
+    val modified = thumbnailMetadataOr(-1L) { file.lastModified() }
+    return thumbnailCacheIdentity(uri, name, size, modified)
 }
 
 private object ThumbnailCache : LruCache<String, Bitmap>(24 * 1024 * 1024) {
+    @Volatile private var persistentDiskCache: LibraryThumbnailDiskCache? = null
+
     override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount.coerceAtLeast(1)
 
-    fun load(context: Context, file: DocumentFile, key: String): Bitmap? {
-        get(key)?.let { return it }
-        if (runCatching { file.isDirectory }.getOrDefault(true)) return null
-
-        val extension = runCatching { file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT) }.getOrDefault("")
-        val decoded = runCatching {
-            when {
-                extension in setOf("jpg", "jpeg", "jpe", "jfif", "jps", "png", "webp", "gif", "bmp", "heic", "heif", "avif", "tif", "tiff") ->
-                    decodeImageThumbnail(context, file.uri)
-                extension == "pdf" -> decodePdfThumbnail(context, file.uri)
-                else -> null
+    private fun diskCache(context: Context): LibraryThumbnailDiskCache? =
+        persistentDiskCache ?: synchronized(this) {
+            persistentDiskCache ?: try {
+                LibraryThumbnailDiskCache(
+                    File(context.cacheDir, "archivero-thumbnail-cache")
+                ).also { persistentDiskCache = it }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                null
             }
-        }.getOrNull()
-        if (decoded != null && !decoded.isRecycled) put(key, decoded)
+        }
+
+    fun load(context: Context, file: DocumentFile, key: ThumbnailCacheIdentity): Bitmap? {
+        get(key.value)?.let { cached ->
+            if (!cached.isRecycled) return cached
+            remove(key.value)
+        }
+        if (thumbnailMetadataOr(true) { file.isDirectory }) return null
+
+        val extension = thumbnailMetadataOr("") {
+            file.name.orEmpty().substringAfterLast('.', "").lowercase(Locale.ROOT)
+        }
+        val persistent = if (key.canPersist) diskCache(context) else null
+        val decoded = loadThumbnailFromCacheOrSource(
+            diskCache = persistent,
+            key = key.value,
+            decodeCached = { bytes ->
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    ?.takeIf { !it.isRecycled }
+            },
+            generateFromSource = {
+                when {
+                    extension in setOf(
+                        "jpg", "jpeg", "jpe", "jfif", "jps", "png", "webp", "gif",
+                        "bmp", "heic", "heif", "avif", "tif", "tiff"
+                    ) -> decodeImageThumbnail(context, file.uri)
+                    extension == "pdf" -> decodePdfThumbnail(context, file.uri)
+                    else -> null
+                }
+            },
+            encodeForCache = { bitmap ->
+                if (bitmap.isRecycled) {
+                    null
+                } else {
+                    val output = java.io.ByteArrayOutputStream()
+                    if (bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) {
+                        output.toByteArray()
+                    } else {
+                        null
+                    }
+                }
+            }
+        )
+
+        if (decoded != null && !decoded.isRecycled) put(key.value, decoded)
         return decoded
     }
 

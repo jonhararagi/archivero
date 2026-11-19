@@ -1,3 +1,30 @@
+## Continuidad · PR #18 · endurecimiento de caché persistente · 2026-11-19
+
+- Rama de trabajo existente: feature/archivero-visual-library-disk-cache-001; PR #18 abierta contra main. Checkpoint de entrada: dea68f4dd382b61e95437d0cf299137841b53329.
+- CI histórica confirmada para ese checkpoint: [run #43654800991](https://github.com/jonhararagi/archivero/actions/runs/43654800991), concluida success. El trabajo completó pruebas JVM, assembleDebug, verificación de firma/SHA-256 y subida del artefacto histórico 14137278947.
+- 2A.1 conserva memoria LRU de 24 MiB, disco de 48 MiB, 2.048 entradas y 1 MiB por entrada. No cambia catálogo, SAF, recursos originales, PR #7 ni main.
+- Se añade limpieza acotada de temporales abandonados con prefijo/sufijo propios. No se recorren subdirectorios ni se borran .thumb válidos o temporales ajenos.
+- Lecturas, escrituras, eliminación, trimming e inicialización pasan a ser de mejor esfuerzo. El error de disco debe equivaler a cache miss y no impedir la generación desde el URI original.
+- Un helper sin dependencias Android permite probar decodificación, invalidación de corruptos y regeneración. La política de persistencia acepta tamaño >= 0 y fecha > 0; cualquier dato desconocido mantiene la miniatura solo en memoria.
+- Se conservan las cinco pruebas JVM de la iteración inicial y se incorporan siete pruebas de endurecimiento.
+- HEAD final validado: `9c97c3667ae39a9d2bf550b64d591d6c00023173`. CI [#44631726724](https://github.com/jonhararagi/archivero/actions/runs/44631726724): **PASS** en pruebas JVM, `assembleDebug`, verificación de firma/SHA-256 y publicación. APK SHA-256 `8bae7bae9b7b13e060f356e478b1c5aac1bc704816505ff6875f0bd16fd1013e`; certificado SHA-256 `04a9b5a0be458dacecf9e8dd44ad70891896f6e1f2bfa3cab2eec9aa9f38f308`; artefacto ID `14583150572`, 20.751.972 bytes, digest ZIP `c2b484062e652ae9a6d5f260d9268baa6a2fc0130b0bc9d201d72d2455a00f5d`.
+- El commit de implementación previo `b059bf7c881744d61bced31f7b552d5beb579892` también pasó CI [#44631553811](https://github.com/jonhararagi/archivero/actions/runs/44631553811), pero su artefacto no se atribuye al HEAD final.
+- PR #18 se mantiene separada de PR #7; `main` no se modificó directamente antes de la fusión autorizada. Instrumentación y prueba física en Xiaomi: pendientes.
+- Las pruebas instrumentadas y la comprobación física en el Xiaomi continúan pendientes hasta ejecutarse explícitamente.
+
+---
+## Continuidad · biblioteca visual · caché persistente de miniaturas · 2026-11-14
+
+- Base: `main` en `600ea5f415f2805a62fbde063ad538b26e533eaa`. Trabajo aislado en `feature/archivero-visual-library-disk-cache-001`.
+- Se conserva la caché LRU de memoria de 24 MiB y se añade una capa regenerable en `cacheDir/archivero-thumbnail-cache`, con 48 MiB, 2.048 entradas y 1 MiB por miniatura.
+- Las claves se versionan e incluyen URI, nombre, tamaño y fecha de modificación. Solo se escribe al disco cuando tamaño y fecha están disponibles; el resto de proveedores conserva el comportamiento de caché en memoria.
+- El disco se actualiza con archivos temporales y reemplazo atómico. Las entradas más antiguas se expulsan al superar los límites; las entradas no decodificables se invalidan.
+- Pruebas JVM añadidas para restauración tras crear una nueva instancia, límites, expulsión y aislamiento de rutas.
+- No se cambia `DigitalLibraryCatalog`, su esquema, snapshots, permisos SAF ni el contenido de archivos originales.
+- Estado hasta que concluya Actions: implementación en rama; CI, APK y revisión todavía no declaradas PASS.
+
+---
+
 ## Continuidad · historial atrás/adelante en Carpetas · 2026-10-25
 
 ## Continuidad · revisión compartida por reparación e importación · 2026-11-11
