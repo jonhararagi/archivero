@@ -7,7 +7,9 @@
 - Lecturas, escrituras, eliminación, trimming e inicialización pasan a ser de mejor esfuerzo. El error de disco debe equivaler a cache miss y no impedir la generación desde el URI original.
 - Un helper sin dependencias Android permite probar decodificación, invalidación de corruptos y regeneración. La política de persistencia acepta tamaño >= 0 y fecha > 0; cualquier dato desconocido mantiene la miniatura solo en memoria.
 - Se conservan las cinco pruebas JVM de la iteración inicial y se incorporan siete pruebas de endurecimiento.
-- Nuevo HEAD y ejecución CI de 2A.1: pendientes de publicación/Actions al preparar esta actualización; no se atribuye al nuevo código el PASS histórico anterior.
+- HEAD final validado: `9c97c3667ae39a9d2bf550b64d591d6c00023173`. CI [#44631726724](https://github.com/jonhararagi/archivero/actions/runs/44631726724): **PASS** en pruebas JVM, `assembleDebug`, verificación de firma/SHA-256 y publicación. APK SHA-256 `8bae7bae9b7b13e060f356e478b1c5aac1bc704816505ff6875f0bd16fd1013e`; certificado SHA-256 `04a9b5a0be458dacecf9e8dd44ad70891896f6e1f2bfa3cab2eec9aa9f38f308`; artefacto ID `14583150572`, 20.751.972 bytes, digest ZIP `c2b484062e652ae9a6d5f260d9268baa6a2fc0130b0bc9d201d72d2455a00f5d`.
+- El commit de implementación previo `b059bf7c881744d61bced31f7b552d5beb579892` también pasó CI [#44631553811](https://github.com/jonhararagi/archivero/actions/runs/44631553811), pero su artefacto no se atribuye al HEAD final.
+- PR #18 se mantiene separada de PR #7; `main` no se modificó directamente antes de la fusión autorizada. Instrumentación y prueba física en Xiaomi: pendientes.
 - Las pruebas instrumentadas y la comprobación física en el Xiaomi continúan pendientes hasta ejecutarse explícitamente.
 
 ---
