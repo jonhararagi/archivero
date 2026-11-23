@@ -1,3 +1,14 @@
+## Renovación visual móvil · Biblioteca digital · 2026-11-22
+
+- Se actualiza la presentación de la Biblioteca para priorizar miniaturas, fichas más legibles y cuadrícula adaptable a pantallas de teléfono.
+- Los filtros de categoría y tipo pasan a ocupar filas de ancho completo; los filtros de colección, orden y favoritos conservan su comportamiento.
+- Las herramientas de etiquetado por lotes, duplicados, similitud, proyectos, auditoría y reparación quedan detrás de un control plegable. No se elimina ninguna acción.
+- Se amplía el tamaño táctil de accesos por categoría y se armonizan las formas globales, el encabezado y la marca visual con la mascota.
+- Capibara kawaii queda como paleta inicial de una instalación nueva, en concordancia con el README; una preferencia ya guardada por el usuario sigue teniendo prioridad. Ciberpunk permanece disponible.
+- Sin migraciones de datos, dependencias nuevas, cambios SAF ni operaciones sobre archivos originales. Estado de validación del primer commit funcional: pendiente de CI; no se declara prueba física en Xiaomi.
+
+---
+
 ## Biblioteca visual · endurecimiento de caché persistente · 2026-11-19
 
 - La inicialización elimina exclusivamente archivos propios thumbnail-*.tmp abandonados; conserva miniaturas .thumb y temporales ajenos.
