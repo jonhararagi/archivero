@@ -3766,20 +3766,22 @@ private fun LibraryRecordCard(
                 if (record.notes.isNotBlank()) Text(record.notes, style = MaterialTheme.typography.bodySmall, maxLines = 3)
                 Row(
                     Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(
+                    OutlinedButton(
                         enabled = document != null && details.state == LibraryResourceState.AVAILABLE,
                         onClick = { document?.let(onOpen) },
                         modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                         contentPadding = PaddingValues(horizontal = 2.dp)
                     ) { Text("Abrir", maxLines = 1) }
-                    TextButton(
+                    OutlinedButton(
                         onClick = { onEdit(document) },
                         modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                         contentPadding = PaddingValues(horizontal = 2.dp)
                     ) { Text("Editar", maxLines = 1) }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     IconButton(onClick = onRemove, enabled = !transferRunning) {
                         Icon(Icons.Default.BookmarkRemove, "Mover ficha a la papelera")
                     }
