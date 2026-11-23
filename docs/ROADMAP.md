@@ -4,13 +4,14 @@
 
 **Principio de seguridad:** Archivero administra referencias, metadatos y vistas de los archivos. Ninguna operación de catálogo, clasificación, análisis, reparación o copia de seguridad del índice debe modificar el contenido de los archivos originales. Las acciones físicas de archivo deben ser explícitas, confirmadas y recuperables cuando el proveedor lo permita.
 
-## Estado de la consolidación · actualizado 2026-11-14
+## Estado de la consolidación · actualizado 2026-11-22
 
-- `main` está en el commit integrado `600ea5f415f2805a62fbde063ad538b26e533eaa`.
-- PR #8 (accesos rápidos), #16 (hoja de ruta) y #17 (reconciliación de seguridad, importación/exportación y paginación) están fusionadas.
+- `main` está en el commit integrado `1ed9524408b46c6657c055b93bf4470bcd024e34`.
+- PR #8 (accesos rápidos), #16 (hoja de ruta), #17 (reconciliación de seguridad, importación/exportación y paginación) y #18 (caché persistente de miniaturas) están fusionadas.
 - Los cambios útiles de PR #9 a #14 quedaron incluidos y verificados dentro de la integración de PR #17. PR #15 se cerró como duplicada de la solución de exportación ya integrada. Las ramas de respaldo se conservaron.
 - PR #7 sigue abierta y separada para validar compatibilidad instrumentada API 26/35. Su último intento conocido falló en API 35; no se atribuye esa falla a la aplicación sin evidencia reproducible.
-- La CI posterior al merge de `main`, ejecución [#42975948337](https://github.com/jonhararagi/archivero/actions/runs/42975948337), terminó PASS: pruebas JVM, compilación, firma, SHA-256 y publicación de APK.
+- La CI posterior al merge de PR #18 sobre `main`, ejecución [#44634613436](https://github.com/jonhararagi/archivero/actions/runs/44634613436), terminó PASS: pruebas JVM, compilación, firma, SHA-256 y publicación de APK.
+- La renovación visual móvil está en `feature/archivero-library-visual-refresh-001`; se conserva fuera de `main` hasta completar CI y revisión.
 - La CI no sustituye las pruebas instrumentadas ni la validación física en el Xiaomi objetivo.
 
 Este documento es una hoja de ruta. Los elementos de las siguientes etapas son propuestas hasta que sus cambios estén implementados, probados y fusionados.
