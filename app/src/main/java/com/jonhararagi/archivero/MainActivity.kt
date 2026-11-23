@@ -2399,6 +2399,12 @@ fun ArchiveroApp() {
                             )
                         }
                         if (libraryToolsExpanded) {
+                            Column(
+                                Modifier.fillMaxWidth()
+                                    .heightIn(max = 280.dp)
+                                    .verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
                         Row(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -2471,6 +2477,7 @@ fun ArchiveroApp() {
                             },
                             modifier = Modifier.fillMaxWidth()
                         )
+                            }
                         }
                         if (libraryTransferRunning) {
                             Text("Procesando instantánea de metadatos…", style = MaterialTheme.typography.bodySmall)
