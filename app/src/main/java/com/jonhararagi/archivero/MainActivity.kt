@@ -208,6 +208,7 @@ fun ArchiveroApp() {
     var previousLibrarySearchSignature by remember { mutableStateOf<LibrarySearchSignature?>(null) }
     var librarySearching by remember { mutableStateOf(false) }
     var libraryGridView by rememberSaveable { mutableStateOf(true) }
+    var libraryToolsExpanded by rememberSaveable { mutableStateOf(false) }
     var libraryCategoryFilter by rememberSaveable { mutableStateOf("") }
     var libraryResourceKindFilter by rememberSaveable { mutableStateOf("") }
     var libraryProjectFilter by rememberSaveable { mutableStateOf("") }
@@ -296,8 +297,8 @@ fun ArchiveroApp() {
     }
 
     val savedPaletteName = context.getSharedPreferences("archivero_settings", Context.MODE_PRIVATE).getString("palette", null)
-    // Cyberpunk is the first-run identity; preserve any palette the user explicitly selected.
-    val initialPaletteName = savedPaletteName ?: Palette.CIBERPUNK.name
+    // Capibara is the welcoming first-run palette; keep every palette explicitly selected by the user.
+    val initialPaletteName = savedPaletteName ?: Palette.CAPIBARA.name
     var selectedPaletteName by rememberSaveable { mutableStateOf(initialPaletteName) }
     val activePalette = runCatching { Palette.valueOf(selectedPaletteName) }.getOrDefault(Palette.CIBERPUNK)
     var showAppearance by remember { mutableStateOf(false) }
@@ -1623,7 +1624,8 @@ fun ArchiveroApp() {
 
     val isCyberpunk = activePalette == Palette.CIBERPUNK
     val isCapibara = activePalette == Palette.CAPIBARA
-    MaterialTheme(colorScheme = if (isCyberpunk) androidx.compose.material3.darkColorScheme(
+    MaterialTheme(
+        colorScheme = if (isCyberpunk) androidx.compose.material3.darkColorScheme(
         primary = activePalette.primary,
         onPrimary = Color(0xFF07131C),
         secondary = activePalette.secondary,
@@ -1657,7 +1659,15 @@ fun ArchiveroApp() {
         onSecondaryContainer = if (isCapibara) Color(0xFF6C3942) else Color(0xFF292A40),
         outline = if (isCapibara) Color(0xFFD8BEB2) else activePalette.secondary.copy(alpha = 0.42f),
         outlineVariant = if (isCapibara) Color(0xFFEAD8CF) else activePalette.secondary.copy(alpha = 0.24f)
-    )) {
+        ),
+        shapes = Shapes(
+            extraSmall = RoundedCornerShape(10.dp),
+            small = RoundedCornerShape(14.dp),
+            medium = RoundedCornerShape(18.dp),
+            large = RoundedCornerShape(24.dp),
+            extraLarge = RoundedCornerShape(30.dp)
+        )
+    ) {
         Box(Modifier.fillMaxSize().background(activePalette.background)) {
             wallpaperBitmap?.let { image ->
                 Image(bitmap = image, contentDescription = "Fondo personalizado de Archivero",
@@ -1674,8 +1684,17 @@ fun ArchiveroApp() {
                 TopAppBar(
                     title = {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Box(Modifier.size(38.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.FolderCopy, null, tint = Color.White)
+                            Box(
+                                Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.mascota_chibi_fiel),
+                                    contentDescription = "Mascota capibara de Archivero",
+                                    modifier = Modifier.fillMaxSize().padding(2.dp).clip(RoundedCornerShape(12.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
                             }
                             Column {
                                 Text("Archivero", fontWeight = FontWeight.ExtraBold)
@@ -2268,9 +2287,56 @@ fun ArchiveroApp() {
                         }
                     }
                     Screen.LIBRARY -> {
-                        Header("Biblioteca digital", "Fichas locales para clasificar tus recursos")
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                            shape = RoundedCornerShape(22.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                MaterialTheme.colorScheme.outlineVariant
+                            )
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(
+                                    Modifier.size(44.dp).clip(RoundedCornerShape(15.dp))
+                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.78f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.CollectionsBookmark,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(25.dp)
+                                    )
+                                }
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text(
+                                        "Biblioteca digital",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                    Text(
+                                        "Tus recursos, recuerdos y colecciones en un solo lugar.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        "${libraryRecords.size} fichas · almacenamiento local",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        }
                         Text(
-                            "Las fichas guardan etiquetas, notas y procedencia. No copian, mueven ni eliminan el archivo original.",
+                            "Las fichas guardan etiquetas, notas y procedencia. Los archivos originales permanecen intactos.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(bottom = 8.dp)
@@ -2314,6 +2380,25 @@ fun ArchiveroApp() {
                             onRestore = { uri -> restoreLibraryRecord(uri) },
                             onPurge = { uri -> purgeLibraryRecord(uri) }
                         )
+                        OutlinedButton(
+                            onClick = { libraryToolsExpanded = !libraryToolsExpanded },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                            enabled = libraryCatalog != null && !libraryTransferRunning
+                        ) {
+                            Icon(
+                                if (libraryToolsExpanded) Icons.Default.ExpandLess else Icons.Default.Tune,
+                                contentDescription = null
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(if (libraryToolsExpanded) "Ocultar herramientas de biblioteca" else "Herramientas de biblioteca")
+                            Spacer(Modifier.weight(1f))
+                            Text(
+                                if (libraryToolsExpanded) "Menos" else "Más",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        if (libraryToolsExpanded) {
                         Row(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -2386,6 +2471,7 @@ fun ArchiveroApp() {
                             },
                             modifier = Modifier.fillMaxWidth()
                         )
+                        }
                         if (libraryTransferRunning) {
                             Text("Procesando instantánea de metadatos…", style = MaterialTheme.typography.bodySmall)
                         }
@@ -2416,7 +2502,7 @@ fun ArchiveroApp() {
                             }
                         }
                         Row(
-                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -2426,7 +2512,7 @@ fun ArchiveroApp() {
                                 label = { Text("Categoría") },
                                 placeholder = { Text("Todas") },
                                 singleLine = true,
-                                modifier = Modifier.width(150.dp),
+                                modifier = Modifier.weight(1f).heightIn(min = 56.dp),
                                 trailingIcon = {
                                     if (libraryCategoryFilter.isNotBlank()) IconButton(onClick = { libraryCategoryFilter = "" }) {
                                         Icon(Icons.Default.Close, "Quitar filtro de categoría")
@@ -2439,15 +2525,24 @@ fun ArchiveroApp() {
                                 label = { Text("Tipo de recurso") },
                                 placeholder = { Text("Todos") },
                                 singleLine = true,
-                                modifier = Modifier.width(160.dp),
+                                modifier = Modifier.weight(1f).heightIn(min = 56.dp),
                                 trailingIcon = {
                                     if (libraryResourceKindFilter.isNotBlank()) IconButton(onClick = { libraryResourceKindFilter = "" }) {
                                         Icon(Icons.Default.Close, "Quitar filtro de tipo")
                                     }
                                 }
                             )
+                        }
+                        Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Box {
-                                OutlinedButton(onClick = { libraryProjectFilterMenuExpanded = true }) {
+                                OutlinedButton(
+                                    onClick = { libraryProjectFilterMenuExpanded = true },
+                                    modifier = Modifier.heightIn(min = 48.dp)
+                                ) {
                                     Icon(Icons.Default.FolderCopy, contentDescription = null)
                                     Spacer(Modifier.width(4.dp))
                                     Text(libraryProjectFilter.ifBlank { "Colecciones" }, maxLines = 1)
@@ -2476,7 +2571,10 @@ fun ArchiveroApp() {
                                 }
                             }
                             Box {
-                                OutlinedButton(onClick = { librarySortMenuExpanded = true }) {
+                                OutlinedButton(
+                                    onClick = { librarySortMenuExpanded = true },
+                                    modifier = Modifier.heightIn(min = 48.dp)
+                                ) {
                                     Icon(Icons.Default.Sort, null)
                                     Spacer(Modifier.width(4.dp))
                                     Text(librarySortMode)
@@ -2577,7 +2675,7 @@ fun ArchiveroApp() {
                                 }
                                 if (libraryGridView) {
                                     LazyVerticalGrid(
-                                        columns = GridCells.Adaptive(164.dp),
+                                        columns = GridCells.Adaptive(148.dp),
                                         modifier = Modifier.weight(1f).fillMaxWidth(),
                                         contentPadding = PaddingValues(bottom = 12.dp),
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -3457,7 +3555,7 @@ private fun DiskCard(disk: Disk?, location: String, accent: Color = Color(0xFF80
 }
 @Composable private fun CategoryTile(kind: Kind, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Card(
-        modifier.clickable(onClick = onClick),
+        modifier.heightIn(min = 72.dp).clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(20.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
@@ -3537,17 +3635,17 @@ private fun ImageGalleryGrid(
         EmptyNotice("La galería está vacía", "Elige otra ubicación o analiza tus archivos.", Icons.Default.ImageSearch)
     } else {
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(104.dp),
+            columns = GridCells.Adaptive(112.dp),
             modifier = modifier.fillMaxWidth(),
             contentPadding = PaddingValues(bottom = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(5.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             gridItems(files, key = { it.uri.toString() }) { file ->
                 Card(
                     onClick = { onOpen(file) },
                     modifier = Modifier.fillMaxWidth().aspectRatio(1f),
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(15.dp),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF211F22))
                 ) {
                     Box(Modifier.fillMaxSize()) {
@@ -3555,7 +3653,7 @@ private fun ImageGalleryGrid(
                         IconButton(
                             onClick = { onMore(file) },
                             modifier = Modifier.align(Alignment.TopEnd).padding(2.dp)
-                                .size(34.dp).background(Color.Black.copy(alpha = 0.48f), CircleShape)
+                                .size(40.dp).background(Color.Black.copy(alpha = 0.52f), CircleShape)
                         ) {
                             Icon(Icons.Default.MoreVert, contentDescription = "Acciones", tint = Color.White)
                         }
@@ -3606,22 +3704,30 @@ private fun LibraryRecordCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp)
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         if (grid) {
             Column(
-                Modifier.fillMaxWidth().padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                Modifier.fillMaxWidth().padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Box(
-                    Modifier.fillMaxWidth().height(116.dp),
+                    Modifier.fillMaxWidth().height(140.dp)
+                        .clip(RoundedCornerShape(17.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .clickable(enabled = document != null && details.state == LibraryResourceState.AVAILABLE) {
+                            document?.let(onOpen)
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     if (document != null) {
-                        FileThumbnail(file = document, size = 104)
+                        FileThumbnail(file = document, size = 128)
                     } else {
                         Box(
-                            Modifier.size(104.dp).clip(RoundedCornerShape(12.dp))
+                            Modifier.size(128.dp).clip(RoundedCornerShape(16.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant),
                             contentAlignment = Alignment.Center
                         ) {
@@ -3658,15 +3764,24 @@ private fun LibraryRecordCard(
                     Text("Etiquetas: " + record.tags.joinToString(" · "), style = MaterialTheme.typography.bodySmall, maxLines = 3)
                 }
                 if (record.notes.isNotBlank()) Text(record.notes, style = MaterialTheme.typography.bodySmall, maxLines = 3)
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     TextButton(
                         enabled = document != null && details.state == LibraryResourceState.AVAILABLE,
                         onClick = { document?.let(onOpen) },
-                        contentPadding = PaddingValues(horizontal = 6.dp)
-                    ) { Text("Abrir") }
-                    TextButton(onClick = { onEdit(document) }, contentPadding = PaddingValues(horizontal = 6.dp)) { Text("Editar") }
+                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                        contentPadding = PaddingValues(horizontal = 2.dp)
+                    ) { Text("Abrir", maxLines = 1) }
+                    TextButton(
+                        onClick = { onEdit(document) },
+                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                        contentPadding = PaddingValues(horizontal = 2.dp)
+                    ) { Text("Editar", maxLines = 1) }
                     IconButton(onClick = onRemove, enabled = !transferRunning) {
-                        Icon(Icons.Default.BookmarkRemove, "Mover a papelera")
+                        Icon(Icons.Default.BookmarkRemove, "Mover ficha a la papelera")
                     }
                 }
             }
