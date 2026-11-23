@@ -1,3 +1,16 @@
+## Continuidad · renovación visual móvil de Biblioteca · 2026-11-22
+
+- Base real de `main`: `1ed9524408b46c6657c055b93bf4470bcd024e34`. La PR #18 de caché de miniaturas ya está fusionada; PR #7 sigue separada para compatibilidad Android API 26/35.
+- Rama de esta iteración: `feature/archivero-library-visual-refresh-001`.
+- Commit funcional inicial: `7a456da5dc0b31d8c145676943150b27c81ca030`; ajuste de icono: se registra en el HEAD de rama al terminar esta actualización.
+- La iteración conserva las rutas y funciones existentes: cinco destinos inferiores, accesos por categoría, navegación de carpetas, limpieza revisable, Biblioteca, fichas, favoritos, filtros, relaciones, auditorías, exportación/importación, papelera y reproductores.
+- Cambios de presentación: mascota en encabezado, formas Material 3 suavizadas, tarjetas con miniaturas más protagonistas, cuadrícula de Biblioteca adaptable desde 148 dp, galería desde 112 dp, filtros de Biblioteca en filas de ancho completo y herramientas avanzadas plegables por defecto.
+- Capibara kawaii es la paleta inicial solo cuando no hay preferencia guardada; Ciberpunk y las otras paletas no desaparecen. Los controles interactivos principales mantienen alturas táctiles mínimas de 48 dp donde se especifican.
+- No se cambia catálogo, esquema, claves de preferencias existentes, SAF, caché, originales, permisos ni dependencias.
+- CI, revisión visual en emulador, prueba instrumentada y comprobación física en Xiaomi `24116RACCG` (8 GB RAM): pendientes hasta obtener evidencia. No declarar PASS de dispositivo por compilación.
+
+---
+
 ## Continuidad · PR #18 · endurecimiento de caché persistente · 2026-11-19
 
 - Rama de trabajo existente: feature/archivero-visual-library-disk-cache-001; PR #18 abierta contra main. Checkpoint de entrada: dea68f4dd382b61e95437d0cf299137841b53329.
