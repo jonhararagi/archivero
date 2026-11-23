@@ -2,7 +2,7 @@
 
 - Base real de `main`: `1ed9524408b46c6657c055b93bf4470bcd024e34`. La PR #18 de caché de miniaturas ya está fusionada; PR #7 sigue separada para compatibilidad Android API 26/35.
 - Rama de esta iteración: `feature/archivero-library-visual-refresh-001`.
-- Commit funcional inicial: `7a456da5dc0b31d8c145676943150b27c81ca030`; normalización de icono: `018f9e6b268fbec8980bc001e3f6913cea40d89c`. HEAD documental anterior a esta corrección: `da6ec9a473f805220700c6a58a0163a7bdda721e`.
+- Commits de implementación: `7a456da5dc0b31d8c145676943150b27c81ca030` (renovación visual); `018f9e6b268fbec8980bc001e3f6913cea40d89c` (icono); `0b744a3deeb29671fe56d54ad56389450d2228cc` (acciones para tarjetas compactas); `0f2736eae231266fdec3aa1305ba31112289ff84` (panel avanzado con scroll acotado).
 - La iteración conserva las rutas y funciones existentes: cinco destinos inferiores, accesos por categoría, navegación de carpetas, limpieza revisable, Biblioteca, fichas, favoritos, filtros, relaciones, auditorías, exportación/importación, papelera y reproductores.
 - Cambios de presentación: mascota en encabezado, formas Material 3 suavizadas, tarjetas con miniaturas más protagonistas, cuadrícula de Biblioteca adaptable desde 148 dp, galería desde 112 dp, filtros de Biblioteca en filas de ancho completo y herramientas avanzadas plegables por defecto.
 - Capibara kawaii es la paleta inicial solo cuando no hay preferencia guardada; Ciberpunk y las otras paletas no desaparecen. Los controles interactivos principales mantienen alturas táctiles mínimas de 48 dp donde se especifican.
