@@ -2309,7 +2309,7 @@ fun ArchiveroApp() {
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
-                                        Icons.Default.CollectionsBookmark,
+                                        Icons.Default.Bookmark,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(25.dp)
